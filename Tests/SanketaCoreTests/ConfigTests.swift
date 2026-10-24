@@ -101,6 +101,16 @@ struct CoachLLMConfigTests {
         #expect(c.llm.mlxModel == .qwen2b && c.llm.suggest == true)
     }
 
+    @Test func gemmaOnlyOnSixteenGigabytesOrMore() throws {
+        #expect(MLXModelChoice.recommended(memory: 16 << 30) == .gemma4e4b)
+        #expect(MLXModelChoice.recommended(memory: 8 << 30) == .qwen4b)
+        #expect(MLXModelChoice.offered(memory: 36 << 30) == [.gemma4e4b, .qwen4b, .qwen2b])
+        #expect(MLXModelChoice.offered(memory: 8 << 30) == [.qwen4b, .qwen2b])
+        let gemma = Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\"")).0.llm
+        #expect(gemma.mlxModel == .gemma4e4b)
+        #expect(Config.load(try writeConfig("")).0.llm.mlxModel == MLXModelChoice.recommended())
+    }
+
     @Test func keyVariableOnlyForOpenAIUnlessSet() throws {
         let openAI = try #require(URL(string: "https://api.openai.com/v1")), local = try #require(URL(string: "http://localhost:1234/v1"))
         let plain = Config.load(try writeConfig("[llm]\nopenai = true")).0.llm

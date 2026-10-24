@@ -23,7 +23,7 @@ private final class Lines: @unchecked Sendable {
     }
 
     @Test func refusesWithoutForceWhileBuildCannotRunModel() async throws {
-        for which in [nil, "2b", "4b"] as [String?] {
+        for which in [nil, "2b", "4b", "e4b"] as [String?] {
             let r = try await run(which, force: false, mlxReady: false)
             #expect(r.status == 2)
             #expect(r.err == ["This build cannot run on-device models yet. Use --force to download anyway."])
@@ -45,6 +45,13 @@ private final class Lines: @unchecked Sendable {
         #expect(r.stub.requests.first?.url?.host == "huggingface.co")
         #expect(r.err.first?.hasPrefix("cannot install Qwen3.5-2B-MLX-4bit:") == true)
         #expect(!FileManager.default.fileExists(atPath: r.root.appendingPathComponent("Qwen3.5-2B-MLX-4bit").path))
+    }
+
+    @Test func e4bIsGemma() async throws {
+        let r = try await run("e4b", force: false, mlxReady: true)
+        #expect(r.status == 1)
+        #expect(r.out.first == "downloading mlx-community/unsloth-gemma-4-E4B-it-qat-oQ4 (5.4 GB)")
+        #expect(r.stub.requests.first?.url?.path.hasPrefix("/mlx-community/unsloth-gemma-4-E4B-it-qat-oQ4/resolve/eaa5413e") == true)
     }
 
     @Test func progressGivesEachStepOnce() {

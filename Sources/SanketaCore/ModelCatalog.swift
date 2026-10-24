@@ -27,12 +27,32 @@ public struct ModelSpec: Sendable, Equatable {
     }
 }
 
-/// The pinned models. Values checked on 2026-10-24 with the HF API and `shasum -a 256`.
+/// The pinned models. Values checked with the HF API and SHA-256: the Qwen files on 2026-10-24, Gemma on 2026-10-25.
 public enum ModelCatalog {
     static let tokenizer = ModelFile(name: "tokenizer.json", size: 19989343,
                                      sha256: "87a7830d63fcf43bf241c3c5242e96e62dd3fdc29224ca26fed8ea333db72de4")
     static let tokenizerConfig = ModelFile(name: "tokenizer_config.json", size: 1139,
                                            sha256: "e98f1901ac6f0adff67b1d540bfa0c36ac1a0cf59eb72ed78146ef89aafa1182")
+
+    /// Unsloth's QAT Gemma 4 E4B checkpoint in MLX (4-bit, some layers at 5 or 6 bits). Its tokenizer is Gemma's own.
+    public static let gemma4e4b = ModelSpec(
+        choice: .gemma4e4b, repo: "mlx-community/unsloth-gemma-4-E4B-it-qat-oQ4",
+        revision: "eaa5413e7ee2ce04f6e9544c06b420b365b0bfce", folder: "unsloth-gemma-4-E4B-it-qat-oQ4", files: [
+            ModelFile(name: "config.json", size: 31139,
+                      sha256: "a3a3425e9689657df91de6cb425f012ea3fd751102ca897041b3b26e55f3e5c0"),
+            ModelFile(name: "model-00001-of-00002.safetensors", size: 5009987483,
+                      sha256: "c4bf6bd02244f31e1be953068b46c78e88ad5fc29f5bf18a9bafbcd74b414ac9"),
+            ModelFile(name: "model-00002-of-00002.safetensors", size: 334813346,
+                      sha256: "faca610bbaffcdd442ebac1bfbfbfa924034099cc51dbd20bf4368b6e25c6cbf"),
+            ModelFile(name: "model.safetensors.index.json", size: 271419,
+                      sha256: "c6feb5428a432da55774ef4decab5c3ad749ef7dcf6dae44462a69bac6b2e09e"),
+            ModelFile(name: "tokenizer.json", size: 32169626,
+                      sha256: "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f"),
+            ModelFile(name: "tokenizer_config.json", size: 2742,
+                      sha256: "a1bab8c81ed15fa6ce912ec993c66cb49392e0487fb1ea5f5f11ea3618683627"),
+            ModelFile(name: "chat_template.jinja", size: 16804,
+                      sha256: "33204f1acb5bd0002713e16a593847f24ceeafe711ed88bda2a352dc996a3373"),
+        ])
 
     public static let qwen4b = ModelSpec(
         choice: .qwen4b, repo: "mlx-community/Qwen3.5-4B-MLX-4bit", revision: "32f3e8ecf65426fc3306969496342d504bfa13f3",
@@ -64,6 +84,7 @@ public enum ModelCatalog {
 
     public static func spec(_ c: MLXModelChoice) -> ModelSpec {
         switch c {
+        case .gemma4e4b: gemma4e4b
         case .qwen4b: qwen4b
         case .qwen2b: qwen2b
         }

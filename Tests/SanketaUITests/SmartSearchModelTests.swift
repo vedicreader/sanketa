@@ -164,26 +164,39 @@ private func smart(_ c: (any Choosing)?) -> SmartSearch {
         #expect(StatusMenus.failure(ChoiceError.http(500), provider: "OpenAI") == "Could not load the model list")
     }
 
+    /// An 8 GB Mac: no Gemma line unless Gemma is downloaded.
+    let small: UInt64 = 8 << 30
+
     @Test func onDeviceMenuWithoutMLXBuild() {
-        let l = StatusMenus.onDeviceLines(selected: .qwen4b, installed: [], progress: nil, mlxReady: false)
+        let l = StatusMenus.onDeviceLines(selected: .qwen4b, installed: [], progress: nil, mlxReady: false, memory: small)
         #expect(l.map(\.title) == ["Qwen3.5-4B: not downloaded", "Needs the MLX build", "Download Qwen3.5-4B (3.1 GB)",
                                    "Download Qwen3.5-2B (1.7 GB)", "Remove Downloaded Models"])
         #expect(l.allSatisfy { !$0.enabled })
     }
 
     @Test func onDeviceMenuStates() {
-        let ready = StatusMenus.onDeviceLines(selected: .qwen4b, installed: [.qwen2b], progress: nil, mlxReady: true)
+        let ready = StatusMenus.onDeviceLines(selected: .qwen4b, installed: [.qwen2b], progress: nil, mlxReady: true, memory: small)
         #expect(ready.map(\.title) == ["Qwen3.5-4B: not downloaded", "Download Qwen3.5-4B (3.1 GB)", "Use Qwen3.5-2B",
                                        "Remove Downloaded Models"])
         #expect(ready.map(\.enabled) == [false, true, true, true])
         #expect(ready[1].action == .download(.qwen4b) && ready[2].action == .use(.qwen2b))
-        let busy = StatusMenus.onDeviceLines(selected: .qwen2b, installed: [.qwen2b], progress: 0.427, mlxReady: true)
+        let busy = StatusMenus.onDeviceLines(selected: .qwen2b, installed: [.qwen2b], progress: 0.427, mlxReady: true, memory: small)
         #expect(busy[0].title == "Downloading… 42 %" && busy.allSatisfy { !$0.enabled })
-        let done = StatusMenus.onDeviceLines(selected: .qwen2b, installed: [.qwen2b], progress: nil, mlxReady: true)
+        let done = StatusMenus.onDeviceLines(selected: .qwen2b, installed: [.qwen2b], progress: nil, mlxReady: true, memory: small)
         #expect(done[0].title == "Qwen3.5-2B: downloaded" && done[2].checked && !done[2].enabled)
         let failed = StatusMenus.onDeviceLines(selected: .qwen4b, installed: [], progress: nil, mlxReady: true,
-                                               error: "The connection stopped.")
+                                               error: "The connection stopped.", memory: small)
         #expect(failed.prefix(2).map(\.title) == ["Qwen3.5-4B: not downloaded", "The connection stopped."] && !failed[1].enabled)
+    }
+
+    @Test func onDeviceMenuOffersGemmaWithSixteenGigabytes() {
+        let l = StatusMenus.onDeviceLines(selected: .gemma4e4b, installed: [.qwen4b], progress: nil, mlxReady: true, memory: 16 << 30)
+        #expect(l.map(\.title) == ["Gemma 4 E4B: not downloaded", "Download Gemma 4 E4B (5.4 GB)", "Use Qwen3.5-4B",
+                                   "Download Qwen3.5-2B (1.7 GB)", "Remove Downloaded Models"])
+        #expect(l[1].action == .download(.gemma4e4b) && l[1].enabled)
+        // a downloaded Gemma stays on the menu of a small Mac, so the user can choose another model or remove it
+        let kept = StatusMenus.onDeviceLines(selected: .gemma4e4b, installed: [.gemma4e4b], progress: nil, mlxReady: true, memory: small)
+        #expect(kept.map(\.title).prefix(2) == ["Gemma 4 E4B: downloaded", "Use Gemma 4 E4B"])
     }
 
     @MainActor @Test func keyBoxSaysWhereTheKeyIs() {

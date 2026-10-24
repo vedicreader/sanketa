@@ -6,7 +6,31 @@ import TOMLDecoder
 public enum Translucency: String, Codable, CaseIterable { case low, medium, high }
 
 /// The MLX model that runs on device for natural-language search.
-public enum MLXModelChoice: String, Codable, CaseIterable, Sendable { case qwen4b = "qwen3.5-4b", qwen2b = "qwen3.5-2b" }
+public enum MLXModelChoice: String, Codable, CaseIterable, Sendable {
+    case gemma4e4b = "gemma-4-e4b", qwen4b = "qwen3.5-4b", qwen2b = "qwen3.5-2b"
+
+    /// The name in menus and in the search note.
+    public var displayName: String {
+        switch self {
+        case .gemma4e4b: "Gemma 4 E4B"
+        case .qwen4b: "Qwen3.5-4B"
+        case .qwen2b: "Qwen3.5-2B"
+        }
+    }
+
+    /// The memory a Mac needs before Sanketa offers this model: Gemma 4 E4B uses about 5.2 GB while it runs.
+    public var minMemory: UInt64 { self == .gemma4e4b ? 16 << 30 : 0 }
+
+    /// Gemma 4 E4B on a Mac with 16 GB or more, else Qwen3.5-4B.
+    public static func recommended(memory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> MLXModelChoice {
+        memory >= gemma4e4b.minMemory ? .gemma4e4b : .qwen4b
+    }
+
+    /// The models to offer on a Mac with `memory` bytes.
+    public static func offered(memory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> [MLXModelChoice] {
+        allCases.filter { memory >= $0.minMemory }
+    }
+}
 
 /// `[coach]`: where Sanketa reads shell history for coaching.
 public struct CoachConfig: Codable, Equatable, Sendable {
@@ -36,7 +60,7 @@ public struct CoachConfig: Codable, Equatable, Sendable {
 /// `[llm]`: the model tiers for natural-language search and suggestions. OpenAI stays off until the user turns it on.
 public struct LLMConfig: Codable, Equatable, Sendable {
     public var onDevice = true
-    public var mlxModel = MLXModelChoice.qwen4b
+    public var mlxModel = MLXModelChoice.recommended()
     public var appleFM = true
     public var suggest = true
     public var openai = false

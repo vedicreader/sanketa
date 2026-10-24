@@ -282,6 +282,16 @@ private final class Seen: @unchecked Sendable {
         }
         #expect(ModelCatalog.spec(.qwen4b).repo == "mlx-community/Qwen3.5-4B-MLX-4bit")
         #expect(ModelCatalog.spec(.qwen2b).repo == "mlx-community/Qwen3.5-2B-MLX-4bit")
+        // Gemma has two weight shards and its own tokenizer files
+        let g = ModelCatalog.spec(.gemma4e4b)
+        #expect(g.choice == .gemma4e4b && g.repo == "mlx-community/unsloth-gemma-4-E4B-it-qat-oQ4")
+        #expect(g.revision.wholeMatch(of: hex40) != nil && g.folder == String(g.repo.split(separator: "/").last!))
+        #expect(Set(g.files.map(\.name)) == Set(names.filter { $0 != "model.safetensors" }
+            + ["model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors"]))
+        #expect(g.files.allSatisfy { $0.sha256.wholeMatch(of: hex64) != nil && $0.size > 0 })
+        #expect(abs(Double(g.downloadSize) / 1e9 - 5.38) <= 0.05)
+        let qwenTok = Set(ModelCatalog.qwen4b.files.filter { $0.name.hasPrefix("tokenizer") }.map(\.sha256))
+        #expect(qwenTok.isDisjoint(with: g.files.map(\.sha256)))
     }
 
     @Test func defaultRootHonoursEnv() {

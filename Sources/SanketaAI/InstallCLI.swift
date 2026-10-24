@@ -15,10 +15,10 @@ public final class ProgressSteps: @unchecked Sendable {
     }
 }
 
-/// `Sanketa --install-model [4b|2b] [--force]`.
+/// `Sanketa --install-model [e4b|4b|2b] [--force]`.
 public enum InstallCLI {
     public static let notReady = "This build cannot run on-device models yet. Use --force to download anyway."
-    public static let usage = "usage: Sanketa --install-model [4b|2b] [--force]"
+    public static let usage = "usage: Sanketa --install-model [e4b|4b|2b] [--force]"
 
     /// The exit status: 0 when the model is installed, 1 when the download fails, 2 for a wrong size name, or when this
     /// build can't run the model and `force` is not set. Nothing is requested in the cases that give 2.
@@ -27,6 +27,7 @@ public enum InstallCLI {
         let choice: MLXModelChoice
         switch which {
         case nil: choice = defaultChoice
+        case "e4b": choice = .gemma4e4b
         case "4b": choice = .qwen4b
         case "2b": choice = .qwen2b
         default: err(usage); return 2

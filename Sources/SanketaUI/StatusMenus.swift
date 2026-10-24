@@ -50,28 +50,25 @@ public enum StatusMenus {
         return out
     }
 
-    public static func name(_ c: MLXModelChoice) -> String {
-        switch c {
-        case .qwen4b: "Qwen3.5-4B"
-        case .qwen2b: "Qwen3.5-2B"
-        }
-    }
+    public static func name(_ c: MLXModelChoice) -> String { c.displayName }
 
     /// Bytes as gigabytes with one decimal, e.g. "3.1 GB".
     public static func size(_ bytes: Int64) -> String { String(format: "%.1f GB", Double(bytes) / 1e9) }
 
     /// A status line for the chosen model, then a line per catalog model and "Remove Downloaded Models". Downloads need
     /// the MLX build (`mlxReady`); until then a disabled line says so. During a download the status line shows the percent.
-    /// `error` is why the last download failed, on its own disabled line.
+    /// `error` is why the last download failed, on its own disabled line. A model that needs more than `memory` shows
+    /// only when it is downloaded.
     public static func onDeviceLines(selected: MLXModelChoice, installed: Set<MLXModelChoice>, progress: Double?,
-                                     mlxReady: Bool, error: String? = nil) -> [MenuLine] {
+                                     mlxReady: Bool, error: String? = nil,
+                                     memory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> [MenuLine] {
         let status = progress.map { "Downloading… \(Int(($0 * 100).rounded(.down))) %" }
             ?? "\(name(selected)): " + (installed.contains(selected) ? "downloaded" : "not downloaded")
         var out = [MenuLine(status, enabled: false)]
         if let error, progress == nil { out.append(MenuLine(error, enabled: false)) }
         if !mlxReady { out.append(MenuLine(needsMLX, enabled: false)) }
         let idle = progress == nil
-        for c in MLXModelChoice.allCases {
+        for c in MLXModelChoice.allCases where installed.contains(c) || memory >= c.minMemory {
             if installed.contains(c) {
                 out.append(MenuLine("Use \(name(c))", enabled: idle && c != selected, checked: c == selected, action: .use(c)))
             } else {
