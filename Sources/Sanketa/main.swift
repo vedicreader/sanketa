@@ -151,40 +151,17 @@ func ask(_ query: String, out: String?) {
     dispatchMain()
 }
 
-/// `--install-model [4b|2b]`: downloads and checks the on-device model (the `[llm] mlx_model` one by default).
+/// `--install-model [4b|2b] [--force]`: downloads and checks the on-device model (the `[llm] mlx_model` one by default).
+/// While this build can't run the model, it needs `--force`.
 func installModel(_ which: String?) {
-    let choice: MLXModelChoice
-    switch which {
-    case nil: choice = loadConfig().llm.mlxModel
-    case "4b": choice = .qwen4b
-    case "2b": choice = .qwen2b
-    default:
-        FileHandle.standardError.write(Data("usage: Sanketa --install-model [4b|2b]\n".utf8))
-        exit(2)
-    }
-    let spec = ModelCatalog.spec(choice), installer = ModelInstaller(root: ModelCatalog.defaultRoot)
-    if installer.isInstalled(spec) { print("installed \(installer.directory(spec).path)"); exit(0) }
-    print("downloading \(spec.repo) (\(String(format: "%.1f GB", Double(spec.downloadSize) / 1e9)))")
-    if !mlxReady { FileHandle.standardError.write(Data("This build cannot run the model yet. It needs the MLX build.\n".utf8)) }
-    /// The last 5 % step printed.
-    final class Step: @unchecked Sendable {
-        private let lock = NSLock()
-        private var last = -1
-        func passes(_ p: Int) -> Bool { lock.withLock { guard p > last else { return false }; last = p; return true } }
-    }
-    let step = Step()
+    let force = CommandLine.arguments.contains("--force")
+    let choice = loadConfig().llm.mlxModel
     Task.detached {
-        do {
-            try await installer.install(spec) { done, total in
-                let p = Int(done * 100 / max(total, 1)) / 5 * 5
-                if step.passes(p) { print("\(p) %"); fflush(stdout) }
-            }
-            print("installed \(installer.directory(spec).path)")
-            exit(0)
-        } catch {
-            FileHandle.standardError.write(Data("cannot install \(spec.folder): \((error as? InstallError)?.message ?? error.localizedDescription)\n".utf8))
-            exit(1)
-        }
+        let status = await InstallCLI.run(which: which, force: force, mlxReady: mlxReady, defaultChoice: choice,
+                                          installer: ModelInstaller(root: ModelCatalog.defaultRoot),
+                                          out: { print($0); fflush(stdout) },
+                                          err: { FileHandle.standardError.write(Data(($0 + "\n").utf8)) })
+        exit(status)
     }
     dispatchMain()
 }
@@ -196,7 +173,7 @@ for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay", "--ask"]
             usage: Sanketa [--dump-context [--watch] [--pack FILE] [--delay S] | --dump-menus <bundleID> | --dump-ax <bundleID>
                            | --dump-coach [--full] | --ask "<query>"] [--out FILE]
                    Sanketa --lint-pack FILE|FOLDER...
-                   Sanketa --install-model [4b|2b]
+                   Sanketa --install-model [4b|2b] [--force]
 
             """.utf8))
         exit(2)

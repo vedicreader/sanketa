@@ -242,12 +242,19 @@ make test        # swift test; FILTER=<name> runs the tests with that name
 make lint        # check the bundled packs; PACKS=<file or folder> checks yours
 make shots       # draw the panel to PNG files; SHOTS=<folder> keeps them
 make app         # build and sign build/Sanketa.app
-Sanketa --ask "how do I split the window side by side"   # natural-language search from the command line
-Sanketa --install-model 2b   # download the small on-device model
 make verify      # check the bundle and its signature
 make release     # sign with Developer ID and make dist/Sanketa-<version>.zip
 make gatekeeper  # ask Gatekeeper if it accepts the bundle
 ```
+
+The app also has command-line modes:
+
+```sh
+Sanketa --ask "how do I split the window side by side"   # natural-language search
+Sanketa --install-model 2b                               # download the small on-device model
+```
+
+`--install-model` needs the MLX build. Without it, the command stops and makes no request. Add `--force` to download the model anyway.
 
 ### Releases
 
