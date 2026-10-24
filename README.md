@@ -183,14 +183,28 @@ make gatekeeper  # ask Gatekeeper if it accepts the bundle
 
 ### Releases
 
-`make release` signs the bundle with your Developer ID Application identity and a secure timestamp. Then it makes a zip in `dist/`. To notarize the zip, store your credentials one time:
+`make release` signs the bundle with your Developer ID Application identity and a secure timestamp. Then it makes a zip in `dist/`. If it finds notary credentials, it sends the zip to Apple and waits. When Apple accepts the zip, it staples the ticket to the bundle and makes the zip again. If Apple rejects the zip, it shows the issues from the notary log.
+
+`scripts/notarize.sh` uses the first credentials that it finds:
+
+1. The file `~/.config/sanketa/notary.json`. To use a different file, set `NOTARY_CONFIG`.
+2. The variables `NOTARY_KEY_PATH`, `NOTARY_KEY_ID` and `NOTARY_ISSUER`.
+3. The variable `NOTARY_PROFILE`, the name of a notarytool keychain profile.
+
+The file holds an App Store Connect API key:
+
+```json
+{"key_id": "ABC123DEFG", "issuer_id": "00000000-0000-0000-0000-000000000000", "key_path": "~/.config/sanketa/AuthKey.p8"}
+```
+
+The key must have the Developer role or the Admin role. Keep the .p8 file out of the repo. To use a keychain profile, store it one time:
 
 ```sh
 xcrun notarytool store-credentials sanketa-notary --apple-id <id> --team-id <team id>
 make release NOTARY_PROFILE=sanketa-notary
 ```
 
-With `NOTARY_PROFILE`, the target sends the zip to Apple and waits. Then it staples the ticket to the bundle and makes the zip again. Without it, the zip has a signature but Gatekeeper rejects it.
+Without credentials, the zip has a signature, but Gatekeeper rejects it. After notarization, `make gatekeeper` shows "accepted, source=Notarized Developer ID".
 
 The GitHub Actions job builds and tests each push to main and each pull request. It uploads an ad-hoc bundle as `Sanketa-<sha>.zip`. When you push a tag such as `v0.1.0`, it attaches a zip to a GitHub release. To sign and notarize that zip, add these repository secrets:
 
