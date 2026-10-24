@@ -179,3 +179,100 @@ func bundledContext(_ names: [String]) throws -> Context {
         #expect(m.errorLines.map(\.text) == ["duckdb.toml: key 2 has no action."])
     }
 }
+
+/// Menu keys come in menu-bar order (app menu, File, Edit, View, …): the useful ones are far down, so a menu section
+/// never folds. Regression: Chrome showed 18 of 79 keys and Finder 2 of its 6 groups.
+@MainActor struct PanelMenuFoldTests {
+    func model() throws -> PanelModel { PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1) }
+
+    static let chromeMenu = MenuKeys.pack(bundleID: "com.google.Chrome", name: "Google Chrome", shortcuts: [
+        (["Chrome", "Settings…"], "⌘,"), (["Chrome", "Hide Google Chrome"], "⌘H"), (["Chrome", "Quit Google Chrome"], "⌘Q"),
+        (["File", "New Tab"], "⌘T"), (["File", "New Window"], "⌘N"), (["File", "Close Tab"], "⌘W"),
+        (["Edit", "Copy"], "⌘C"), (["Edit", "Paste"], "⌘V"), (["Edit", "Find…"], "⌘F"),
+        (["View", "Reload This Page"], "⌘R"), (["View", "Enter Full Screen"], "⌃⌘F"), (["View", "Developer Tools"], "⌥⌘I"),
+        (["History", "Back"], "⌘["), (["History", "Forward"], "⌘]"), (["History", "Show Full History"], "⌘Y"),
+        (["Tab", "Select Next Tab"], "⌃tab"), (["Tab", "Select Previous Tab"], "⌃⇧tab"), (["Tab", "Pin Tab"], "⌥⌘P"),
+    ].map { MenuShortcut(path: $0.0, keys: $0.1) })
+
+    func shown(_ m: PanelModel, _ s: LayerSectionData) -> Int { s.groups.filter { !m.isFolded(s, $0) }.reduce(0) { $0 + $1.keys.count } }
+
+    @Test func menuPackOpensEveryGroup() throws {
+        let m = try model()
+        let app = Layer(kind: .app, name: "Google Chrome", packID: Self.chromeMenu.id)
+        m.update(Context(appName: "Google Chrome", bundleID: "com.google.Chrome", layers: [app], packs: [Self.chromeMenu], axTrusted: true))
+        let s = try #require(m.sections.first)
+        #expect(s.groups.map(\.name) == ["Chrome", "File", "Edit", "View", "History", "Tab"])
+        #expect(s.groups.allSatisfy { $0.folds })
+        #expect(s.groups.allSatisfy { !m.isFolded(s, $0) })
+        #expect(shown(m, s) == Self.chromeMenu.keys.count)
+        // a click still folds a group
+        m.toggle(s, s.groups[3]); #expect(m.isFolded(s, s.groups[3]))
+    }
+
+    /// Leela in a Chrome tab: the Leela section comes first and folds as an index; Chrome's keys stay open below it.
+    @Test func hostedPackKeepsTheHostMenuOpen() throws {
+        let lib = PackLibrary.load(bundled: bundledPacks, user: nil)
+        let title = "leela — orgs - Google Chrome"
+        let layers = LayerResolver(library: lib, tmux: TmuxQuery(runner: ProcessRunner()), remote: nil)
+            .resolveApp(bundleID: "com.google.Chrome", name: "Google Chrome", title: title)
+        try #require(layers.map(\.packID) == ["leela", Self.chromeMenu.id])
+        let packs = [try #require(lib.packs["leela"]), Self.chromeMenu]
+        let m = try model()
+        m.update(Context(appName: "Google Chrome", bundleID: "com.google.Chrome",
+                         layers: LayerResolver.applyContexts(layers, packs: packs, title: title), packs: packs, axTrusted: true))
+        let leela = m.sections[0], chrome = m.sections[1]
+        #expect(leela.groups.contains { m.isFolded(leela, $0) }, "the hosted pack is still an index")
+        #expect(chrome.groups.allSatisfy { !m.isFolded(chrome, $0) })
+        #expect(shown(m, chrome) == Self.chromeMenu.keys.count)
+    }
+
+    /// A terminal tool stack is still an index, but the terminal's own menu keys at the bottom are open.
+    @Test func terminalStackStaysAnIndex() throws {
+        let m = try model()
+        m.update(try bundledContext(["htop", "tmux", "fish", "Terminal"]))
+        let htop = m.sections[0], tmux = m.sections[1], term = try #require(m.sections.last)
+        #expect(htop.groups.dropFirst(2).contains { m.isFolded(htop, $0) })
+        #expect(tmux.groups.dropFirst().allSatisfy { m.isFolded(tmux, $0) })
+        #expect(term.pack.id == terminal.id && term.groups.allSatisfy { !m.isFolded(term, $0) })
+    }
+}
+
+/// The real path that broke: ContextEngine reads the real Finder's menus, and the panel shows every key of them.
+@MainActor @Suite(.serialized) struct PanelRealAppTests {
+    @Test(.enabled(if: AXIsProcessTrusted(), "Accessibility not granted to the test runner"))
+    func finderShowsEveryMenuGroup() throws {
+        let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
+        let lib = PackLibrary.load(bundled: bundledPacks, user: nil)
+        let c = ContextEngine(config: Config(), library: lib).compute(pid: finder.processIdentifier, bundleID: "com.apple.finder", appName: "Finder")
+        let menu = try #require(c.packs.first { $0.id == "app:com.apple.finder" })
+        try #require(menu.keys.count > 20 && Set(menu.keys.compactMap(\.group)).count >= 4, "Finder's menus: \(menu.keys.count) keys")
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1)
+        m.update(c)
+        let s = try #require(m.sections.first)
+        #expect(m.sections.count == 1)
+        #expect(s.groups.allSatisfy { !m.isFolded(s, $0) }, "folded: \(s.groups.filter { m.isFolded(s, $0) }.map(\.id))")
+        #expect(s.groups.filter { !m.isFolded(s, $0) }.reduce(0) { $0 + $1.keys.count } == menu.keys.count)
+    }
+
+    /// Leela hosted in the real Finder's window (a test pack lists Finder in `title_apps`): Finder's menu stays open.
+    @Test(.enabled(if: AXIsProcessTrusted(), "Accessibility not granted to the test runner"))
+    func hostedSectionKeepsRealMenuOpen() throws {
+        let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
+        var lib = PackLibrary.load(bundled: bundledPacks, user: nil)
+        var leela = try #require(lib.packs["leela"])
+        leela.titleApps = ["com.apple.finder"]
+        lib.packs["leela"] = leela
+        let e = ContextEngine(config: Config(), library: lib)
+        let title = "leela — orgs"
+        let layers = LayerResolver(library: lib, tmux: TmuxQuery(runner: ProcessRunner()), remote: nil)
+            .resolveApp(bundleID: "com.apple.finder", name: "Finder", title: title)
+        try #require(layers.map(\.packID) == ["leela", "app:com.apple.finder"])
+        let menu = e.appPack(pid: finder.processIdentifier, bundleID: "com.apple.finder", name: "Finder", trusted: true)
+        try #require(menu.keys.count > 20)
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1)
+        m.update(Context(appName: "Finder", bundleID: "com.apple.finder", layers: layers, packs: [leela, menu], axTrusted: true))
+        let s = try #require(m.sections.last)
+        #expect(s.pack.id == "app:com.apple.finder" && s.groups.allSatisfy { !m.isFolded(s, $0) })
+        #expect(s.groups.reduce(0) { $0 + $1.keys.count } == menu.keys.count)
+    }
+}

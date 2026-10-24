@@ -4,8 +4,10 @@ import Testing
 
 struct FakeTmux: TmuxQuerying {
     var list: [TmuxClient] = []
-    func clients(tmux: String) -> [TmuxClient] { list }
-    func liveKeys(tmux: String) -> (prefix: String?, keys: [KeyEntry]) { (nil, []) }
+    /// when set, only this server (`TmuxArgs.server` form) has the clients
+    var server: [String]?
+    func clients(tmux: String, server s: [String]) -> [TmuxClient] { server.map { $0 == s } ?? true ? list : [] }
+    func liveKeys(tmux: String, server: [String]) -> (prefix: String?, keys: [KeyEntry]) { (nil, []) }
 }
 
 struct FakeRemote: RemoteQuerying {

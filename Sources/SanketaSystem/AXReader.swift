@@ -29,6 +29,8 @@ struct AXMenuNode: MenuNode {
 
 public enum AXReader {
     public static var isTrusted: Bool { AXIsProcessTrusted() }
+    /// the messaging timeout of each read, in seconds
+    public static let timeout: TimeInterval = 0.5
 
     public static func promptForTrust() {
         _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
@@ -36,7 +38,7 @@ public enum AXReader {
 
     public static func menuShortcuts(pid: pid_t) -> [MenuShortcut] {
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.5)
+        AXUIElementSetMessagingTimeout(app, Float(timeout))
         guard let bar = AXMenuNode.attr(app, kAXMenuBarAttribute) else { return [] }
         let items = AXMenuNode(el: bar as! AXUIElement).children
         return MenuKeys.walk(Array(items.dropFirst()))
@@ -44,7 +46,7 @@ public enum AXReader {
 
     public static func focusedWindowTitle(pid: pid_t) -> String? {
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.5)
+        AXUIElementSetMessagingTimeout(app, Float(timeout))
         guard let w = AXMenuNode.attr(app, kAXFocusedWindowAttribute) else { return nil }
         return AXMenuNode.attr(w as! AXUIElement, kAXTitleAttribute) as? String
     }
@@ -52,7 +54,7 @@ public enum AXReader {
     /// Attribute names and short values of the focused window and focused element, two levels deep.
     public static func dump(pid: pid_t, depth: Int = 2) -> [String] {
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.5)
+        AXUIElementSetMessagingTimeout(app, Float(timeout))
         var out = [String]()
         let first = (AXMenuNode.attr(app, kAXWindowsAttribute) as? [AXUIElement])?.first
         let roots: [(String, CFTypeRef?)] = [(kAXFocusedWindowAttribute, AXMenuNode.attr(app, kAXFocusedWindowAttribute)),

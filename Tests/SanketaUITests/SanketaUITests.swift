@@ -639,8 +639,8 @@ func threadCPUSeconds() -> Double {
             let s = try #require(m.sections.first)
             #expect(s.layer.context == nil && Breadcrumb.label(s.layer) == "IDE")
             #expect(s.groups.map(\.name) == ["Panes", "Editing", "Terminal", "Cells"])
-            // an index: the first 2 groups open; Terminal folds; Cells has 1 key, so it stays open
-            #expect(s.groups.allSatisfy(\.inContext) && s.groups.map { m.isFolded(s, $0) } == [false, false, true, false])
+            // no context: an app's own keys (one section) all open
+            #expect(s.groups.allSatisfy(\.inContext) && s.groups.allSatisfy { !m.isFolded(s, $0) })
             #expect(s.pack == Self.pack)
         }
     }

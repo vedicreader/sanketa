@@ -31,8 +31,10 @@ public struct TerminalContext {
     public var bundleID: String
     public var appName: String
     public var windowTitle: String?
-    public init(pid: Int32, bundleID: String, appName: String, windowTitle: String?) {
-        self.pid = pid; self.bundleID = bundleID; self.appName = appName; self.windowTitle = windowTitle
+    /// the tty of the focused pane as the terminal itself reports it (Kaku's CLI); it beats the title heuristics
+    public var focusedTTY: String?
+    public init(pid: Int32, bundleID: String, appName: String, windowTitle: String?, focusedTTY: String? = nil) {
+        self.pid = pid; self.bundleID = bundleID; self.appName = appName; self.windowTitle = windowTitle; self.focusedTTY = focusedTTY
     }
 }
 

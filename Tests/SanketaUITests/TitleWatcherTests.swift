@@ -197,3 +197,57 @@ final class Calls { var titles: [String?] = [] }
         #expect(m.titles == nil)
     }
 }
+
+/// An empty or timed-out menu read is read once more after a short delay, without another activation.
+@MainActor @Suite(.serialized) struct ContextMonitorMenuRetryTests {
+    /// Waits with the main queue free, so `refresh` can hand its result back on it.
+    func idle(_ s: TimeInterval, until ok: () -> Bool = { false }) async throws {
+        let end = Date().addingTimeInterval(s)
+        while !ok(), Date() < end { try await Task.sleep(for: .milliseconds(20)) }
+    }
+
+    final class Reads: @unchecked Sendable {
+        let lock = NSLock(); var count = 0
+        var n: Int { lock.withLock { count } }
+        func next() -> Int { lock.withLock { count += 1; return count } }
+    }
+
+    func monitor(_ reads: Reads, emptyReads: Int) -> ContextMonitor {
+        let m = ContextMonitor(config: Config(), library: PackLibrary(packs: [:]))
+        m.isTrusted = { false }   // no title watcher
+        m.menuRetryDelay = 0.2
+        m.computeContext = { pid, bid, name in
+            let n = reads.next()
+            let keys = n <= emptyReads ? [] : [MenuShortcut(path: ["File", "New Window"], keys: "⌘N")]
+            var c = Context(appName: name, bundleID: bid, layers: [Layer(kind: .app, name: name, packID: "app:\(bid)")],
+                            packs: [MenuKeys.pack(bundleID: bid, name: name, shortcuts: keys)], axTrusted: true)
+            c.menuIncomplete = keys.isEmpty
+            return c
+        }
+        return m
+    }
+
+    func finder() throws -> NSRunningApplication {
+        try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
+    }
+
+    @Test func emptyFirstReadIsReadAgain() async throws {
+        let reads = Reads(), m = monitor(reads, emptyReads: 1)
+        m.activated(try finder())
+        try await idle(10) { m.context.packs.first?.keys.count == 1 }
+        #expect(m.context.packs.first?.keys.count == 1)
+        #expect(reads.n == 2)
+    }
+
+    @Test func readsAgainOnlyOncePerActivation() async throws {
+        let reads = Reads(), m = monitor(reads, emptyReads: 99)
+        m.activated(try finder())
+        try await idle(10) { reads.n >= 2 }
+        try await idle(1)           // the delay is 0.2 s: a second retry would come in this time
+        #expect(reads.n == 2 && m.context.packs.first?.keys.isEmpty == true)
+        m.activated(try finder())   // a new activation may try once more
+        try await idle(10) { reads.n >= 4 }
+        try await idle(1)
+        #expect(reads.n == 4)
+    }
+}

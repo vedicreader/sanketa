@@ -70,6 +70,6 @@ import SanketaAI
 }
 
 struct NoTmux: TmuxQuerying {
-    func clients(tmux: String) -> [TmuxClient] { [] }
-    func liveKeys(tmux: String) -> (prefix: String?, keys: [KeyEntry]) { (nil, []) }
+    func clients(tmux: String, server: [String]) -> [TmuxClient] { [] }
+    func liveKeys(tmux: String, server: [String]) -> (prefix: String?, keys: [KeyEntry]) { (nil, []) }
 }

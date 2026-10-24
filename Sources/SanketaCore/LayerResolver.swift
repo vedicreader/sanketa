@@ -20,13 +20,14 @@ public struct LayerResolver {
         return (n, m, ns.substring(from: r.range.upperBound))
     }
 
-    /// The tty the user is looking at. With several tabs: a `[n/m]` title prefix picks the n-th tab when there are
-    /// exactly m, in the order the tabs' shells started; else a unique whole title word (case-insensitive) equal to
-    /// the foreground process's name or display name (`vi` doesn't match `nvim-ish`). Otherwise nil, because a
-    /// guessed layer is worse than fewer layers.
-    public func chooseTTY(_ s: ProcessSnapshot, terminalPID: Int32, title: String?) -> String? {
+    /// The tty the user is looking at. With several tabs: `focused` (from the terminal itself) when it is one of them;
+    /// else a `[n/m]` title prefix picks the n-th tab when there are exactly m, in the order the tabs' shells started;
+    /// else a unique whole title word (case-insensitive) equal to the foreground process's name or display name
+    /// (`vi` doesn't match `nvim-ish`). Otherwise nil, because a guessed layer is worse than fewer layers.
+    public func chooseTTY(_ s: ProcessSnapshot, terminalPID: Int32, title: String?, focused: String? = nil) -> String? {
         let ttys = s.ttys(under: terminalPID)
         if ttys.count <= 1 { return ttys.first }
+        if let focused, ttys.contains(focused) { return focused }
         guard let title else { return nil }
         let idx = Self.splitTabIndex(title)
         if let idx, idx.m == ttys.count, (1...idx.m).contains(idx.n) {
@@ -52,7 +53,7 @@ public struct LayerResolver {
 
     public func resolve(_ s: ProcessSnapshot, terminal: TerminalContext) -> [Layer] {
         var out = [Layer]()
-        if let tty = chooseTTY(s, terminalPID: terminal.pid, title: terminal.windowTitle) {
+        if let tty = chooseTTY(s, terminalPID: terminal.pid, title: terminal.windowTitle, focused: terminal.focusedTTY) {
             let title = terminal.windowTitle.map { Self.splitTabIndex($0)?.rest ?? $0 }
             out = chain(s, tty: tty, terminal: terminal.pid).flatMap { layers(for: $0, s, title: title) }
         } else {
@@ -126,7 +127,7 @@ public struct LayerResolver {
     /// layers of the pane the tmux client `p` shows, innermost first; empty when unknown
     func paneLayers(client p: ProcInfo, _ s: ProcessSnapshot, title: String?, depth: Int) -> [Layer] {
         guard depth < 4, let tty = p.tty, let bin = p.path ?? p.argv.first.flatMap({ $0.hasPrefix("/") ? $0 : nil }),
-              let c = tmux.clients(tmux: bin).first(where: { $0.clientTTY == tty }),
+              let c = tmux.clients(tmux: bin, server: TmuxArgs.server(p.argv)).first(where: { $0.clientTTY == tty }),
               let fg = s.foreground(tty: c.paneTTY) else { return [] }
         return s.chain(from: fg) { $0.name == "tmux" && $0.tty == nil }
             .flatMap { layers(for: $0, s, title: title, depth: depth + 1) }

@@ -1,0 +1,18 @@
+[
+  {
+    "username": "user",
+    "hostname": "HOST",
+    "pid": 28331,
+    "connection_elapsed": {
+      "secs": 42451,
+      "nanos": 81511000
+    },
+    "idle_time": {
+      "secs": 13,
+      "nanos": 81511000
+    },
+    "workspace": "default",
+    "focused_pane_id": 2,
+    "ssh_auth_sock": "/var/run/launchd/Listeners"
+  }
+]

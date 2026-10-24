@@ -71,28 +71,59 @@ public enum Tmux {
     }
 }
 
+public enum TmuxArgs {
+    /// tmux options that take a value
+    static let valued: Set<Character> = ["c", "f", "L", "S", "T"]
+
+    /// The server a tmux client talks to, from its argv: `["-S", path]`, `["-L", name]`, or `[]` for the default.
+    /// `-S` wins over `-L`, as in tmux; options stop at the first word that is not one.
+    public static func server(_ argv: [String]) -> [String] {
+        var L: String?, S: String?
+        var i = 1
+        while i < argv.count, argv[i].hasPrefix("-"), argv[i] != "-", argv[i] != "--" {
+            let a = Array(argv[i].dropFirst())
+            for (j, c) in a.enumerated() where valued.contains(c) {
+                let rest = String(a[(j + 1)...])
+                let v = rest.isEmpty ? (i + 1 < argv.count ? argv[i + 1] : nil) : rest
+                if rest.isEmpty { i += 1 }
+                if c == "L" { L = v } else if c == "S" { S = v }
+                break
+            }
+            i += 1
+        }
+        return S.map { ["-S", $0] } ?? L.map { ["-L", $0] } ?? []
+    }
+}
+
 public protocol TmuxQuerying {
-    func clients(tmux: String) -> [TmuxClient]
-    func liveKeys(tmux: String) -> (prefix: String?, keys: [KeyEntry])
+    /// `server` is `TmuxArgs.server` of the client's argv; empty means the default server
+    func clients(tmux: String, server: [String]) -> [TmuxClient]
+    func liveKeys(tmux: String, server: [String]) -> (prefix: String?, keys: [KeyEntry])
+}
+
+public extension TmuxQuerying {
+    func clients(tmux: String) -> [TmuxClient] { clients(tmux: tmux, server: []) }
+    func liveKeys(tmux: String) -> (prefix: String?, keys: [KeyEntry]) { liveKeys(tmux: tmux, server: []) }
 }
 
 public struct TmuxQuery: TmuxQuerying {
     let runner: CommandRunning
+    /// the server to use when the client's argv names none; tests set a private socket here
     let socket: String?
     public init(runner: CommandRunning, socket: String? = nil) { self.runner = runner; self.socket = socket }
 
-    func run(_ tmux: String, _ args: [String]) -> String? {
-        runner.run(tmux, (socket.map { ["-L", $0] } ?? []) + args, timeout: 1.0)
+    func run(_ tmux: String, _ server: [String], _ args: [String]) -> String? {
+        runner.run(tmux, (server.isEmpty ? socket.map { ["-L", $0] } ?? [] : server) + args, timeout: 1.0)
     }
 
-    public func clients(tmux: String) -> [TmuxClient] {
-        run(tmux, ["list-clients", "-F", Tmux.clientsFormat]).map(Tmux.parseClients) ?? []
+    public func clients(tmux: String, server: [String]) -> [TmuxClient] {
+        run(tmux, server, ["list-clients", "-F", Tmux.clientsFormat]).map(Tmux.parseClients) ?? []
     }
 
-    public func liveKeys(tmux: String) -> (prefix: String?, keys: [KeyEntry]) {
+    public func liveKeys(tmux: String, server: [String]) -> (prefix: String?, keys: [KeyEntry]) {
         // list-keys succeeds with defaults even without a server; show fails, so it gates liveness.
-        guard let p = run(tmux, ["show", "-gv", "prefix"])?.trimmingCharacters(in: .whitespacesAndNewlines),
-              let k = run(tmux, ["list-keys"]) else { return (nil, []) }
+        guard let p = run(tmux, server, ["show", "-gv", "prefix"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let k = run(tmux, server, ["list-keys"]) else { return (nil, []) }
         return (p.isEmpty ? nil : p, Tmux.parseKeys(k))
     }
 }
