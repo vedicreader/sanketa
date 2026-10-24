@@ -32,7 +32,11 @@ struct ConfigTests {
 
     @Test func badTomlReturnsError() throws {
         let (c, err) = Config.load(try writeConfig("hotkey = = oops ["))
-        #expect(err != nil && c == Config())
+        #expect(err?.hasPrefix("line 1: ") == true && c == Config())
+        // the footer shows the message: short, with no Swift type names
+        let h = Config.load(try writeConfig("hotkey = 3\n")).1, t = Config.load(try writeConfig("terminals = \"a.b\"\n")).1
+        #expect(h == "line 1: hotkey must be a string", "\(h ?? "nil")")
+        #expect(t == "terminals must be a list", "\(t ?? "nil")")
     }
 
     @Test func integerPollIntervalAccepted() throws {

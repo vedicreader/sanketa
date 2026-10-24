@@ -3,6 +3,8 @@ import SanketaCore
 import SanketaSystem
 
 let configDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/sanketa")
+let configURL = configDir.appendingPathComponent("config.toml")
+let packsDir = configDir.appendingPathComponent("packs")
 
 /// `Bundle.main.resourceURL/Packs` in the app; `<repo>/Resources/Packs` under `swift run`.
 func bundledPacks() -> URL {
@@ -13,14 +15,18 @@ func bundledPacks() -> URL {
 
 /// Bundled and user packs, with Leela's live keymap (keys.json) applied to the `leela` pack.
 func loadLibrary(config: Config = loadConfig()) -> PackLibrary {
-    var lib = PackLibrary.load(bundled: bundledPacks(), user: configDir.appendingPathComponent("packs"))
+    var lib = PackLibrary.load(bundled: bundledPacks(), user: packsDir)
     LeelaKeymap.apply(to: &lib, keysJSON: LeelaKeymap.defaultURL(), hyperLabel: config.hyperLabel)
     for e in lib.errors { FileHandle.standardError.write(Data("pack error \(e.file): \(e.message)\n".utf8)) }
     return lib
 }
 
+/// The last config.toml error, for the footer; nil when the file loads.
+nonisolated(unsafe) var configError: String?
+
 func loadConfig() -> Config {
-    let (c, err) = Config.load(configDir.appendingPathComponent("config.toml"))
+    let (c, err) = Config.load(configURL)
+    configError = err
     if let err { FileHandle.standardError.write(Data("config error: \(err)\n".utf8)) }
     return c
 }

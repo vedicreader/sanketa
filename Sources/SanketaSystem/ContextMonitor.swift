@@ -134,8 +134,13 @@ public struct ContextEngine: @unchecked Sendable {
         activated(NSWorkspace.shared.frontmostApplication)
     }
 
-    public func reload(library: PackLibrary) {
+    /// New packs, and a new config when it changed: terminals and pollInterval apply at once.
+    public func reload(config: Config? = nil, library: PackLibrary) {
         engine.library = library
+        if let config, config != engine.config {
+            engine.config = config
+            return activated(NSWorkspace.shared.frontmostApplication)
+        }
         if let app = NSWorkspace.shared.frontmostApplication, let bid = app.bundleIdentifier {
             watchTitle(pid: app.processIdentifier, bundleID: bid)
         }

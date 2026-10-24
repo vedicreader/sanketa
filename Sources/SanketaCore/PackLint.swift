@@ -170,9 +170,10 @@ public enum PackLint {
     static func warn(_ m: String) -> LintFinding { LintFinding(level: .warning, message: m) }
 
     /// A decode error as one short line, such as `key 2 has no action`.
-    public static func describe(_ error: Error) -> String {
+    /// `root` names the top-level table; config.toml passes "" so a line reads `hotkey must be a string`.
+    public static func describe(_ error: Error, root: String = "the pack") -> String {
         func subject(_ path: [CodingKey]) -> String {
-            var s = "the pack"
+            var s = root
             for (i, k) in path.enumerated() {
                 guard let n = k.intValue else { continue }
                 let table = i > 0 ? path[i - 1].stringValue : ""
@@ -180,19 +181,24 @@ public enum PackLint {
             }
             return s
         }
+        func at(_ path: [CodingKey]) -> String { subject(path).isEmpty ? "" : subject(path) + ": " }
         func field(_ path: [CodingKey]) -> String? { path.last.flatMap { $0.intValue == nil ? $0.stringValue : nil } }
         switch error {
         case DecodingError.keyNotFound(let k, let c):
-            return "\(subject(c.codingPath)) has no \(k.stringValue)"
-        case DecodingError.typeMismatch(let t, let c), DecodingError.valueNotFound(let t, let c):
-            let what = t == String.self ? "a string" : t == [String].self ? "a list of strings" : "of another type"
             let s = subject(c.codingPath)
-            return field(c.codingPath).map { "\(s): \($0) must be \(what)" } ?? "\(s) must be \(what)"
+            return "\(s.isEmpty ? "the file" : s) has no \(k.stringValue)"
+        case DecodingError.typeMismatch(let t, let c), DecodingError.valueNotFound(let t, let c):
+            let name = String(describing: t)
+            let what = t == String.self ? "a string" : t == [String].self ? "a list of strings"
+                : name.contains("Unkeyed") || name.hasPrefix("Array") ? "a list"
+                : t == Double.self || t == Int.self ? "a number" : t == Bool.self ? "true or false" : "of another type"
+            return field(c.codingPath).map { "\(at(c.codingPath))\($0) must be \(what)" } ?? "\(subject(c.codingPath)) must be \(what)"
         case DecodingError.dataCorrupted(let c):
-            if let u = c.underlyingError { return describe(u) }
-            return field(c.codingPath).map { "\(subject(c.codingPath)): \($0) has a value that is not valid" } ?? "the file is not valid TOML"
+            if let u = c.underlyingError { return describe(u, root: root) }
+            return field(c.codingPath).map { "\(at(c.codingPath))\($0) has a value that is not valid" } ?? "the file is not valid TOML"
         case let e as TOMLError:
-            let d = e.description
+            let d = e.description.replacingOccurrences(of: #"Type mismatch at table key '([^']+)': expected (\w+)"#, with: "$1 must be a $2",
+                                                       options: .regularExpression)
             guard let re = try? Regex(#"^\(Line (\d+)\) (.)(.*?)\.?$"#), let m = d.firstMatch(of: re),
                   let n = m.output[1].substring, let c = m.output[2].substring, let r = m.output[3].substring else { return d }
             return "line \(n): \(c.lowercased())\(r)"

@@ -367,6 +367,25 @@ func threadCPUSeconds() -> Double {
         defer { t.invalidate() }
         #expect(t.timeInterval == 0.25 && abs(t.tolerance - 0.05) < 1e-9)
     }
+
+    /// A saved config.toml applies at once: the poll timer follows the new terminals and pollInterval.
+    @Test func reloadedConfigAppliesLive() throws {
+        let app = try #require(NSWorkspace.shared.frontmostApplication)
+        let bid = try #require(app.bundleIdentifier)
+        try #require(bid != Bundle.main.bundleIdentifier)
+        var config = Config()
+        config.terminals = []
+        let m = ContextMonitor(config: config, library: PackLibrary())
+        m.activated(app)
+        #expect(m.timer == nil)
+        config.terminals = [bid]; config.pollInterval = 2
+        m.reload(config: config, library: PackLibrary())
+        #expect(m.timer?.timeInterval == 2)
+        config.pollInterval = 3
+        m.reload(config: config, library: PackLibrary())
+        #expect(m.timer?.timeInterval == 3)
+        m.timer?.invalidate()
+    }
 }
 
 @MainActor @Suite(.serialized) struct PanelFocusTests {

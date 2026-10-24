@@ -49,6 +49,8 @@ public enum PanelBlock: Identifiable, Equatable {
     @Published public var listFocused = false
     @Published public var translucency = Translucency.medium
     @Published public var packErrors: [PackLoadError] = []
+    /// why config.toml did not load; Sanketa then uses the defaults
+    @Published public var configError: String?
     @Published public var hotkeyConflict: String?
     /// The list top to bottom: the innermost layer's keys first, then the tip cards, then the outer layers.
     @Published public private(set) var blocks: [PanelBlock] = []
@@ -62,7 +64,7 @@ public enum PanelBlock: Identifiable, Equatable {
         store = tips; self.seed = seed
     }
 
-    public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || hotkeyConflict != nil }
+    public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || configError != nil || hotkeyConflict != nil }
     public var needsAccessibility: Bool { !context.axTrusted && !context.bundleID.isEmpty }
 
     nonisolated static func sectionID(_ i: Int, _ l: Layer) -> String { "\(i)|\(l.id)" }

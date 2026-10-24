@@ -17,7 +17,9 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     var status: NSStatusItem?
     var subs = Set<AnyCancellable>()
     var rotation: Timer?
-    var keymapWatcher: FileWatcher?
+    var searchItem: NSMenuItem?
+    /// Leela's keys.json, the user packs folder and config.toml: a save applies without a restart
+    var watchers: [FileWatcher] = []
 
     func applicationDidFinishLaunching(_ n: Notification) {
         if !AXReader.isTrusted { AXReader.promptForTrust() }
@@ -27,19 +29,53 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             self?.model.update(c)
             self?.search.setSource(context: c)
         }.store(in: &subs)
-        let ok = Hotkey.parse(config.hotkey).map { hotkeys.register($0) { [weak self] in self?.hotkeyPressed() } } ?? false
-        if !ok { model.hotkeyConflict = config.hotkey }
+        registerHotkey()
         panel.grantAccessibility = { [weak self] in self?.grantAccessibility() }
         panel.setTranslucency(config.translucency)
+        scheduleRotation()
+        buildStatusItem()
+        model.configError = configError
+        try? FileManager.default.createDirectory(at: packsDir, withIntermediateDirectories: true)
+        let reload: () -> Void = { [weak self] in MainActor.assumeIsolated { self?.reloadPacks() } }
+        watchers = [FileWatcher(url: LeelaKeymap.defaultURL(), onChange: reload),
+                    FileWatcher(url: packsDir, children: "toml", delay: 0.3, onChange: reload),
+                    FileWatcher(url: configURL, delay: 0.3) { [weak self] in MainActor.assumeIsolated { self?.reloadConfig() } }]
+        monitor.start()
+        panel.show()
+    }
+
+    func registerHotkey() {
+        hotkeys.unregisterAll()
+        let ok = Hotkey.parse(config.hotkey).map { hotkeys.register($0) { [weak self] in self?.hotkeyPressed() } } ?? false
+        model.hotkeyConflict = ok ? nil : config.hotkey
+        panel.field.placeholderString = "Search  \(Theme.display(hotkey: config.hotkey))"
+        searchItem?.title = "Search  \(Theme.display(hotkey: config.hotkey))"
+    }
+
+    func scheduleRotation() {
+        rotation?.invalidate()
         rotation = Timer.scheduledTimer(withTimeInterval: max(10, config.tipRotateSeconds), repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { if self?.panel.isVisible == true { self?.model.rotate() } }
         }
         rotation?.tolerance = 5
-        buildStatusItem()
-        // Leela rewrites keys.json when its keys change; the panel follows without a manual reload
-        keymapWatcher = FileWatcher(url: LeelaKeymap.defaultURL()) { [weak self] in MainActor.assumeIsolated { self?.reloadPacks() } }
-        monitor.start()
-        panel.show()
+    }
+
+    /// config.toml was saved: apply the hotkey, translucency, terminals, poll and tip timing, and the Hyper label.
+    func reloadConfig() {
+        let old = config
+        config = loadConfig()
+        model.configError = configError
+        guard config != old else { return }
+        if config.hotkey != old.hotkey { registerHotkey() }
+        if config.translucency != old.translucency {
+            panel.setTranslucency(config.translucency)
+            status?.menu?.item(withTitle: "Translucency")?.submenu?.items.forEach {
+                $0.state = $0.representedObject as? String == config.translucency.rawValue ? .on : .off
+            }
+        }
+        if config.tipRotateSeconds != old.tipRotateSeconds { scheduleRotation() }
+        if config.hyperLabel != old.hyperLabel { library = loadLibrary(config: config); model.packErrors = library.errors; search.setSource(library: library) }
+        monitor.reload(config: config, library: library)
     }
 
     func hotkeyPressed() {
@@ -54,6 +90,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         func add(_ title: String, _ sel: Selector) { m.addItem(withTitle: title, action: sel, keyEquivalent: "").target = self }
         add("Show or Hide Panel", #selector(togglePanel))
         add("Search  \(Theme.display(hotkey: config.hotkey))", #selector(startSearch))
+        searchItem = m.items.last
         let tr = NSMenu()
         for t in Translucency.allCases {
             let i = tr.addItem(withTitle: t.rawValue.capitalized, action: #selector(pickTranslucency(_:)), keyEquivalent: "")
@@ -81,7 +118,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         config.translucency = t
         panel.setTranslucency(t)
         sender.menu?.items.forEach { $0.state = $0 === sender ? .on : .off }
-        do { try Config.save("translucency", "\"\(t.rawValue)\"", to: configDir.appendingPathComponent("config.toml")) }
+        do { try Config.save("translucency", "\"\(t.rawValue)\"", to: configURL) }
         catch { FileHandle.standardError.write(Data("cannot save config: \(error.localizedDescription)\n".utf8)) }
     }
     @objc func startSearch() { hotkeyPressed() }
@@ -94,9 +131,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     }
 
     @objc func openPacks() {
-        let d = configDir.appendingPathComponent("packs")
-        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
-        NSWorkspace.shared.open(d)
+        try? FileManager.default.createDirectory(at: packsDir, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(packsDir)
     }
 
     @objc func openConfig() {
@@ -105,7 +141,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
             let c = Config()
             try? """
-            # Sanketa settings. Restart Sanketa after you change this file.
+            # Sanketa settings. Sanketa applies them when you save this file.
             # hotkey = "\(c.hotkey)"
             # pollInterval = \(c.pollInterval)
             # tipRotateSeconds = \(c.tipRotateSeconds)

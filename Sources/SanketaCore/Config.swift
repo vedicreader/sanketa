@@ -55,11 +55,11 @@ public struct Config: Codable, Equatable {
         try setting(key, value, in: old).write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// A missing file gives defaults and no error; bad TOML gives defaults and a message.
+    /// A missing file gives defaults and no error; bad TOML gives defaults and a short message, such as `hotkey must be a string`.
     public static func load(_ url: URL) -> (Config, String?) {
         guard let data = try? Data(contentsOf: url) else { return (Config(), nil) }
         do { return (try TOMLDecoder().decode(Config.self, from: data), nil) }
-        catch { return (Config(), "\(error)") }
+        catch { return (Config(), PackLint.describe(error, root: "")) }
     }
 }
 

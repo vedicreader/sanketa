@@ -2,24 +2,31 @@ import Foundation
 
 /// Calls `onChange` when the file at `url` is written in place, replaced by a rename, created or removed.
 /// Watches the file (re-opened after every event, since a replace makes a new inode) and its folder.
+/// With `children`, `url` is a folder and each of its files with that extension is watched too, so an in-place
+/// save of one pack (which does not change the folder) also counts.
 public final class FileWatcher: @unchecked Sendable {
     let url: URL
+    let children: String?
+    let delay: TimeInterval
     let onChange: () -> Void
     let callbackQueue: DispatchQueue
     let queue = DispatchQueue(label: "dev.sanketa.filewatch")
     var dir: DispatchSourceFileSystemObject?
     var file: DispatchSourceFileSystemObject?
+    var kids: [DispatchSourceFileSystemObject] = []
     var pending: DispatchWorkItem?
+    static let fileEvents: DispatchSource.FileSystemEvent = [.write, .extend, .delete, .rename, .attrib]
 
-    public init(url: URL, callbackQueue: DispatchQueue = .main, onChange: @escaping () -> Void) {
-        self.url = url; self.callbackQueue = callbackQueue; self.onChange = onChange
+    public init(url: URL, children: String? = nil, delay: TimeInterval = 0.2, callbackQueue: DispatchQueue = .main,
+                onChange: @escaping () -> Void) {
+        self.url = url; self.children = children; self.delay = delay; self.callbackQueue = callbackQueue; self.onChange = onChange
         queue.sync {
             dir = source(url.deletingLastPathComponent().path, [.write]) { [weak self] in self?.changed() }
             watchFile()
         }
     }
 
-    deinit { dir?.cancel(); file?.cancel() }
+    deinit { dir?.cancel(); file?.cancel(); kids.forEach { $0.cancel() } }
 
     func source(_ path: String, _ mask: DispatchSource.FileSystemEvent, _ handler: @escaping () -> Void) -> DispatchSourceFileSystemObject? {
         let fd = open(path, O_EVTONLY)
@@ -33,15 +40,19 @@ public final class FileWatcher: @unchecked Sendable {
 
     func watchFile() {
         file?.cancel()
-        file = source(url.path, [.write, .extend, .delete, .rename, .attrib]) { [weak self] in self?.changed() }
+        file = source(url.path, Self.fileEvents) { [weak self] in self?.changed() }
+        guard let ext = children else { return }
+        kids.forEach { $0.cancel() }
+        let names = ((try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []).filter { ($0 as NSString).pathExtension == ext }
+        kids = names.compactMap { source(url.appendingPathComponent($0).path, Self.fileEvents) { [weak self] in self?.changed() } }
     }
 
-    /// Re-arms on the current inode and reports once per burst of events (an editor's save is several).
+    /// Re-arms on the current inodes and reports once per burst of events (an editor's save is several).
     func changed() {
         watchFile()
         pending?.cancel()
         let w = DispatchWorkItem { [weak self] in self.map { s in s.callbackQueue.async { s.onChange() } } }
         pending = w
-        queue.asyncAfter(deadline: .now() + 0.2, execute: w)
+        queue.asyncAfter(deadline: .now() + delay, execute: w)
     }
 }
