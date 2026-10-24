@@ -173,6 +173,61 @@ func titled(_ t: String?) -> TerminalContext {
         #expect(r.chooseTTY(s, terminalPID: 100, title: "nvim-ish") == nil)
     }
 
+    /// Kaku (WezTerm) titles start with `[tab/tabs]`; shells are kaku-gui's direct children (as captured live)
+    func kaku() -> ProcessSnapshot {
+        ProcessSnapshot([
+            proc(100, 1, "kaku-gui"),
+            proc(26425, 100, "fish", tty: "ttys008", start: 10, argv: ["-fish"]),
+            proc(26841, 100, "fish", tty: "ttys009", fg: false, start: 20, argv: ["-fish"]),
+            proc(26900, 26841, "2.1.304", tty: "ttys009", start: 30, argv: ["claude"]),
+        ])
+    }
+    let kakuTerm = TerminalContext(pid: 100, bundleID: "fun.tw93.kaku", appName: "Kaku", windowTitle: nil)
+
+    @Test func kakuTabIndexPicksTTY() {
+        let r = LayerResolver(library: lib(["fish"]), tmux: FakeTmux(), remote: nil)
+        #expect(r.chooseTTY(kaku(), terminalPID: 100, title: "[1/2] ~") == "ttys008")
+        #expect(r.chooseTTY(kaku(), terminalPID: 100, title: "[2/2] ✳ Claude Code") == "ttys009")
+        var t = kakuTerm
+        t.windowTitle = "[1/2] ~"
+        #expect(r.resolve(kaku(), terminal: t).map(\.name) == ["fish", "Kaku"])
+        t.windowTitle = "[2/2] ✳ Claude Code"
+        #expect(r.resolve(kaku(), terminal: t).map(\.name) == ["claude", "fish", "Kaku"])
+    }
+
+    /// the index is the tab's position, which the start order of the tabs' shells gives
+    @Test func kakuTabIndexOrdersByShellStart() {
+        let s = ProcessSnapshot([
+            proc(100, 1, "kaku-gui"),
+            proc(300, 100, "fish", tty: "ttys002", start: 50),
+            proc(200, 100, "fish", tty: "ttys001", start: 60),
+        ])
+        let r = LayerResolver(library: lib([]), tmux: FakeTmux(), remote: nil)
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "[1/2] ~") == "ttys002")
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "[2/2] ~") == "ttys001")
+    }
+
+    @Test func kakuTabIndexCountMismatchFallsThrough() {
+        let r = LayerResolver(library: lib([]), tmux: FakeTmux(), remote: nil)
+        #expect(r.chooseTTY(kaku(), terminalPID: 100, title: "[3/3] ~") == nil)
+        #expect(r.chooseTTY(kaku(), terminalPID: 100, title: "[3/3] ✳ Claude Code") == "ttys009")
+        #expect(r.chooseTTY(kaku(), terminalPID: 100, title: "✳ Claude Code") == "ttys009")
+    }
+
+    /// the index prefix comes before a remote tag in the title
+    @Test func kakuTabIndexBeforeRemoteTag() {
+        let s = ProcessSnapshot([
+            proc(100, 1, "kaku-gui"),
+            proc(200, 100, "fish", tty: "ttys001", fg: false, start: 1),
+            proc(201, 200, "ssh", tty: "ttys001", start: 2, argv: ["ssh", "gpubox"]),
+            proc(300, 100, "fish", tty: "ttys002", start: 3),
+        ])
+        var t = kakuTerm
+        t.windowTitle = "[1/2] ⟦sanketa host=gpubox layers=fish,htop⟧ htop"
+        let r = LayerResolver(library: lib(["fish", "htop"]), tmux: FakeTmux(), remote: nil)
+        #expect(r.resolve(s, terminal: t).map(\.name) == ["htop", "fish", "gpubox", "fish", "Kaku"])
+    }
+
     @Test func chooseTTYNoSubstringGuess() {
         let s = ProcessSnapshot([
             proc(100, 1, "Conterm"),

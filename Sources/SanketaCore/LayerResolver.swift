@@ -10,13 +10,34 @@ public struct LayerResolver {
         self.library = library; self.tmux = tmux; self.remote = remote
     }
 
-    /// The tty the user is looking at. With several tabs, only a unique window-title match picks one: a whole
-    /// title word equal to the foreground process's name or display name (`vi` doesn't match `nvim-ish`).
-    /// Otherwise nil, because a guessed layer is worse than fewer layers.
+    static let tabIndex = try! NSRegularExpression(pattern: #"^\[(\d+)/(\d+)\]\s*"#)
+
+    /// `[n/m] ` that Kaku/WezTerm put before the title, split off
+    static func splitTabIndex(_ title: String) -> (n: Int, m: Int, rest: String)? {
+        let ns = title as NSString
+        guard let r = tabIndex.firstMatch(in: title, range: NSRange(location: 0, length: ns.length)),
+              let n = Int(ns.substring(with: r.range(at: 1))), let m = Int(ns.substring(with: r.range(at: 2))) else { return nil }
+        return (n, m, ns.substring(from: r.range.upperBound))
+    }
+
+    /// The tty the user is looking at. With several tabs: a `[n/m]` title prefix picks the n-th tab when there are
+    /// exactly m, in the order the tabs' shells started; else a unique whole title word (case-insensitive) equal to
+    /// the foreground process's name or display name (`vi` doesn't match `nvim-ish`). Otherwise nil, because a
+    /// guessed layer is worse than fewer layers.
     public func chooseTTY(_ s: ProcessSnapshot, terminalPID: Int32, title: String?) -> String? {
         let ttys = s.ttys(under: terminalPID)
         if ttys.count <= 1 { return ttys.first }
-        guard let rest = title.map({ RemoteTag.parse($0).rest }) else { return nil }
+        guard let title else { return nil }
+        let idx = Self.splitTabIndex(title)
+        if let idx, idx.m == ttys.count, (1...idx.m).contains(idx.n) {
+            // the tab's session leader is the terminal's direct child on that tty
+            func started(_ t: String) -> Double {
+                let p = s.children(of: terminalPID).filter { $0.tty == t }
+                return (p.isEmpty ? s.procs.filter { $0.tty == t } : p).map(\.start).min() ?? .infinity
+            }
+            return ttys.sorted { started($0) < started($1) }[idx.n - 1]
+        }
+        let rest = RemoteTag.parse(idx?.rest ?? title).rest
         let words = Set(rest.lowercased().split { !($0.isLetter || $0.isNumber || "._+-".contains($0)) }.map(String.init))
         let hits = ttys.filter { t in
             s.foreground(tty: t).map { p in [p.name, Self.displayName(p.name, argv: p.argv)].contains { words.contains($0.lowercased()) } } ?? false
@@ -32,7 +53,8 @@ public struct LayerResolver {
     public func resolve(_ s: ProcessSnapshot, terminal: TerminalContext) -> [Layer] {
         var out = [Layer]()
         if let tty = chooseTTY(s, terminalPID: terminal.pid, title: terminal.windowTitle) {
-            out = chain(s, tty: tty, terminal: terminal.pid).flatMap { layers(for: $0, s, title: terminal.windowTitle) }
+            let title = terminal.windowTitle.map { Self.splitTabIndex($0)?.rest ?? $0 }
+            out = chain(s, tty: tty, terminal: terminal.pid).flatMap { layers(for: $0, s, title: title) }
         } else {
             // ambiguous tabs: only the login shell, and only when every tab's is the same
             let shells = s.ttys(under: terminal.pid).map { chain(s, tty: $0, terminal: terminal.pid).last { Self.shells.contains($0.name) } }
