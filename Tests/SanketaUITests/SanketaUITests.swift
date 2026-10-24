@@ -128,7 +128,7 @@ func threadCPUSeconds() -> Double {
     }
 
     /// The mark and the breadcrumb share one 32 pt row in the title bar; the search field follows 6 pt below it,
-    /// with no dead space. Clicks pass through the mark, and the breadcrumb gets its clicks.
+    /// with no dead space. The mark takes no clicks (it is not hit-testable), and the breadcrumb gets its clicks.
     @Test func topRowHoldsMarkAndBreadcrumb() throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
@@ -138,18 +138,42 @@ func threadCPUSeconds() -> Double {
         let root = try #require(c.panel.contentView)
         root.layoutSubtreeIfNeeded()
         let h = root.bounds.height
-        #expect(c.mark.isDescendant(of: root) && c.mark.image?.isTemplate == true)
-        let f = c.mark.convert(c.mark.bounds, to: nil)
-        #expect(abs(f.minX - Theme.pad) < 0.5 && abs(f.width - 15) < 0.5 && abs(f.height - 15) < 0.5, "\(f)")
-        #expect(abs(f.midY - (h - Theme.topRow / 2)) <= 0.5, "mark centre \(h - f.midY) pt from the top")
+        let f = NSRect(x: Theme.pad, y: h - Theme.topRow / 2 - Brand.markPoints / 2, width: Brand.markPoints, height: Brand.markPoints)
         let field = c.field.convert(c.field.bounds, to: nil)
         #expect(abs((h - field.maxY) - (Theme.topRow + Theme.fieldGap)) < 1, "field top \(h - field.maxY) pt from the top")
         let frame = try #require(root.superview)        // the window frame view, with the title bar views
         let atMark = frame.hitTest(frame.convert(NSPoint(x: f.midX, y: f.midY), from: nil))
-        #expect(atMark !== c.mark)
+        #expect(atMark !== c.field && atMark?.mouseDownCanMoveWindow != false || atMark?.isDescendant(of: root) == true, "the mark takes the click: \(String(describing: atMark))")
         let crumb = frame.hitTest(frame.convert(NSPoint(x: f.maxX + 7 + 8, y: f.midY), from: nil))
         #expect(crumb?.isDescendant(of: root) == true, "the title bar takes the breadcrumb click: \(String(describing: crumb))")
         #expect(!c.panel.isKeyWindow && !NSApp.isActive)
+    }
+
+    /// The live panel (not the render-test path) draws the kolam mark: ink in its slot, none in the empty gap right of it.
+    @Test func liveMarkDrawsInkAtStartOfTopRow() throws {
+        let c = try controller()
+        defer { c.panel.orderOut(nil) }
+        c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
+        c.show()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        let root = try #require((c.panel.contentView as? NSGlassEffectView)?.contentView)
+        root.layoutSubtreeIfNeeded()
+        let rep = try #require(root.bitmapImageRepForCachingDisplay(in: root.bounds))
+        root.cacheDisplay(in: root.bounds, to: rep)
+        let s = CGFloat(rep.pixelsWide) / root.bounds.width
+        let gap = (Theme.topRow - Brand.markPoints) / 2
+        func ink(_ r: NSRect) -> Int {   // pixels differing from the rect's own corner pixel (the background)
+            let x0 = Int(r.minX * s), y0 = Int(r.minY * s), x1 = Int(r.maxX * s), y1 = Int(r.maxY * s)
+            let bg = rep.colorAt(x: x0, y: y0)?.usingColorSpace(.deviceRGB)
+            var n = 0
+            for y in y0..<y1 { for x in x0..<x1 {
+                guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB), let b = bg else { continue }
+                if abs(c.redComponent - b.redComponent) + abs(c.greenComponent - b.greenComponent) + abs(c.blueComponent - b.blueComponent) > 0.15 { n += 1 }
+            } }
+            return n
+        }
+        let mark = NSRect(x: Theme.pad, y: gap, width: Brand.markPoints, height: Brand.markPoints)   // bitmap origin is top-left
+        #expect(ink(mark) > 20, "mark slot has \(ink(mark)) ink pixels")
     }
 
     @Test func panelShowDoesNotStealFocus() throws {

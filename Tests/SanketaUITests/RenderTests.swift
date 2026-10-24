@@ -144,7 +144,7 @@ struct RenderTests {
         let v = try #require(pc.panel.contentView)
         for _ in 0..<3 { v.layoutSubtreeIfNeeded(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
         let fr = pc.field.convert(pc.field.bounds, to: v)
-        let root = PanelView(model: m, search: search, field: pc.field, mark: pc.mark, grantAccessibility: {}, pick: { _ in }, clickLayer: { _ in })
+        let root = PanelView(model: m, search: search, field: pc.field, grantAccessibility: {}, pick: { _ in }, clickLayer: { _ in })
             .frame(width: s.size.width, height: s.size.height)
             .environment(\.colorScheme, dark ? .dark : .light)
             .environment(\.imageRendering, true)

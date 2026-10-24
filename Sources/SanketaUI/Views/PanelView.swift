@@ -7,7 +7,6 @@ struct PanelView: View {
     @ObservedObject var model: PanelModel
     @ObservedObject var search: SearchModel
     let field: SearchTextField
-    let mark: NSView
     let grantAccessibility: () -> Void
     let pick: (Int) -> Void
     let clickLayer: (Int) -> Void
@@ -24,12 +23,11 @@ struct PanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
-                Group {
-                    if imageRendering, let m = Brand.mark() {
-                        Image(nsImage: m).renderingMode(.template).resizable().foregroundStyle(Theme.secondary)
-                    } else { Passthrough(view: mark) }
+                if let m = Brand.mark() {
+                    Image(nsImage: m).renderingMode(.template).resizable().foregroundStyle(Theme.secondary)
+                        .frame(width: Brand.markPoints, height: Brand.markPoints).allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
-                .frame(width: Brand.markPoints, height: Brand.markPoints)
                 Breadcrumb(layers: model.context.layers, focused: model.focusedLayerIndex, click: clickLayer)
             }
             .frame(height: Theme.topRow).padding(.horizontal, Theme.pad)

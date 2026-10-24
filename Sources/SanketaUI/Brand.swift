@@ -26,9 +26,3 @@ public enum Brand {
         return img
     }
 }
-
-/// A view that mouse clicks pass through, so dragging the panel by it still moves the panel.
-final class PassthroughImageView: NSImageView {
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-}
-

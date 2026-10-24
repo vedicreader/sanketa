@@ -22,8 +22,6 @@ public final class SanketaPanel: NSPanel {
     public let panel: SanketaPanel
     public let field = SearchTextField()
     public let glass = NSGlassEffectView()
-    /// the kolam mark at the start of the top row, before the breadcrumb; clicks pass through it
-    let mark = PassthroughImageView()
     public let model: PanelModel
     public let search: SearchModel
     public private(set) var searching = false
@@ -65,12 +63,7 @@ public final class SanketaPanel: NSPanel {
         panel.onMouseUp = { [weak self] in self?.mouseUp() }
 
         glass.cornerRadius = 18
-        mark.image = Brand.mark()
-        mark.imageScaling = .scaleProportionallyUpOrDown
-        // Theme.secondary in AppKit: label colour at 72 %
-        mark.contentTintColor = NSColor.labelColor.withAlphaComponent(0.72)
-        mark.setAccessibilityElement(false)
-        let host = NSHostingView(rootView: PanelView(model: model, search: search, field: field, mark: mark,
+        let host = NSHostingView(rootView: PanelView(model: model, search: search, field: field,
             grantAccessibility: { [weak self] in self?.grantAccessibility() },
             pick: { [weak self] in self?.pick($0) },
             clickLayer: { [weak self] in self?.clickLayer($0) },
