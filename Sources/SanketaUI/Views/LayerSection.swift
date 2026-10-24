@@ -5,51 +5,42 @@ import SanketaCore
 struct LayerSection: View {
     let data: LayerSectionData
     let collapsed: Bool
+    var selected = false
     let toggle: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.rowGap) {
             Button(action: toggle) {
                 HStack(spacing: 6) {
-                    Image(systemName: "chevron.right").font(.system(size: 8, weight: .bold))
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                         .rotationEffect(.degrees(collapsed ? 0 : 90))
-                    Text(data.pack.name).font(Theme.header).foregroundStyle(.primary)
-                    if let h = data.layer.host { Text(h).font(Theme.small).foregroundStyle(Theme.accent) }
+                    Text(data.pack.name + (data.layer.host.map { " @ \($0)" } ?? "")).font(Theme.header)
                     Spacer()
-                    if let p = data.pack.prefix { Text("prefix \(p)").font(Theme.snippet).foregroundStyle(.secondary) }
+                    if let p = data.pack.prefix { Text("prefix \(KeyNotation.display(p))").font(Theme.small) }
                 }
-                .foregroundStyle(.secondary).contentShape(Rectangle())
+                .foregroundStyle(Theme.secondary).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             if !collapsed {
-                Divider().padding(.bottom, 2)
                 ForEach(data.groups) { g in
-                    if let n = g.name { Text(n).font(Theme.small).foregroundStyle(.secondary).padding(.top, 3) }
-                    ForEach(g.keys, id: \.self) { k in
+                    if let n = g.name { Text(n).font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, 2) }
+                    ForEach(Array(g.keys.enumerated()), id: \.offset) { _, k in
                         HStack(alignment: .firstTextBaseline) {
-                            Text(k.action).font(Theme.text).foregroundStyle(.primary).lineLimit(2)
-                            Spacer(minLength: 8)
-                            KeyChip(keys: k.keys, prefix: data.pack.prefix)
+                            // disabled menu items stay listed, dimmed: their state changes with context
+                            Text(k.action).font(Theme.text).foregroundStyle(k.enabled == false ? Theme.secondary : .primary).lineLimit(2)
+                            Spacer(minLength: 10)
+                            KeyChip(keys: k.keys, prefix: data.pack.prefix, dimmed: k.enabled == false)
                         }
                     }
                 }
                 if !data.pack.tips.isEmpty {
-                    Text("Tips").font(Theme.small).foregroundStyle(.secondary).padding(.top, 3)
-                    ForEach(data.pack.tips, id: \.self) { TipRow(tip: $0) }
+                    Text("Tips").font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, 2)
+                    ForEach(Array(data.pack.tips.enumerated()), id: \.offset) { TipRow(tip: $0.element) }
                 }
             }
         }
-        .card()
-    }
-}
-
-extension View {
-    /// Subtle translucent backing so rows stay legible over busy backgrounds while the panel edges stay clear.
-    func card() -> some View {
-        padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
-            .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius).strokeBorder(Theme.hairline.opacity(0.6), lineWidth: 0.5))
+        .padding(.vertical, 4).padding(.horizontal, 6)
+        .background(selected ? Color.primary.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -62,8 +53,8 @@ struct TipRow: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(tip.snippet).font(Theme.snippet).foregroundStyle(.primary).textSelection(.enabled).lineLimit(3)
                 Spacer(minLength: 6)
-                Button { copy(tip.snippet) } label: { Image(systemName: "doc.on.doc").font(.system(size: 10)) }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Copy")
+                Button { copy(tip.snippet) } label: { Image(systemName: "doc.on.doc").font(.system(size: 11)) }
+                    .buttonStyle(.plain).foregroundStyle(Theme.secondary).help("Copy")
             }
         }
     }

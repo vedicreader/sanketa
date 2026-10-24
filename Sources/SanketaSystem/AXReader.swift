@@ -17,6 +17,7 @@ struct AXMenuNode: MenuNode {
         let mods = (Self.attr(el, kAXMenuItemCmdModifiersAttribute) as? NSNumber)?.intValue ?? 0
         return MenuKeys.format(char: ch, virtualKey: vk, modifiers: mods, glyph: gl)
     }
+    var enabled: Bool { (Self.attr(el, kAXEnabledAttribute) as? Bool) ?? true }
     var children: [MenuNode] {
         let kids = Self.attr(el, kAXChildrenAttribute) as? [AXUIElement] ?? []
         // a menu bar item / menu item wraps its items in a single AXMenu child; flatten it

@@ -30,6 +30,11 @@ import SanketaSystem
         return (context.packs + rest).flatMap(SearchItem.items)
     }
 
+    /// The tmux-style prefix of a result's pack, so its keys render in Mac symbols.
+    public func prefix(for packID: String) -> String? {
+        (context.packs.first { $0.id == packID } ?? library.packs[packID])?.prefix
+    }
+
     func refresh() {
         results = query.trimmingCharacters(in: .whitespaces).isEmpty ? []
             : provider.results(query, items, context: context.layers.compactMap(\.packID))

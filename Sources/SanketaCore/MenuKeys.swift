@@ -4,14 +4,19 @@ import Carbon.HIToolbox
 public struct MenuShortcut: Hashable {
     public var path: [String]
     public var keys: String
-    public init(path: [String], keys: String) { self.path = path; self.keys = keys }
+    public var enabled: Bool
+    public init(path: [String], keys: String, enabled: Bool = true) { self.path = path; self.keys = keys; self.enabled = enabled }
 }
 
 public protocol MenuNode {
     var title: String? { get }
     var shortcut: String? { get }
     var children: [MenuNode] { get }
+    /// AXEnabled; disabled items are still listed (state changes with context) but shown dimmed
+    var enabled: Bool { get }
 }
+
+public extension MenuNode { var enabled: Bool { true } }
 
 public enum MenuKeys {
     static let fKeyVirtual = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
@@ -55,6 +60,7 @@ public enum MenuKeys {
         if key == nil, let g = glyph { key = glyphNames[g] }
         guard let key else { return nil }
         var s = ""
+        if modifiers & 16 != 0 { s += "🌐" }   // undocumented AX bit AppKit sets for the Globe/fn modifier
         if modifiers & 4 != 0 { s += "⌃" }
         if modifiers & 2 != 0 { s += "⌥" }
         if modifiers & 1 != 0 { s += "⇧" }
@@ -70,7 +76,7 @@ public enum MenuKeys {
             visited += 1
             guard let t = n.title, !t.isEmpty else { return }
             let p = path + [t]
-            if let k = n.shortcut { out.append(MenuShortcut(path: p, keys: k)) }
+            if let k = n.shortcut { out.append(MenuShortcut(path: p, keys: k, enabled: n.enabled)) }
             guard p.count < maxDepth else { return }
             for c in n.children { go(c, p); if visited >= maxItems { return } }
         }
@@ -80,6 +86,7 @@ public enum MenuKeys {
 
     public static func pack(bundleID: String, name: String, shortcuts: [MenuShortcut]) -> Pack {
         Pack(id: "app:\(bundleID)", name: name,
-             keys: shortcuts.map { KeyEntry(keys: $0.keys, action: $0.path.dropFirst().joined(separator: " › "), group: $0.path[0]) })
+             keys: shortcuts.map { KeyEntry(keys: $0.keys, action: $0.path.dropFirst().joined(separator: " › "), group: $0.path[0],
+                                            enabled: $0.enabled ? nil : false) })
     }
 }

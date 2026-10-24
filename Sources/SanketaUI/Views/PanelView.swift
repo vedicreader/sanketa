@@ -9,89 +9,120 @@ struct PanelView: View {
     let field: SearchTextField
     let grantAccessibility: () -> Void
     let pick: (Int) -> Void
+    let clickLayer: (Int) -> Void
+    @Environment(\.colorScheme) var scheme
+
+    var showsList: Bool { search.query.isEmpty || model.listFocused }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Breadcrumb(layers: model.context.layers).padding(.horizontal, Theme.pad)
+            Breadcrumb(layers: model.context.layers, click: clickLayer).padding(.horizontal, Theme.pad)
             SearchField(field: field).padding(.horizontal, Theme.pad - 2)
-            ScrollView {
-                VStack(alignment: .leading, spacing: Theme.sectionGap) {
-                    if search.query.isEmpty { content } else { results }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Theme.sectionGap) {
+                        if showsList { content } else { results }
+                    }
+                    .padding(.horizontal, Theme.pad - 6).padding(.bottom, Theme.pad)
                 }
-                .padding(.horizontal, Theme.pad).padding(.bottom, Theme.pad)
+                .scrollIndicators(.never)
+                .onChange(of: model.selectedLayer) { _, id in
+                    if let id { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
+                }
             }
-            .scrollIndicators(.never)
             if model.showsFooter { Footer(model: model, grant: grantAccessibility) }
         }
         .padding(.top, 26)
         .frame(minWidth: 260, minHeight: 240)
+        .background(Theme.tint(scheme == .dark).opacity(Theme.tintOpacity(model.translucency)))
     }
 
     @ViewBuilder var content: some View {
-        if let t = model.tip {
-            TipCard(item: t, prefix: model.sections.first { $0.pack.id == t.packID }?.pack.prefix) { model.mark($0) }
+        if !model.tipCards.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(model.tipCards.enumerated()), id: \.offset) { _, t in
+                    TipCard(item: t, prefix: model.sections.first { $0.pack.id == t.packID }?.pack.prefix) { model.mark(t, $0) }
+                }
+            }
+            .padding(.horizontal, 6)
         }
-        ForEach(model.sections) { s in
-            LayerSection(data: s, collapsed: model.collapsed.contains(s.id)) { model.toggle(s.id) }
+        ForEach(Array(model.sections.enumerated()), id: \.element.id) { i, s in
+            if i > 0 || !model.tipCards.isEmpty { Rectangle().fill(Theme.hairline).frame(height: 0.5).padding(.horizontal, 6) }
+            LayerSection(data: s, collapsed: model.collapsed.contains(s.id), selected: model.selectedLayer == s.id) { model.toggle(s.id) }
+                .id(s.id)
         }
-        if model.sections.isEmpty && model.tip == nil {
-            Text("No shortcuts for this app yet.").font(Theme.small).foregroundStyle(.secondary)
+        if model.sections.isEmpty && model.tipCards.isEmpty {
+            Text("No shortcuts for this app yet.").font(Theme.small).foregroundStyle(Theme.secondary).padding(.horizontal, 6)
         }
     }
 
-    @ViewBuilder var results: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            ForEach(Array(search.results.enumerated()), id: \.element.id) { i, r in
-                ResultRow(item: r, selected: i == search.selection).onTapGesture { pick(i) }
+    /// Results always sit on their own dimmed backing so they read over terminal text.
+    var results: some View {
+        ResultsList(results: search.results, selection: search.selection, prefix: search.prefix(for:), pick: pick)
+            .padding(6)
+            .background(Theme.tint(scheme == .dark).opacity(Theme.resultsBackingOpacity), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+struct ResultsList: View {
+    let results: [SearchItem]
+    let selection: Int
+    let prefix: (String) -> String?
+    let pick: (Int) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(results.enumerated()), id: \.offset) { i, r in
+                ResultRow(item: r, prefix: prefix(r.packID), selected: i == selection).onTapGesture { pick(i) }
             }
-            if search.results.isEmpty { Text("No matches").font(Theme.small).foregroundStyle(.secondary) }
+            if results.isEmpty { Text("No matches").font(Theme.small).foregroundStyle(Theme.secondary).padding(6) }
         }
     }
 }
 
 struct ResultRow: View {
     let item: SearchItem
+    var prefix: String?
     let selected: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(item.title).font(Theme.text).foregroundStyle(.primary).lineLimit(2)
-                Spacer(minLength: 8)
-                Text(item.packName).font(Theme.header).foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: 8) {
+            RoundedRectangle(cornerRadius: 1).fill(selected ? Theme.accent : .clear).frame(width: 2.5)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(item.title).font(Theme.text).foregroundStyle(.primary).lineLimit(2)
+                    Spacer(minLength: 8)
+                    Text(item.packName).font(Theme.header).foregroundStyle(Theme.secondary)
+                }
+                if item.kind == .key { KeyChip(keys: item.detail, prefix: prefix) }
+                else { Text(item.detail).font(Theme.snippet).foregroundStyle(.primary).lineLimit(3) }
             }
-            if item.kind == .key { KeyChip(keys: item.detail) }
-            else { Text(item.detail).font(Theme.snippet).foregroundStyle(.primary).lineLimit(3) }
         }
-        .padding(.horizontal, 7).padding(.vertical, 5)
+        .padding(.vertical, 5).padding(.trailing, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 7))
-        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selected ? Theme.accent : Theme.hairline.opacity(0.6),
-                                                               lineWidth: selected ? 1.5 : 0.5))
         .contentShape(Rectangle())
     }
 }
 
-/// Layer chips, innermost first; remote layers carry a host chip.
+/// Layers as plain text, innermost first, joined by ` › `; clicking one jumps to its section.
 struct Breadcrumb: View {
     let layers: [Layer]
+    let click: (Int) -> Void
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(Array(layers.enumerated()), id: \.element.id) { i, l in
-                if i > 0 { Text("‹").font(Theme.small).foregroundStyle(.secondary) }
-                HStack(spacing: 3) {
-                    Text(l.kind == .remote ? "ssh" : l.name)
-                    if let h = l.host { Text(h).foregroundStyle(Theme.accent) }
+        HStack(spacing: 0) {
+            ForEach(Array(layers.enumerated()), id: \.offset) { i, l in
+                if i > 0 { Text(" › ").foregroundStyle(Theme.secondary) }
+                Button { click(i) } label: {
+                    Text(l.kind == .remote ? "ssh \(l.name)" : l.name + (l.host.map { "@\($0)" } ?? ""))
+                        .fontWeight(i == 0 ? .semibold : .medium)
+                        .foregroundStyle(i == 0 ? Theme.primary : Theme.secondary)
                 }
-                .font(Theme.small.weight(i == 0 ? .semibold : .regular))
-                .foregroundStyle(i == 0 ? .primary : .secondary)
-                .padding(.horizontal, 7).padding(.vertical, 2.5)
-                .background(.thinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(i == 0 ? Theme.accent : Theme.hairline, lineWidth: i == 0 ? 1 : 0.5))
+                .buttonStyle(.plain)
             }
             Spacer(minLength: 0)
         }
+        .font(Theme.small)
         .lineLimit(1)
     }
 }
@@ -103,7 +134,8 @@ struct Footer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if model.needsAccessibility {
-                Button("Grant Accessibility to read menu shortcuts", action: grant).buttonStyle(.plain).foregroundStyle(Theme.accent)
+                Button(action: grant) { Text("Grant Accessibility to read menu shortcuts").underline() }
+                    .buttonStyle(.plain).foregroundStyle(.primary)
             }
             if !model.packErrors.isEmpty {
                 Text("\(model.packErrors.count) pack file\(model.packErrors.count == 1 ? "" : "s") failed to load")
@@ -113,10 +145,9 @@ struct Footer: View {
                 Text("\(Theme.display(hotkey: h)) isn't available. Set `hotkey` in ~/.config/sanketa/config.toml.")
             }
         }
-        .font(Theme.small).foregroundStyle(.secondary)
+        .font(Theme.small).foregroundStyle(Theme.secondary)
         .padding(.horizontal, Theme.pad).padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial)
         .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
     }
 }

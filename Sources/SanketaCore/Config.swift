@@ -2,15 +2,19 @@ import Foundation
 import Carbon.HIToolbox
 import TOMLDecoder
 
+/// How much of what's behind the panel shows through; `low` dims most.
+public enum Translucency: String, Codable, CaseIterable { case low, medium, high }
+
 public struct Config: Codable, Equatable {
     public var hotkey = "ctrl+opt+k"
     public var terminals = ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2"]
     public var pollInterval = 1.0
     public var tipRotateSeconds = 120.0
+    public var translucency = Translucency.medium
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case hotkey, terminals, pollInterval, tipRotateSeconds }
+    enum CodingKeys: String, CodingKey { case hotkey, terminals, pollInterval, tipRotateSeconds, translucency }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -22,6 +26,27 @@ public struct Config: Codable, Equatable {
         terminals = try c.decodeIfPresent([String].self, forKey: .terminals) ?? terminals
         pollInterval = try num(.pollInterval, pollInterval)
         tipRotateSeconds = try num(.tipRotateSeconds, tipRotateSeconds)
+        translucency = (try? c.decodeIfPresent(String.self, forKey: .translucency)).flatMap { $0.flatMap(Translucency.init) } ?? .medium
+    }
+
+    /// `text` with top-level `key = value` replaced, or inserted before the first table; other lines kept.
+    public static func setting(_ key: String, _ value: String, in text: String) -> String {
+        var lines = text.components(separatedBy: "\n")
+        let firstTable = lines.firstIndex { $0.trimmingCharacters(in: .whitespaces).hasPrefix("[") } ?? lines.count
+        let new = "\(key) = \(value)"
+        if let i = lines[..<firstTable].firstIndex(where: {
+            let t = $0.trimmingCharacters(in: .whitespaces)
+            return t.hasPrefix(key) && t.dropFirst(key.count).trimmingCharacters(in: .whitespaces).hasPrefix("=")
+        }) { lines[i] = new }
+        else { lines.insert(new, at: firstTable) }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Persists one top-level key into the config file, creating it if needed.
+    public static func save(_ key: String, _ value: String, to url: URL) throws {
+        let old = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try setting(key, value, in: old).write(to: url, atomically: true, encoding: .utf8)
     }
 
     /// A missing file gives defaults and no error; bad TOML gives defaults and a message.

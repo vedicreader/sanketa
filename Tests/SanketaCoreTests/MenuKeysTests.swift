@@ -6,9 +6,33 @@ struct FakeNode: MenuNode {
     var shortcut: String?
     var kids: [FakeNode] = []
     var children: [MenuNode] { kids }
+    var enabled = true
 }
 
 @Suite struct MenuKeysTests {
+    /// Real Conterm values (conterm-shortcuts-investigation.md): bit 16 is the Globe/fn modifier.
+    @Test func formatGlobeModifier() {
+        #expect(MenuKeys.format(char: "F", virtualKey: nil, modifiers: 24) == "🌐F")              // Enter Full Screen
+        #expect(MenuKeys.format(char: "F", virtualKey: nil, modifiers: 28) == "🌐⌃F")             // Fill
+        #expect(MenuKeys.format(char: "C", virtualKey: nil, modifiers: 28) == "🌐⌃C")             // Center
+        #expect(MenuKeys.format(char: nil, virtualKey: 123, modifiers: 28) == "🌐⌃←")             // Move & Resize › Left
+        #expect(MenuKeys.format(char: nil, virtualKey: 123, modifiers: 29) == "🌐⌃⇧←")            // Left & Right
+        #expect(MenuKeys.format(char: nil, virtualKey: 123, modifiers: 31) == "🌐⌃⌥⇧←")           // Left & Quarters
+        #expect(MenuKeys.format(char: "H", virtualKey: nil, modifiers: 2) == "⌥⌘H")               // Hide Others
+        #expect(KeyNotation.display("🌐⌃←") == "🌐⌃←" && KeyNotation.display("🌐F") == "🌐F")
+    }
+
+    @Test func disabledItemsAreKeptAndMarked() {
+        let menu = FakeNode(title: "Window", kids: [
+            FakeNode(title: "Fill", shortcut: "🌐⌃F"),
+            FakeNode(title: "Return to Previous Size", shortcut: "🌐⌃R", enabled: false),
+        ])
+        let s = MenuKeys.walk([menu])
+        #expect(s.map(\.enabled) == [true, false])
+        let p = MenuKeys.pack(bundleID: "app.conterm.Conterm", name: "Conterm", shortcuts: s)
+        #expect(p.keys.map(\.enabled) == [nil, false] && p.keys[1].action == "Return to Previous Size")
+    }
+
     @Test func formatCmdShiftS() { #expect(MenuKeys.format(char: "s", virtualKey: nil, modifiers: 1) == "⇧⌘S") }
     @Test func formatCtrlOptNoCmd() { #expect(MenuKeys.format(char: "t", virtualKey: nil, modifiers: 4|2|8) == "⌃⌥T") }
     @Test func formatVirtualKeyArrow() { #expect(MenuKeys.format(char: "", virtualKey: 126, modifiers: 0) == "⌘↑") }

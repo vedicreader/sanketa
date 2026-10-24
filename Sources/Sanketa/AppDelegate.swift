@@ -7,7 +7,7 @@ import SanketaUI
 let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Sanketa")
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
-    let config = loadConfig()
+    var config = loadConfig()
     var library = loadLibrary()
     lazy var monitor = ContextMonitor(config: config, library: library)
     let model = PanelModel(tips: TipStore(url: supportDir.appendingPathComponent("tips.json")))
@@ -29,6 +29,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         let ok = Hotkey.parse(config.hotkey).map { hotkeys.register($0) { [weak self] in self?.hotkeyPressed() } } ?? false
         if !ok { model.hotkeyConflict = config.hotkey }
         panel.grantAccessibility = { [weak self] in self?.grantAccessibility() }
+        panel.setTranslucency(config.translucency)
         rotation = Timer.scheduledTimer(withTimeInterval: max(10, config.tipRotateSeconds), repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { if self?.panel.isVisible == true { self?.model.rotate() } }
         }
@@ -50,6 +51,14 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         func add(_ title: String, _ sel: Selector) { m.addItem(withTitle: title, action: sel, keyEquivalent: "").target = self }
         add("Show/Hide Panel", #selector(togglePanel))
         add("Search  \(Theme.display(hotkey: config.hotkey))", #selector(startSearch))
+        let tr = NSMenu()
+        for t in Translucency.allCases {
+            let i = tr.addItem(withTitle: t.rawValue.capitalized, action: #selector(pickTranslucency(_:)), keyEquivalent: "")
+            i.target = self
+            i.representedObject = t.rawValue
+            i.state = t == config.translucency ? .on : .off
+        }
+        m.addItem(withTitle: "Translucency", action: nil, keyEquivalent: "").submenu = tr
         m.addItem(.separator())
         add("Reload Packs", #selector(reloadPacks))
         add("Open Packs Folder", #selector(openPacks))
@@ -62,6 +71,16 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     }
 
     @objc func togglePanel() { panel.toggle() }
+
+    /// Applies live and writes just `translucency` back to config.toml.
+    @objc func pickTranslucency(_ sender: NSMenuItem) {
+        guard let t = (sender.representedObject as? String).flatMap(Translucency.init) else { return }
+        config.translucency = t
+        panel.setTranslucency(t)
+        sender.menu?.items.forEach { $0.state = $0 === sender ? .on : .off }
+        do { try Config.save("translucency", "\"\(t.rawValue)\"", to: configDir.appendingPathComponent("config.toml")) }
+        catch { FileHandle.standardError.write(Data("cannot save config: \(error.localizedDescription)\n".utf8)) }
+    }
     @objc func startSearch() { hotkeyPressed() }
 
     @objc func reloadPacks() {
@@ -87,6 +106,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # hotkey = "\(c.hotkey)"
             # pollInterval = \(c.pollInterval)
             # tipRotateSeconds = \(c.tipRotateSeconds)
+            # translucency = "\(c.translucency.rawValue)"   # low, medium or high
             # terminals = [\(c.terminals.map { "\"\($0)\"" }.joined(separator: ", "))]
 
             """.write(to: f, atomically: true, encoding: .utf8)
@@ -95,10 +115,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         NSWorkspace.shared.open([f], withApplicationAt: edit, configuration: NSWorkspace.OpenConfiguration())
     }
 
-    @objc func grantAccessibility() {
-        AXReader.promptForTrust()
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-    }
+    @objc func grantAccessibility() { AXReader.promptForTrust() }
 
     @objc func quit() { NSApp.terminate(nil) }
 }

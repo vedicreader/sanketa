@@ -206,15 +206,115 @@ func threadCPUSeconds() -> Double {
         #expect(m.sections.map(\.pack.id) == ["fish", "app:com.apple.Terminal"])
         #expect(m.seed != seed)
 
-        let tip = try #require(m.tip)
-        m.mark(.known)
+        let tip = try #require(m.tipCards.first)
+        m.mark(tip, .known)
         #expect(TipStore(url: url).mark(tip.id) == .known)
-        #expect(m.tip != nil && m.tip != tip)
+        #expect(!m.tipCards.isEmpty && !m.tipCards.contains(tip))
         for s in 0..<30 as Range<UInt64> {
-            #expect(!m.tips.pick(from: m.tipPool, count: 3, seed: s).contains(tip))
+            #expect(!m.store.pick(from: m.tipPool, count: 3, seed: s).contains(tip))
         }
         #expect(!m.showsFooter)
         m.hotkeyConflict = "ctrl+opt+k"
         #expect(m.showsFooter)
+    }
+}
+
+@MainActor struct PanelModelNavigationTests {
+    @Test func threeTipCardsInnermostFirst() throws {
+        for seed in 0..<20 as Range<UInt64> {
+            let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: seed)
+            m.update(try context(["htop", "tmux", "fish", "Terminal"]))
+            #expect(m.tipCards.count == 3 && Set(m.tipCards).count == 3)
+            #expect(m.tipCards.first?.packID == "htop")   // htop's only key: the innermost layer leads
+        }
+    }
+
+    @Test func layerSelectionCyclesAndWraps() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
+        m.update(try context(["htop", "tmux", "fish", "Terminal"]))
+        let ids = m.sections.map(\.id)
+        #expect(m.selectedLayer == nil)
+        m.cycleLayer(1); #expect(m.selectedLayer == ids[0])
+        m.cycleLayer(1); m.cycleLayer(1); m.cycleLayer(1); #expect(m.selectedLayer == ids[3])
+        m.cycleLayer(1); #expect(m.selectedLayer == ids[0])
+        m.cycleLayer(-1); #expect(m.selectedLayer == ids[3])
+        m.selectLayer(at: 2); #expect(m.selectedLayer == ids[2] && m.sections[2].pack.id == "fish")
+        // context change that drops the selected layer clears the selection
+        m.update(try context(["htop", "Terminal"]))
+        #expect(m.selectedLayer == nil)
+        let fresh = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
+        fresh.cycleLayer(-1)
+        #expect(fresh.selectedLayer == nil)
+    }
+
+    @Test func sectionIDsUniqueForNestedSamePack() throws {
+        let p = try packs()
+        let c = Context(appName: "T", bundleID: "t", layers: [
+            Layer(kind: .multiplexer, name: "tmux", packID: "tmux"),
+            Layer(kind: .shell, name: "fish", packID: "fish"),
+            Layer(kind: .multiplexer, name: "tmux", packID: "tmux"),
+        ], packs: [p["tmux"]!, p["fish"]!, p["tmux"]!], axTrusted: true)
+        #expect(c.layers[0].id == c.layers[2].id)
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
+        m.update(c)
+        #expect(m.sections.count == 3 && Set(m.sections.map(\.id)).count == 3)
+        m.selectLayer(at: 2)
+        #expect(m.selectedLayer == m.sections[2].id && m.selectedLayer != m.sections[0].id)
+    }
+}
+
+@MainActor @Suite(.serialized) struct PanelFocusTests {
+    func tab(_ shift: Bool) -> NSEvent {
+        NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: shift ? .shift : [], timestamp: 0, windowNumber: 0,
+                         context: nil, characters: "\t", charactersIgnoringModifiers: "\t", isARepeat: false, keyCode: 48)!
+    }
+
+    @Test func clicksOutsideSearchHandFocusBack() throws {
+        let c = try controller()
+        defer { c.panel.orderOut(nil) }
+        c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
+        c.show()
+        c.panel.makeKey()                       // as if a click had made it key
+        try #require(c.panel.isKeyWindow)
+        c.clickLayer(2)                         // breadcrumb "fish"
+        #expect(c.model.selectedLayer == c.model.sections[2].id)
+        #expect(!c.panel.isKeyWindow && c.panel.isVisible)
+        c.panel.makeKey()
+        c.mouseUp()                             // any other click (tip button, section header, drag)
+        #expect(!c.panel.isKeyWindow && c.panel.isVisible)
+        c.beginSearch(previousApp: nil)
+        c.mouseUp()                             // in search mode the panel keeps focus
+        #expect(c.panel.isKeyWindow)
+        c.endSearch()
+    }
+
+    @Test func tabMovesBetweenFieldAndLayerList() throws {
+        let c = try controller()
+        defer { c.panel.orderOut(nil) }
+        c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
+        c.beginSearch(previousApp: nil)
+        let ed = try #require(c.field.currentEditor() as? NSTextView)
+        ed.insertText("split", replacementRange: NSRange(location: NSNotFound, length: 0))
+        ed.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        let ids = c.model.sections.map(\.id)
+        #expect(c.model.listFocused && c.model.selectedLayer == ids[0])
+        #expect(c.panel.firstResponder === c.panel && c.panel.isKeyWindow)
+        #expect(c.search.query == "split")      // the search is kept while browsing layers
+        c.panel.keyDown(with: tab(false))
+        #expect(c.model.selectedLayer == ids[1])
+        c.panel.keyDown(with: tab(true))        // ⇧Tab in search returns to the field
+        #expect(!c.model.listFocused && c.field.currentEditor() != nil && c.panel.firstResponder === c.field.currentEditor())
+        c.endSearch()
+        #expect(!c.panel.isKeyWindow && !c.model.listFocused)
+    }
+
+    @Test func translucencyLevelsSwitchGlass() throws {
+        let c = try controller()
+        #expect(c.glass.style == .regular && c.model.translucency == .medium)
+        c.setTranslucency(.high)
+        #expect(c.glass.style == .clear && c.model.translucency == .high)
+        c.setTranslucency(.low)
+        #expect(c.glass.style == .regular && c.model.translucency == .low)
+        #expect(Theme.tintOpacity(.low) > Theme.tintOpacity(.medium) && Theme.tintOpacity(.medium) > Theme.tintOpacity(.high))
     }
 }

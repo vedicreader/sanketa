@@ -49,3 +49,29 @@ struct ConfigTests {
     @Test func parseRejectsNoKey() { #expect(Hotkey.parse("ctrl+opt") == nil); #expect(Hotkey.parse("") == nil) }
     @Test func parseRejectsUnknownKey() { #expect(Hotkey.parse("ctrl+banana") == nil) }
 }
+
+struct TranslucencyConfigTests {
+    @Test func translucencyParsesAndFallsBack() throws {
+        #expect(Config().translucency == .medium)
+        #expect(Config.load(try writeConfig("translucency = \"low\"\n")).0.translucency == .low)
+        #expect(Config.load(try writeConfig("translucency = \"high\"\n")).0.translucency == .high)
+        let (c, err) = Config.load(try writeConfig("translucency = \"glassy\"\nhotkey = \"cmd+k\"\n"))
+        #expect(err == nil && c.translucency == .medium && c.hotkey == "cmd+k")
+    }
+
+    @Test func savingKeepsTheRestOfTheFile() throws {
+        let text = "# my settings\nhotkey = \"cmd+k\"   \ntranslucency = \"low\"\n\n[llm]\ntranslucency = \"x\"\n"
+        let u = try writeConfig(text)
+        try Config.save("translucency", "\"high\"", to: u)
+        let after = try String(contentsOf: u, encoding: .utf8)
+        #expect(after == text.replacingOccurrences(of: "translucency = \"low\"", with: "translucency = \"high\""))
+        #expect(Config.load(u).0.translucency == .high && Config.load(u).0.hotkey == "cmd+k")
+
+        let v = try writeConfig("hotkey = \"cmd+k\"\n[llm]\nmodel = \"m\"\n")
+        try Config.save("translucency", "\"low\"", to: v)
+        #expect(try String(contentsOf: v, encoding: .utf8) == "hotkey = \"cmd+k\"\ntranslucency = \"low\"\n[llm]\nmodel = \"m\"\n")
+        let missing = try tempDir().appendingPathComponent("sub/config.toml")
+        try Config.save("translucency", "\"high\"", to: missing)
+        #expect(Config.load(missing).0.translucency == .high)
+    }
+}

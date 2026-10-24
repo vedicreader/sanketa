@@ -5,8 +5,10 @@ public struct KeyEntry: Codable, Hashable {
     public var action: String
     public var group: String?
     public var command: String?
-    public init(keys: String, action: String, group: String? = nil, command: String? = nil) {
-        self.keys = keys; self.action = action; self.group = group; self.command = command
+    /// false for a menu item that is currently disabled; nil means enabled
+    public var enabled: Bool?
+    public init(keys: String, action: String, group: String? = nil, command: String? = nil, enabled: Bool? = nil) {
+        self.keys = keys; self.action = action; self.group = group; self.command = command; self.enabled = enabled
     }
 }
 
