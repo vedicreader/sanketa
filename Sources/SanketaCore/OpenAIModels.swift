@@ -10,6 +10,17 @@ public enum OpenAIModels {
 
     public static func isLocal(_ baseURL: URL) -> Bool { ["localhost", "127.0.0.1", "::1"].contains(host(baseURL)) }
 
+    /// https, or plain http to this Mac only: the key and the query must not cross the network in clear text.
+    public static func isAllowed(_ baseURL: URL) -> Bool {
+        switch baseURL.scheme?.lowercased() {
+        case "https": return true
+        case "http": return isLocal(baseURL)
+        default: return false
+        }
+    }
+
+    public static let insecureNote = "The server address must start with https://"
+
     static let excluded = ["audio", "realtime", "transcribe", "tts", "image", "search", "embedding", "moderation", "instruct",
                            "codex", "deep-research", "computer-use", "dall-e", "whisper"]
 
@@ -20,6 +31,9 @@ public enum OpenAIModels {
             id.range(of: #"^(gpt-|chatgpt-|o[0-9])"#, options: .regularExpression) != nil
                 && !excluded.contains { id.contains($0) }
                 && id.range(of: #"-\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) == nil
+                // chat-latest aliases and pro models do not take the request this chooser sends (strict schema,
+                // low reasoning effort); o1-mini and o1-preview do not take `reasoning_effort`
+                && id.range(of: #"(chat-latest$|-pro(-|$)|^o1-(mini|preview))"#, options: .regularExpression) == nil
         }.sorted()
     }
 
@@ -64,6 +78,17 @@ public enum OpenAIRequest {
         return (try? JSONSerialization.data(withJSONObject: b, options: [.sortedKeys])) ?? Data()
     }
 
+    /// The content without `<think>…</think>` blocks and a Markdown code fence, which some servers add when they
+    /// do not take the schema.
+    static func unwrapped(_ content: String) -> String {
+        var s = content.replacingOccurrences(of: #"(?s)<think>.*?</think>"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("```") && s.hasSuffix("```") && s.count >= 6 {
+            s = String(s.dropFirst(3).dropLast(3).drop { $0.isLetter }).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return s
+    }
+
     /// `choices[0].message.content` read as `{"picks": [...]}`.
     public static func parse(_ data: Data) throws -> [String] {
         struct Reply: Decodable {
@@ -72,7 +97,7 @@ public enum OpenAIRequest {
         }
         struct Picks: Decodable { var picks: [String] }
         guard let r = try? JSONDecoder().decode(Reply.self, from: data), let content = r.choices.first?.message.content,
-              let p = try? JSONDecoder().decode(Picks.self, from: Data(content.utf8)) else { throw ChoiceError.badResponse }
+              let p = try? JSONDecoder().decode(Picks.self, from: Data(unwrapped(content).utf8)) else { throw ChoiceError.badResponse }
         return p.picks
     }
 }

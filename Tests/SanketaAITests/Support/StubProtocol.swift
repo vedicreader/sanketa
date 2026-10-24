@@ -12,16 +12,20 @@ struct StubRequest: Sendable {
 }
 
 /// Serves canned answers per URL path from memory; nothing leaves the process. Each `Stub` gets its own session, found
-/// again through a header, so suites that run in parallel do not share answers or captured requests.
+/// again through a header, so suites that run in parallel do not share answers or captured requests. The registry
+/// holds stubs weakly, and a stub removes itself when its test lets it go.
 final class StubProtocol: URLProtocol, @unchecked Sendable {
     static let idHeader = "X-Sanketa-Stub"
     private static let lock = NSLock()
-    nonisolated(unsafe) private static var stubs: [String: Stub] = [:]
+    private struct Weak { weak var stub: Stub? }
+    nonisolated(unsafe) private static var stubs: [String: Weak] = [:]
 
-    static func register(_ s: Stub) { lock.withLock { stubs[s.id] = s } }
+    static func register(_ s: Stub) { lock.withLock { stubs[s.id] = Weak(stub: s) } }
+    static func unregister(_ id: String) { lock.withLock { stubs[id] = nil } }
+    static func isRegistered(_ id: String) -> Bool { lock.withLock { stubs[id] != nil } }
     static func stub(for r: URLRequest) -> Stub? {
         guard let id = r.value(forHTTPHeaderField: idHeader) else { return nil }
-        return lock.withLock { stubs[id] }
+        return lock.withLock { stubs[id]?.stub }
     }
 
     override class func canInit(with request: URLRequest) -> Bool { stub(for: request) != nil }
@@ -57,6 +61,11 @@ final class Stub: @unchecked Sendable {
         c.httpAdditionalHeaders = [StubProtocol.idHeader: id]
         session = URLSession(configuration: c)
         StubProtocol.register(self)
+    }
+
+    deinit {
+        session.invalidateAndCancel()
+        StubProtocol.unregister(id)
     }
 
     var requests: [StubRequest] { lock.withLock { seen } }

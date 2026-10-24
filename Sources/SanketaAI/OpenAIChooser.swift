@@ -35,11 +35,13 @@ public struct OpenAIChooser: Choosing {
 
     public var name: String { openAI ? "OpenAI" : (baseURL.host ?? baseURL.absoluteString) }
 
-    /// Key and model problems show as errors from `choose`, so this never blocks.
-    public func status() -> ModelStatus { .available }
+    /// Key and model problems show as errors from `choose`, so this never blocks. A plain http address to another
+    /// machine is refused.
+    public func status() -> ModelStatus { OpenAIModels.isAllowed(baseURL) ? .available : .unavailable(OpenAIModels.insecureNote) }
 
     public func choose(_ prompt: ChoicePrompt) async throws -> [String] {
         if case .suggest = prompt.task { throw ChoiceError.notAllowed }
+        guard OpenAIModels.isAllowed(baseURL) else { throw ChoiceError.notAllowed }
         let key = await key()
         if (key ?? "").isEmpty && !OpenAIModels.isLocal(baseURL) { throw ChoiceError.noKey }
         guard let model = await model(), !model.isEmpty else { throw ChoiceError.badResponse }
@@ -67,6 +69,7 @@ public struct OpenAIChooser: Choosing {
 public enum ModelList {
     public static func fetch(baseURL: URL, key: String?, session: URLSession = .shared, timeout: TimeInterval = 8) async throws -> [String] {
         struct Reply: Decodable { struct Model: Decodable { var id: String }; var data: [Model] }
+        guard OpenAIModels.isAllowed(baseURL) else { throw ChoiceError.notAllowed }
         let (data, resp) = try await session.data(for: authorized(baseURL.appendingPathComponent("models"), key: key, timeout: timeout))
         _ = try checked(resp)
         guard let r = try? JSONDecoder().decode(Reply.self, from: data) else { throw ChoiceError.badResponse }

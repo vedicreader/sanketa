@@ -16,6 +16,8 @@ private func json(_ d: Data) throws -> [String: Any] { try #require(JSONSerializ
                    "o4-mini", "dall-e-3", "gpt-4.1-mini", "whisper-1", "omni-moderation-latest"]
         #expect(OpenAIModels.chatCapable(ids, openAI: true) == ["gpt-4.1-mini", "gpt-5-nano", "o4-mini"])
         #expect(OpenAIModels.chatCapable(ids, openAI: false) == ids.sorted())
+        let unusable = ["gpt-5-chat-latest", "gpt-5-pro", "o3-pro", "o1-pro-2025-03-19", "o1-mini", "o1-preview", "gpt-5-codex"]
+        #expect(OpenAIModels.chatCapable(unusable + ["gpt-5-mini", "o3", "o1"], openAI: true) == ["gpt-5-mini", "o1", "o3"])
     }
 
     @Test func cheapestFollowsPreference() {
@@ -33,6 +35,12 @@ private func json(_ d: Data) throws -> [String: Any] { try #require(JSONSerializ
             #expect(OpenAIModels.isLocal(try #require(URL(string: s))))
         }
         #expect(!OpenAIModels.isLocal(try #require(URL(string: "https://api.openai.com/v1"))))
+        for s in ["https://api.openai.com/v1", "https://openrouter.ai/api/v1", "http://localhost:11434/v1", "http://[::1]:8080/v1"] {
+            #expect(OpenAIModels.isAllowed(try #require(URL(string: s))))
+        }
+        for s in ["http://api.openai.com/v1", "http://192.168.1.20:11434/v1", "ftp://localhost/v1", "http://localhost.evil.com/v1"] {
+            #expect(!OpenAIModels.isAllowed(try #require(URL(string: s))))
+        }
         #expect(OpenAIModels.isReasoning("o4-mini") && OpenAIModels.isReasoning("gpt-5-nano"))
         #expect(!OpenAIModels.isReasoning("gpt-4o-mini") && !OpenAIModels.isReasoning("gpt-4.1-nano"))
     }
@@ -74,27 +82,48 @@ private func json(_ d: Data) throws -> [String: Any] { try #require(JSONSerializ
         let plain = try json(OpenAIRequest.body(model: "llama3.2", prompt: prompt, openAI: false, schema: false))
         #expect(Set(plain.keys) == ["model", "messages", "max_tokens"])
 
-        // history never reaches the remote prompt, so it never reaches the body
-        let history = ["git push --force origin secret-branch", "export TOKEN=hunter2", "tmux split-window -h"]
-            .map { HistoryEntry(command: $0, shell: .fish) }
+    }
+
+    @Test func remotePoolHoldsOnlyPackEntries() async {
+        let coach = Coach.analyze([HistoryEntry(command: "cat deploy-secrets.log | grep 404 | wc -l", shell: .fish)]).map(\.item)
+        #expect(!coach.isEmpty)
+        let menu = SearchItem(packID: "app:com.apple.TextEdit", packName: "TextEdit Menus", kind: .key,
+                              title: "Close Split budget.docx", detail: "⌘W")
+        let all = items + coach + [menu]
         var cfg = LLMConfig(); cfg.onDevice = false; cfg.appleFM = false; cfg.openai = true
         let remote = RecordingChooser(isRemote: true)
+        let query = "count matches then split the pane"
         _ = await SmartSearch(router: ModelRouter(config: cfg, onDevice: nil, appleFM: nil, remote: remote), timeout: 60)
-            .results("split the pane side by side", items, context: ["tmux"])
+            .results(query, all, context: ["tmux"])
+        // the same query does reach the coaching and menu entries when the model is on this Mac
+        cfg.appleFM = true
+        let local = RecordingChooser()
+        _ = await SmartSearch(router: ModelRouter(config: cfg, onDevice: nil, appleFM: local, remote: nil), timeout: 60)
+            .results(query, all, context: ["tmux"])
+        let localText = await local.prompts.map(\.userText).joined()
+        #expect(localText.contains("deploy-secrets") && localText.contains("budget.docx"))
         let sent = await remote.prompts
         #expect(sent.count == 1)
-        for p in sent {
-            let body = String(decoding: OpenAIRequest.body(model: "gpt-4o-mini", prompt: p, openAI: true), as: UTF8.self)
-            for h in history {
-                #expect(!p.lines.contains { $0.contains(h.command) })
-                #expect(!p.userText.contains(h.command) && !body.contains(h.command))
-            }
-        }
+        let text = sent.map(\.userText).joined()
+        #expect(!text.contains("deploy-secrets") && !text.contains("Better ways") && !text.contains("budget.docx"))
+        #expect(text.contains("Split pane left/right"))
+        #expect(all.filter(SmartSearch.mayLeave) == items)
     }
 
     @Test func parseReadsPicks() throws {
         let d = Data(#"{"choices":[{"message":{"role":"assistant","content":"{\"picks\":[\"e2\",\"e5\"]}"}}]}"#.utf8)
         #expect(try OpenAIRequest.parse(d) == ["e2", "e5"])
+    }
+
+    @Test func parseStripsFencesAndThinking() throws {
+        func reply(_ content: String) throws -> Data {
+            try JSONSerialization.data(withJSONObject: ["choices": [["message": ["role": "assistant", "content": content]]]])
+        }
+        for c in ["```json\n{\"picks\":[\"e3\"]}\n```", "```\n{\"picks\":[\"e3\"]}```",
+                  "<think>\nThe user wants e1? No, e3.\n</think>\n\n{\"picks\":[\"e3\"]}",
+                  "<think>hmm</think>```json\n{\"picks\": [\"e3\"]}\n```"] {
+            #expect(try OpenAIRequest.parse(reply(c)) == ["e3"])
+        }
     }
 
     @Test func parseRejectsGarbage() {

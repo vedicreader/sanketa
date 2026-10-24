@@ -120,6 +120,66 @@ private func choiceError(_ body: () async throws -> [String]) async -> ChoiceErr
         await #expect(throws: ChoiceError.badResponse) { try await ModelList.fetch(baseURL: openAI, key: "sk-x", session: garbage.session) }
     }
 
+    @Test func bodyIsExactlyWhatLeavesThroughSearch() async throws {
+        // private text placed where it could leak: coaching from history, a menu entry with a document name, and a
+        // remote host and a Leela folder in the context the caller passes
+        let coach = Coach.analyze([HistoryEntry(command: "cat deploy-secrets.log | grep 404 | wc -l", shell: .fish)]).map(\.item)
+        let pushTip = SearchItem(packID: "coach", packName: "Better ways", kind: .suggestion, title: "Count matches then push",
+                                 detail: "git push --force origin main")
+        let menu = SearchItem(packID: "app:com.apple.TextEdit", packName: "TextEdit Menus", kind: .key,
+                              title: "Close Split budget.docx", detail: "⌘W")
+        let all = items + coach + [pushTip, menu]
+        let secrets = ["deploy-secrets", "git push --force origin main", "budget.docx", "TextEdit", "Better ways",
+                       "prod-db.internal", "acme-merger"]
+        let stub = Stub([chatPath: [(200, okReply)]])
+        var cfg = LLMConfig(); cfg.onDevice = false; cfg.appleFM = false; cfg.openai = true
+        let router = ModelRouter(config: cfg, onDevice: nil, appleFM: nil, remote: chooser(stub))
+        let query = "count matches then split the pane"
+        let r = await SmartSearch(router: router, timeout: 60)
+            .results(query, all, context: ["tmux", "prod-db.internal", "~/clients/acme-merger"])
+        #expect(r.note == nil && !r.picked.isEmpty)
+        let req = try #require(stub.requests.first)
+        #expect(stub.requests.count == 1)
+        let body = String(decoding: req.body, as: UTF8.self)
+        let user = try #require((req.json?["messages"] as? [[String: String]])?.last?["content"])
+        for s in secrets { #expect(!body.contains(s) && !user.contains(s), "\(s) left the machine") }
+        #expect(!body.contains("sk-test"))
+        #expect(user.hasPrefix("Request: \(query)\n"))
+        #expect(user.contains("| tmux | Split pane left/right | prefix %"))
+        // every candidate line in the body is a pack entry
+        let lines = user.split(separator: "\n").filter { $0.range(of: #"^e\d+ \|"#, options: .regularExpression) != nil }
+        #expect(!lines.isEmpty)
+        #expect(lines.allSatisfy { l in items.contains { l.hasSuffix("| \($0.packName) | \($0.title) | \($0.detail)") } })
+    }
+
+    @Test func insecureAddressIsRefused() async {
+        let stub = Stub(["/v1/chat/completions": [(200, okReply)], "/v1/models": [(200, #"{"data":[{"id":"x"}]}"#)]])
+        let c = chooser(stub, base: URL(string: "http://192.168.1.20:11434/v1")!)
+        #expect(c.status() == .unavailable("The server address must start with https://"))
+        #expect(await choiceError { try await c.choose(prompt) } == .notAllowed)
+        await #expect(throws: ChoiceError.notAllowed) {
+            try await ModelList.fetch(baseURL: URL(string: "http://api.openai.com/v1")!, key: "sk-test", session: stub.session)
+        }
+        #expect(stub.requests.isEmpty)
+
+        var cfg = LLMConfig(); cfg.onDevice = false; cfg.appleFM = false; cfg.openai = true
+        let r = await SmartSearch(router: ModelRouter(config: cfg, onDevice: nil, appleFM: nil, remote: c), timeout: 60)
+            .results("split the pane side by side", items, context: ["tmux"])
+        #expect(r.note == "Plain search: The server address must start with https://")
+        #expect(stub.requests.isEmpty)
+    }
+
+    @Test func stubLeavesRegistryWhenReleased() async throws {
+        var id = ""
+        do {
+            let stub = Stub([chatPath: [(200, okReply)]])
+            id = stub.id
+            #expect(StubProtocol.isRegistered(id))
+            _ = try await chooser(stub).choose(prompt)
+        }
+        #expect(!StubProtocol.isRegistered(id))
+    }
+
     @Test(.enabled(if: ProcessInfo.processInfo.environment["SANKETA_LIVE_OPENAI"] == "1"))
     func liveOpenAIPicksOnlyCandidates() async throws {
         let packsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
