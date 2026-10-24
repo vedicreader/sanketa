@@ -20,7 +20,7 @@ let package = Package(
         .target(name: "SanketaAI", dependencies: ["SanketaCore"], swiftSettings: v5),
         // the only target that imports MLX; its Metal shaders compile only under xcodebuild (make bundle)
         .target(name: "SanketaMLX",
-                dependencies: ["SanketaCore",
+                dependencies: ["SanketaCore", "SanketaAI",
                                .product(name: "MLXLLM", package: "mlx-swift-lm"),
                                .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
                                .product(name: "MLXGuidedGeneration", package: "mlx-swift-lm"),
@@ -36,6 +36,6 @@ let package = Package(
         .testTarget(name: "SanketaUITests", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI", "SanketaTitleHost"],
                     swiftSettings: v5),
         .testTarget(name: "SanketaAITests", dependencies: ["SanketaAI", "SanketaCore"], swiftSettings: v5),
-        .testTarget(name: "SanketaMLXTests", dependencies: ["SanketaMLX", "SanketaCore"], swiftSettings: v5),
+        .testTarget(name: "SanketaMLXTests", dependencies: ["SanketaMLX", "SanketaCore", "SanketaAI"], swiftSettings: v5),
     ]
 )

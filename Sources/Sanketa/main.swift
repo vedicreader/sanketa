@@ -116,12 +116,14 @@ func dumpCoach(out: String?) {
     emit(CoachMonitor.dumpLines(Coach.analyze(es), full: full), to: out)
 }
 
-/// The on-device slot. It stays empty until the MLX build (Tasks 10 and 12) gives an `OnDeviceChooser`; the router then
-/// goes on to Apple Intelligence, OpenAI and plain search.
-func makeOnDevice(_ llm: LLMConfig) -> (any OnDeviceChooser)? { nil }
+/// The on-device slot: the `[llm] mlx_model` model. Until it is downloaded, or in a build without the MLX shaders, it
+/// is unavailable, and the router goes on to Apple Intelligence, OpenAI and plain search.
+func makeOnDevice(_ llm: LLMConfig) -> (any OnDeviceChooser)? {
+    MLXChooser(spec: ModelCatalog.spec(llm.mlxModel), installer: ModelInstaller(root: ModelCatalog.defaultRoot))
+}
 
 /// True when this build can run the on-device model; the "On-Device Model" menu enables downloads only then.
-let mlxReady = false
+let mlxReady = MLXRuntime.isReady
 
 /// The model tiers for the app and `--ask`. The key comes from the environment, the login shell or the Keychain;
 /// `previous` keeps the key lookup and the model list when the server stays the same.
@@ -152,7 +154,7 @@ func ask(_ query: String, out: String?) {
     dispatchMain()
 }
 
-/// `--install-model [4b|2b] [--force]`: downloads and checks the on-device model (the `[llm] mlx_model` one by default).
+/// `--install-model [e4b|4b|2b] [--force]`: downloads and checks the on-device model (the `[llm] mlx_model` one by default).
 /// While this build can't run the model, it needs `--force`.
 func installModel(_ which: String?) {
     let force = CommandLine.arguments.contains("--force")
@@ -174,7 +176,7 @@ for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay", "--ask"]
             usage: Sanketa [--dump-context [--watch] [--pack FILE] [--delay S] | --dump-menus <bundleID> | --dump-ax <bundleID>
                            | --dump-coach [--full] | --ask "<query>"] [--out FILE]
                    Sanketa --lint-pack FILE|FOLDER...
-                   Sanketa --install-model [4b|2b] [--force]
+                   Sanketa --install-model [e4b|4b|2b] [--force]
                    Sanketa --mlx-check
 
             """.utf8))

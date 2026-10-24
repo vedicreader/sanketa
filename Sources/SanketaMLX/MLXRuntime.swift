@@ -30,6 +30,9 @@ public enum MLXRuntime {
         return Device.withDefaultDevice(.gpu) { (MLXArray([1, 2] as [Float]) + MLXArray([3, 4] as [Float])).sum().item(Float.self) }
     }
 
+    /// MLX's GPU memory in bytes: in use, kept in its buffer cache, and the peak.
+    public static var memory: (active: Int, cache: Int, peak: Int) { (Memory.activeMemory, Memory.cacheMemory, Memory.peakMemory) }
+
     private static func contents(of dir: URL) -> [URL] {
         (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
     }
