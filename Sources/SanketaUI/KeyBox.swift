@@ -13,7 +13,7 @@ import SanketaCore
         let previous = NSWorkspace.shared.frontmostApplication.flatMap { $0 == .current ? nil : $0 }
         let alert = NSAlert()
         alert.messageText = title(host: host)
-        alert.informativeText = "Paste your API key for \(host). Sanketa keeps it in your Keychain."
+        alert.informativeText = "Paste your API key for \(host). Sanketa keeps it in your Keychain and sends it only to \(host)."
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 34, width: 300, height: 24))

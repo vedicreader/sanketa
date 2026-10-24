@@ -101,6 +101,15 @@ struct CoachLLMConfigTests {
         #expect(c.llm.mlxModel == .qwen2b && c.llm.suggest == true)
     }
 
+    @Test func keyVariableOnlyForOpenAIUnlessSet() throws {
+        let openAI = try #require(URL(string: "https://api.openai.com/v1")), local = try #require(URL(string: "http://localhost:1234/v1"))
+        let plain = Config.load(try writeConfig("[llm]\nopenai = true")).0.llm
+        #expect(plain.keyVariable(for: openAI) == "OPENAI_API_KEY" && plain.keyVariable(for: local) == nil)
+        let set = Config.load(try writeConfig("[llm]\napi_key_env = \"LOCAL_KEY\"")).0.llm
+        #expect(set.keyVariable(for: openAI) == "LOCAL_KEY" && set.keyVariable(for: local) == "LOCAL_KEY")
+        #expect(Config.load(try writeConfig("[llm]\napi_key_env = \"\"")).0.llm.keyVariable(for: local) == nil)
+    }
+
     @Test func integerTimeoutAccepted() throws {
         #expect(Config.load(try writeConfig("[llm]\ntimeout_seconds = 3")).0.llm.timeoutSeconds == 3.0)
     }

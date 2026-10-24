@@ -31,10 +31,24 @@ private func llm(openai: Bool = true, model: String = "") -> LLMConfig {
     return c
 }
 
-private func setup(_ stub: Stub, _ c: LLMConfig, previous: LLMSetup? = nil, env: [String: String] = ["OPENAI_API_KEY": "sk-test"]) -> LLMSetup {
+private func setup(_ stub: Stub, _ c: LLMConfig, previous: LLMSetup? = nil, env: [String: String] = ["OPENAI_API_KEY": "sk-test"],
+                   store: KeyStore = MemoryKeyStore()) -> LLMSetup {
     LLMSetup(config: c, previous: previous, makeKeys: {
-        KeyLookup(varName: c.apiKeyEnv, env: env, shell: nil, runner: ProcessRunner(), store: MemoryKeyStore(), account: $0)
+        KeyLookup(varName: $1, env: env, shell: nil, runner: ProcessRunner(), store: store, account: $0)
     }, session: stub.session, onDevice: nil, appleFM: nil)
+}
+
+private let openRouter = "https://openrouter.ai/api/v1", local = "http://localhost:1234/v1"
+
+/// One search against `base` with a pinned model; the chat requests that went out and the note.
+private func search(_ base: String, apiKeyEnv: String? = nil, env: [String: String] = ["OPENAI_API_KEY": "sk-openai"],
+                    store: KeyStore = MemoryKeyStore()) async -> (posts: [StubRequest], note: String?) {
+    let stub = Stub(["/v1/chat/completions": [(200, okReply)], "/api/v1/chat/completions": [(200, okReply)]])
+    var c = llm(model: "m")
+    c.baseURL = base; c.apiKeyEnv = apiKeyEnv
+    let r = await SmartSearch(router: setup(stub, c, env: env, store: store).router, timeout: 10)
+        .results("split the pane side by side", items, context: [])
+    return (stub.requests.filter { $0.url?.path.hasSuffix("/chat/completions") == true }, r.note)
 }
 
 @Suite struct LLMSetupTests {
@@ -94,6 +108,36 @@ private func setup(_ stub: Stub, _ c: LLMConfig, previous: LLMSetup? = nil, env:
         async let a = cache.models(), b = cache.models(), c = cache.refresh()
         #expect(try await [a, b, c] == [["a"], ["a"], ["a"]])
         #expect(await count.n == 1)
+    }
+
+    @Test func envKeyGoesOnlyToOpenAI() async throws {
+        let openAI = await search("https://api.openai.com/v1")
+        #expect(openAI.posts.count == 1 && openAI.posts.first?.header("Authorization") == "Bearer sk-openai")
+        // another server gets no OPENAI_API_KEY: no key, so no request
+        let other = await search(openRouter)
+        #expect(other.posts.isEmpty && other.note == "Plain search: openrouter.ai no key", "\(other.note ?? "")")
+        // a server on this Mac needs no key, and it gets no header
+        let mac = await search(local)
+        #expect(mac.posts.count == 1 && mac.posts.first?.header("Authorization") == nil)
+    }
+
+    @Test func apiKeyEnvSendsThatVariable() async throws {
+        let env = ["OPENAI_API_KEY": "sk-openai", "OPENROUTER_API_KEY": "sk-router"]
+        let r = await search(openRouter, apiKeyEnv: "OPENROUTER_API_KEY", env: env)
+        #expect(r.posts.count == 1 && r.posts.first?.header("Authorization") == "Bearer sk-router")
+        let mac = await search(local, apiKeyEnv: "OPENROUTER_API_KEY", env: env)
+        #expect(mac.posts.first?.header("Authorization") == "Bearer sk-router")
+    }
+
+    @Test func keychainKeyGoesOnlyToItsHost() async throws {
+        let store = MemoryKeyStore()
+        try store.write("sk-saved-router", account: "openrouter.ai")
+        let r = await search(openRouter, store: store)
+        #expect(r.posts.count == 1 && r.posts.first?.header("Authorization") == "Bearer sk-saved-router")
+        let mac = await search(local, store: store)
+        #expect(mac.posts.count == 1 && mac.posts.first?.header("Authorization") == nil)
+        let openAI = await search("https://api.openai.com/v1", env: [:], store: store)
+        #expect(openAI.posts.isEmpty)
     }
 
     @Test func noKeyGivesNoteWithoutRequest() async throws {

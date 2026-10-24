@@ -46,11 +46,14 @@ public enum APIKey {
         marked(runner.run(shell, ["-l", "-c", shellCommand(varName)], timeout: 3))
     }
 
-    public static func resolve(varName: String, env: [String: String], shell: String?, runner: CommandRunning,
+    /// With no `varName`, only the Keychain item for `account` counts.
+    public static func resolve(varName: String?, env: [String: String], shell: String?, runner: CommandRunning,
                                store: KeyStore, account: String) -> String? {
-        guard validName(varName) else { return nil }
-        if let k = nonEmpty(env[varName]) { return k }
-        if let shell, let k = fromShell(varName: varName, shell: shell, runner: runner) { return k }
+        if let varName {
+            guard validName(varName) else { return nil }
+            if let k = nonEmpty(env[varName]) { return k }
+            if let shell, let k = fromShell(varName: varName, shell: shell, runner: runner) { return k }
+        }
         return nonEmpty(store.read(account: account))
     }
 
@@ -64,12 +67,14 @@ public enum APIKey {
 
 /// `APIKey.resolve` that asks the login shell at most once per launch; the Keychain is read again on each call, so a key
 /// typed later is found. Callers that come while the shell runs wait for the same answer without holding a thread.
+/// With no `varName`, it reads only the Keychain item for `account` (the server's host).
 public actor KeyLookup {
-    let varName: String, env: [String: String], shell: String?, store: KeyStore, account: String
+    public nonisolated let varName: String?
+    let env: [String: String], shell: String?, store: KeyStore, account: String
     nonisolated(unsafe) let runner: CommandRunning
     private var shellAnswer: Task<String?, Never>?
 
-    public init(varName: String, env: [String: String], shell: String?, runner: CommandRunning, store: KeyStore, account: String) {
+    public init(varName: String?, env: [String: String], shell: String?, runner: CommandRunning, store: KeyStore, account: String) {
         self.varName = varName; self.env = env; self.shell = shell; self.runner = runner; self.store = store; self.account = account
     }
 
@@ -77,9 +82,11 @@ public actor KeyLookup {
 
     /// The key and where it came from: the environment, the login shell, else the Keychain.
     public func lookup() async -> (key: String, source: KeySource)? {
-        guard APIKey.validName(varName) else { return nil }
-        if let k = APIKey.nonEmpty(env[varName]) { return (k, .environment) }
-        if let shell {
+        if let varName {
+            guard APIKey.validName(varName) else { return nil }
+            if let k = APIKey.nonEmpty(env[varName]) { return (k, .environment) }
+        }
+        if let varName, let shell {
             if shellAnswer == nil {
                 let (name, runner) = (varName, runner)
                 shellAnswer = Task {

@@ -57,7 +57,7 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Search (with the hotkey)
 - Translucency: Low, Medium or High
 - OpenAI Model: the model for OpenAI search
-- OpenAI Key…: save an API key in your Keychain
+- OpenAI Key…: save an API key for the server in your Keychain
 - On-Device Model: download or remove the on-device model
 - Reload Packs
 - Open Packs Folder
@@ -114,7 +114,9 @@ Sanketa tries these models in this order, and it uses the first one that works:
 
 With OpenAI on, the OpenAI Model menu lists the models of the server. "Cheapest" is the default. It uses the model with the lowest price, such as gpt-5-nano. Sanketa keeps the list for 10 minutes. To use a different server that works like OpenAI, set `base_url`. The menu then shows the host of that server.
 
-Sanketa finds the API key in this order: the variable in `api_key_env` (`OPENAI_API_KEY` by default) in its environment, then the same variable in your login shell, then the Keychain. To save a key in the Keychain, use OpenAI Key… in the menu. A server on this Mac, such as `http://localhost:1234/v1`, needs no key. Sanketa refuses a plain `http` address to a different computer.
+Sanketa finds the API key in this order: the variable in its environment, then the same variable in your login shell, then the Keychain. To save a key in the Keychain, use OpenAI Key… in the menu. Sanketa keeps one key for each server host and sends it only to that host.
+
+Sanketa sends `OPENAI_API_KEY` only to `api.openai.com`. For a different server, set `api_key_env` to the name of the variable that holds the key for that server. Or save a key for it with OpenAI Key…. A server on this Mac, such as `http://localhost:1234/v1`, needs no key. If it has no key, Sanketa sends no key to it. Sanketa refuses a plain `http` address to a different computer.
 
 On device, a model can also add up to two tips to the tip card, for the commands that you ran last. Their text is "Related to what you just ran". This happens at most one time in 10 minutes. Sanketa never sends your history to OpenAI for this.
 
@@ -157,7 +159,7 @@ suggest = true               # on-device tips for the commands that you ran last
 openai = false               # turn on to use an OpenAI server
 openai_model = ""            # empty: the cheapest model
 base_url = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
+# api_key_env = "OPENROUTER_API_KEY"   # the variable with the key for base_url
 timeout_seconds = 5          # Sanketa stops waiting for the model after this
 ```
 

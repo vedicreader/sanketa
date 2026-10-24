@@ -205,7 +205,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # openai = \(l.openai)   # opt in: an OpenAI-compatible server
             # openai_model = "\(l.openaiModel)"   # empty: the cheapest model
             # base_url = "\(l.baseURL)"
-            # api_key_env = "\(l.apiKeyEnv)"
+            # api_key_env = "OPENAI_API_KEY"   # read only for api.openai.com unless you set it
             # timeout_seconds = \(Int(l.timeoutSeconds))
 
             """.write(to: f, atomically: true, encoding: .utf8)

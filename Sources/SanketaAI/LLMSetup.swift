@@ -59,8 +59,9 @@ public struct LLMSetup: Sendable {
     public let models: ModelListCache?
     public let router: ModelRouter
 
-    /// `makeKeys` gets the Keychain account (the server's host) and is called only when `previous` can't be reused.
-    public init(config: LLMConfig, previous: LLMSetup? = nil, makeKeys: (_ account: String) -> KeyLookup,
+    /// `makeKeys` gets the Keychain account (the server's host) and the variable to read, from `keyVariable(for:)`.
+    /// It is called only when `previous` can't be reused.
+    public init(config: LLMConfig, previous: LLMSetup? = nil, makeKeys: (_ account: String, _ varName: String?) -> KeyLookup,
                 session: URLSession = .shared, onDevice: (any OnDeviceChooser)?, appleFM: (any Choosing)?) {
         self.config = config
         let url = URL(string: config.baseURL).flatMap { $0.host == nil ? nil : $0 }
@@ -68,7 +69,7 @@ public struct LLMSetup: Sendable {
         if let previous, previous.config.baseURL == config.baseURL, previous.config.apiKeyEnv == config.apiKeyEnv {
             keys = previous.keys; models = previous.models
         } else if let url {
-            let k = makeKeys(APIKey.account(for: url))
+            let k = makeKeys(APIKey.account(for: url), config.keyVariable(for: url))
             keys = k
             models = ModelListCache {
                 // no request without a key, except to a server on this Mac

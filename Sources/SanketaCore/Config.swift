@@ -42,7 +42,8 @@ public struct LLMConfig: Codable, Equatable, Sendable {
     public var openai = false
     public var openaiModel = ""
     public var baseURL = "https://api.openai.com/v1"
-    public var apiKeyEnv = "OPENAI_API_KEY"
+    /// The variable that holds the key. nil: `OPENAI_API_KEY`, and only for api.openai.com.
+    public var apiKeyEnv: String?
     public var timeoutSeconds = 5.0
 
     public init() {}
@@ -61,10 +62,16 @@ public struct LLMConfig: Codable, Equatable, Sendable {
         openai = try c.decodeIfPresent(Bool.self, forKey: .openai) ?? openai
         openaiModel = try c.decodeIfPresent(String.self, forKey: .openaiModel) ?? openaiModel
         baseURL = try c.decodeIfPresent(String.self, forKey: .baseURL) ?? baseURL
-        apiKeyEnv = try c.decodeIfPresent(String.self, forKey: .apiKeyEnv) ?? apiKeyEnv
+        apiKeyEnv = try c.decodeIfPresent(String.self, forKey: .apiKeyEnv).flatMap { $0.isEmpty ? nil : $0 }
         if let v = try? c.decodeIfPresent(Double.self, forKey: .timeoutSeconds) { timeoutSeconds = v }
         else { timeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .timeoutSeconds).map(Double.init) ?? timeoutSeconds }
         if timeoutSeconds <= 0 { timeoutSeconds = LLMConfig().timeoutSeconds }
+    }
+
+    /// The variable to read the key from for this server: `api_key_env` when set, else `OPENAI_API_KEY` for
+    /// api.openai.com only. nil: only a Keychain key saved for this host is sent.
+    public func keyVariable(for baseURL: URL) -> String? {
+        apiKeyEnv ?? (OpenAIModels.isOpenAI(baseURL) ? "OPENAI_API_KEY" : nil)
     }
 }
 

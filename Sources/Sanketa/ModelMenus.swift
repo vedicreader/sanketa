@@ -119,7 +119,7 @@ import SanketaAI
         guard let url = l.baseURL, let keys = l.keys else {
             return KeyBox.tell("No server address", "Set base_url in [llm] in config.toml to an https address.")
         }
-        let name = config().apiKeyEnv
+        let name = keys.varName ?? ""
         guard let typed = KeyBox.ask(host: OpenAIModels.host(url), status: {
             KeyBox.statusText(await keys.lookup()?.source, varName: name)
         }) else { return }

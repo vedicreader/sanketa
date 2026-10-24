@@ -46,11 +46,11 @@ import SanketaAI
     @Test func keyNeverInDebugInfo() async throws {
         let (c, lib) = try context()
         var llm = LLMConfig()
-        llm.openai = true; llm.baseURL = "http://10.0.0.5:1234/v1"
-        let env = ["OPENAI_API_KEY": "sk-secret-123"]
-        #expect(APIKey.resolve(varName: llm.apiKeyEnv, env: env, shell: nil, runner: ProcessRunner(), store: MemoryKeyStore(),
+        llm.openai = true; llm.baseURL = "http://10.0.0.5:1234/v1"; llm.apiKeyEnv = "OPENAI_API_KEY"
+        let env = ["OPENAI_API_KEY": "sk-secret-123"], v = llm.keyVariable(for: try #require(URL(string: llm.baseURL)))
+        #expect(APIKey.resolve(varName: v, env: env, shell: nil, runner: ProcessRunner(), store: MemoryKeyStore(),
                                account: "10.0.0.5") == "sk-secret-123")
-        let found = await KeyLookup(varName: llm.apiKeyEnv, env: env, shell: nil, runner: ProcessRunner(), store: MemoryKeyStore(),
+        let found = await KeyLookup(varName: v, env: env, shell: nil, runner: ProcessRunner(), store: MemoryKeyStore(),
                                     account: "10.0.0.5").lookup()
         #expect(found?.source == .environment)
         let lines = DebugInfo.llmLines(config: llm, statuses: [("on-device", .unavailable("needs the MLX build")),

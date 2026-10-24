@@ -126,8 +126,8 @@ let mlxReady = false
 /// `previous` keeps the key lookup and the model list when the server stays the same.
 func makeLLM(_ llm: LLMConfig, previous: LLMSetup? = nil) -> LLMSetup {
     let env = ProcessInfo.processInfo.environment
-    return LLMSetup(config: llm, previous: previous, makeKeys: { account in
-        KeyLookup(varName: llm.apiKeyEnv, env: env, shell: APIKey.loginShell(env: env, passwdShell: APIKey.passwdShell()),
+    return LLMSetup(config: llm, previous: previous, makeKeys: { account, varName in
+        KeyLookup(varName: varName, env: env, shell: APIKey.loginShell(env: env, passwdShell: APIKey.passwdShell()),
                   runner: ProcessRunner(), store: KeychainStore(), account: account)
     }, onDevice: makeOnDevice(llm), appleFM: AppleFMChooser())
 }
