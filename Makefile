@@ -7,21 +7,39 @@ ZIP ?= dist/Sanketa-$(VERSION).zip
 
 .PHONY: test build lint shots bundle app release zip publish run relaunch install verify gatekeeper remote-setup
 
+# Values from the command line go to recipes only through the environment ("$$FILTER"), so the shell never parses
+# them. Each value must also pass this check, which reads the raw text with $(value) and so never expands it.
+PACKS ?= Resources/Packs
+SAFE_CHARS := a b c d e f g h i j k l m n o p q r s t u v w x y z A B C D E F G H I J K L M N O P Q R S T U V W X Y Z \
+	0 1 2 3 4 5 6 7 8 9 _ . / -
+empty :=
+space := $(empty) $(empty)
+tab := $(empty)	$(empty)
+define newline
+
+
+endef
+strip_chars = $(if $2,$(call strip_chars,$(subst $(firstword $2),,$1),$(wordlist 2,$(words $2),$2)),$1)
+blanks_marked = $(subst $(space),!,$(subst $(tab),!,$(subst $(newline),!,$1)))
+check_var = $(if $(call strip_chars,$(call blanks_marked,$(value $1)),$2),$(error $1 has a character that is not safe. Use only letters, digits and _ . / -))
+$(foreach v,FILTER PACKS SHOTS,$(call check_var,$v,$(SAFE_CHARS)))
+$(call check_var,HOST,$(SAFE_CHARS) @ :)
+export FILTER PACKS SHOTS HOST
+
 # FILTER=<regex> runs only the matching tests
 test:
-	swift test $(if $(FILTER),--filter '$(FILTER)')
+	swift test $(if $(value FILTER),--filter "$$FILTER")
 
 build:
 	swift build
 
 # checks the bundled packs, or PACKS=<file or folder>
-PACKS ?= Resources/Packs
 lint: build
-	"$$(swift build --show-bin-path)/Sanketa" --lint-pack $(PACKS)
+	"$$(swift build --show-bin-path)/Sanketa" --lint-pack "$$PACKS"
 
 # renders the panel scenarios to PNGs (off in make test); SHOTS=<folder> keeps them
 shots:
-	SANKETA_RENDER=1 $(if $(SHOTS),SANKETA_SHOTS_OUT=$(SHOTS)) swift test --filter RenderTests
+	SANKETA_RENDER=1 $(if $(value SHOTS),SANKETA_SHOTS_OUT="$$SHOTS") swift test --filter RenderTests
 
 bundle:
 	swift build -c release
@@ -90,5 +108,5 @@ gatekeeper:
 	spctl -a -t exec -vv $(APP)
 
 remote-setup:
-	@if [ -z "$(HOST)" ]; then echo "usage: make remote-setup HOST=<ssh destination, e.g. me@gpubox>"; exit 2; fi
-	scripts/remote-setup.sh "$(HOST)"
+	@if [ -z "$$HOST" ]; then echo "usage: make remote-setup HOST=<ssh destination, e.g. me@gpubox>"; exit 2; fi
+	scripts/remote-setup.sh "$$HOST"
