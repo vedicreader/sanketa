@@ -26,7 +26,7 @@ public struct CoachConfig: Codable, Equatable, Sendable {
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
         fishHistory = try c.decodeIfPresent(String.self, forKey: .fishHistory) ?? fishHistory
         bashHistory = try c.decodeIfPresent(String.self, forKey: .bashHistory) ?? bashHistory
-        maxEntries = try c.decodeIfPresent(Int.self, forKey: .maxEntries) ?? maxEntries
+        maxEntries = max(1, try c.decodeIfPresent(Int.self, forKey: .maxEntries) ?? maxEntries)
     }
 
     public var fishURL: URL { URL(fileURLWithPath: (fishHistory as NSString).expandingTildeInPath) }
@@ -64,6 +64,7 @@ public struct LLMConfig: Codable, Equatable, Sendable {
         apiKeyEnv = try c.decodeIfPresent(String.self, forKey: .apiKeyEnv) ?? apiKeyEnv
         if let v = try? c.decodeIfPresent(Double.self, forKey: .timeoutSeconds) { timeoutSeconds = v }
         else { timeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .timeoutSeconds).map(Double.init) ?? timeoutSeconds }
+        if timeoutSeconds <= 0 { timeoutSeconds = LLMConfig().timeoutSeconds }
     }
 }
 
@@ -105,11 +106,13 @@ public struct Config: Codable, Equatable {
     /// table (which is added at the end of the text when missing). Other lines are kept.
     public static func setting(_ key: String, _ value: String, in text: String, table: String? = nil) -> String {
         var lines = text.components(separatedBy: "\n")
-        let isTable = { (l: String) in l.trimmingCharacters(in: .whitespaces).hasPrefix("[") }
+        let code = { (l: String) in (l.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? l)
+            .trimmingCharacters(in: .whitespaces) }
+        let isTable = { (l: String) in code(l).hasPrefix("[") }
         let new = "\(key) = \(value)"
         var range = 0..<(lines.firstIndex(where: isTable) ?? lines.count)
         if let table {
-            guard let h = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "[\(table)]" }) else {
+            guard let h = lines.firstIndex(where: { code($0) == "[\(table)]" }) else {
                 return text + (text.isEmpty || text.hasSuffix("\n") ? "" : "\n") + "\n[\(table)]\n\(new)\n"
             }
             range = (h + 1)..<(lines[(h + 1)...].firstIndex(where: isTable) ?? lines.count)

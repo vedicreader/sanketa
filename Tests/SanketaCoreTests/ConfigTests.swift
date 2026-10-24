@@ -135,4 +135,17 @@ struct CoachLLMConfigTests {
         try Config.save("openai_model", "\"m\"", to: u, table: "llm")
         #expect(Config.load(u).0.llm.openaiModel == "m")
     }
+
+    @Test func tableHeaderWithCommentIsFound() throws {
+        let text = "[llm]  # note\nopenai = true\n[coach]\n"
+        let a = Config.setting("openai_model", "\"b\"", in: text, table: "llm")
+        #expect(a == "[llm]  # note\nopenai = true\nopenai_model = \"b\"\n[coach]\n")
+        #expect(Config.load(try writeConfig(a)).0.llm.openaiModel == "b")
+    }
+
+    @Test func nonPositiveLimitsAreClamped() throws {
+        let (c, err) = Config.load(try writeConfig("[llm]\ntimeout_seconds = 0\n[coach]\nmax_entries = -4"))
+        #expect(err == nil && c.llm.timeoutSeconds == 5 && c.coach.maxEntries == 1)
+        #expect(Config.load(try writeConfig("[llm]\ntimeout_seconds = -1.5")).0.llm.timeoutSeconds == 5)
+    }
 }
