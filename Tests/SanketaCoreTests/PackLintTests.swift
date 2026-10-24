@@ -84,7 +84,10 @@ import Testing
         #expect(syntax.hasPrefix("line ") && !syntax.contains("TOMLError") && !syntax.contains("DecodingError"), "\(syntax)")
         let r = PackLint.run([d.path])
         #expect(r.status == 1 && r.lines.contains("duckdb.toml: key 2 has no action"))
-        #expect(PackLint.run([d.appendingPathComponent("none.toml").path]).status == 2)
+        let none = d.appendingPathComponent("none.toml").path
+        let both = PackLint.run([none, d.path])
+        #expect(both.status == 2 && both.lines.first == "\(none): no such file or folder")
+        #expect(both.lines.contains("duckdb.toml: key 2 has no action"), "the existing folder is still checked")
     }
 
     @Test func styleFixKeepsSeparators() {

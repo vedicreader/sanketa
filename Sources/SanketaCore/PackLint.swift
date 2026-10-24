@@ -203,23 +203,24 @@ public enum PackLint {
                   let n = m.output[1].substring, let c = m.output[2].substring, let r = m.output[3].substring else { return d }
             return "line \(n): \(c.lowercased())\(r)"
         default:
-            return "\(error)"
+            return "the file did not load"
         }
     }
 
     /// `--lint-pack`: findings as `file: message` lines for each `.toml` file in `paths` (files or folders), and the exit status.
     public static func run(_ paths: [String]) -> (lines: [String], status: Int32) {
-        var files = [URL]()
+        var files = [URL](), missing = [String]()
         for p in paths {
             let u = URL(fileURLWithPath: p)
             var dir: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: p, isDirectory: &dir) else { return (["\(p): no such file or folder"], 2) }
+            // a missing path is reported, and the other paths are still checked
+            guard FileManager.default.fileExists(atPath: p, isDirectory: &dir) else { missing.append("\(p): no such file or folder"); continue }
             files += dir.boolValue
                 ? ((try? FileManager.default.contentsOfDirectory(at: u, includingPropertiesForKeys: nil)) ?? [])
                     .filter { $0.pathExtension == "toml" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
                 : [u]
         }
-        var lines = [String](), errors = 0, warnings = 0
+        var lines = missing, errors = 0, warnings = 0
         for f in files {
             for x in lint(file: f) {
                 lines.append("\(f.lastPathComponent): \(x)")
@@ -227,6 +228,6 @@ public enum PackLint {
             }
         }
         lines.append("\(files.count) file\(files.count == 1 ? "" : "s"): \(errors) error\(errors == 1 ? "" : "s"), \(warnings) warning\(warnings == 1 ? "" : "s")")
-        return (lines, errors > 0 ? 1 : 0)
+        return (lines, !missing.isEmpty ? 2 : errors > 0 ? 1 : 0)
     }
 }

@@ -1403,7 +1403,7 @@ command = "vault_proofread"
 
 [[keys]]
 keys = "m"
-action = "Show as a hosted model sees"
+action = "Show what a hosted model gets"
 group = "Vault reader"
 command = "vault_as_sent"
 
