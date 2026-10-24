@@ -6,7 +6,6 @@ import SanketaCore
     /// "OpenAI Key" for OpenAI, else the provider's host.
     static func title(host: String) -> String { host == "api.openai.com" ? "OpenAI Key" : "API key for \(host)" }
 
-    /// Shows the box and gives the typed text, or nil on Cancel. Focus goes back to the previous app after.
     /// Shows the box at once and gives the typed text, or nil on Cancel. A line under the field says "Looking for a
     /// key…" until `status` answers; then it shows that answer (for example, that the shell sets the key), or goes
     /// empty. Focus goes back to the previous app after.
