@@ -36,6 +36,7 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL)); return
         }
         stub.hold?(url.path)
+        if let e = stub.failure?(url.path) { client?.urlProtocol(self, didFailWithError: e); return }
         let (status, body) = stub.answer(request)
         var headers = ["Content-Type": "application/json"]
         // a 3xx answer's body is the Location; the session asks its delegate whether to follow it
@@ -64,6 +65,8 @@ final class Stub: @unchecked Sendable {
     let session: URLSession
     /// Runs on the loading thread before each answer, with the path; a test may block here to hold a request open.
     var hold: (@Sendable (String) -> Void)?
+    /// An error to fail the request with instead of answering, by path.
+    var failure: (@Sendable (String) -> URLError?)?
 
     convenience init(_ answers: [String: [(Int, String)]]) {
         self.init(data: answers.mapValues { $0.map { ($0.0, Data($0.1.utf8)) } })

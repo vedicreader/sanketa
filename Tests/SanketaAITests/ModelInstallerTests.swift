@@ -167,7 +167,7 @@ private final class Seen: @unchecked Sendable {
         let root = try modelTempDir()
         let stub = Stub(data: good())
         let inst = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in 1000 })
-        #expect(await installError { try await inst.install(spec) { _, _ in } } == .noSpace(need: spec.downloadSize, free: 1000))
+        #expect(await installError { try await inst.install(spec) { _, _ in } } == .noSpace(need: ModelInstaller.needed(spec.downloadSize), free: 1000))
         #expect(stub.requests.isEmpty && !inst.isInstalled(spec) && !exists(root.appendingPathComponent("Tiny.partial")))
     }
 
@@ -191,6 +191,75 @@ private final class Seen: @unchecked Sendable {
         stub.hold = nil
         try await inst.install(spec) { _, _ in }
         #expect(inst.isInstalled(spec))
+    }
+
+    @Test(arguments: ["http://cas-bridge.xethub.hf.co/w", "https://evil.example/w", "https://evilhf.co/w",
+                      "https://hf.co.evil.example/w"])
+    func redirectOffHFIsRefused(_ to: String) async throws {
+        let root = try modelTempDir()
+        var answers = good()
+        answers[path("model.safetensors")] = [(302, Data(to.utf8))]
+        answers["/w"] = [(200, weights)]
+        let stub = Stub(data: answers)
+        let inst = ModelInstaller(root: root, session: stub.session)
+        let u = try #require(URL(string: to))
+        #expect(await installError { try await inst.install(spec) { _, _ in } } == .redirectRefused("\(u.scheme!)://\(u.host!)"))
+        #expect(!inst.isInstalled(spec))
+        #expect(!exists(root.appendingPathComponent("Tiny")) && !exists(root.appendingPathComponent("Tiny.partial")))
+        #expect(stub.requests.allSatisfy { $0.url?.host == "huggingface.co" })
+    }
+
+    @Test func redirectToHFCDNIsFollowed() async throws {
+        let root = try modelTempDir()
+        var answers = good()
+        answers[path("model.safetensors")] = [(302, Data("https://cas-bridge.xethub.hf.co/xet/w".utf8))]
+        answers["/xet/w"] = [(200, weights)]
+        let stub = Stub(data: answers)
+        let inst = ModelInstaller(root: root, session: stub.session)
+        try await inst.install(spec) { _, _ in }
+        #expect(inst.isInstalled(spec))
+        #expect(stub.requests.contains { $0.url?.absoluteString == "https://cas-bridge.xethub.hf.co/xet/w" })
+    }
+
+    @Test func spaceCheckKeepsHeadroom() async throws {
+        #expect(ModelInstaller.needed(10_000_000_000) == 10_500_000_000)
+        #expect(ModelInstaller.needed(1000) == 1000 + 256 << 20)
+        let root = try modelTempDir()
+        let stub = Stub(data: good())
+        let free = spec.downloadSize + 1000   // fits the files, not the headroom
+        let inst = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in free })
+        #expect(await installError { try await inst.install(spec) { _, _ in } }
+                == .noSpace(need: spec.downloadSize + 256 << 20, free: free))
+        #expect(stub.requests.isEmpty)
+    }
+
+    @Test func noSpaceForReinstallKeepsOldInstall() async throws {
+        let root = try modelTempDir()
+        let stub = Stub(data: good())
+        try await ModelInstaller(root: root, session: stub.session).install(spec) { _, _ in }
+        // the old folder stays until the new one is in place, so it frees nothing
+        let inst = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in 100 << 20 })
+        #expect(await installError { try await inst.install(spec) { _, _ in } } == .noSpace(need: spec.downloadSize + 256 << 20, free: 100 << 20))
+        #expect(inst.isInstalled(spec))
+        #expect(try Data(contentsOf: inst.directory(spec).appendingPathComponent("model.safetensors")) == weights)
+        #expect(stub.requests.count == 2)
+    }
+
+    @Test func lostConnectionIsNetworkError() async throws {
+        let root = try modelTempDir()
+        let stub = Stub(data: good())
+        stub.failure = { $0.hasSuffix("/config.json") ? URLError(.networkConnectionLost) : nil }
+        let inst = ModelInstaller(root: root, session: stub.session)
+        #expect(await installError { try await inst.install(spec) { _, _ in } } == .network("config.json", "The connection stopped."))
+        #expect(!inst.isInstalled(spec) && !exists(root.appendingPathComponent("Tiny.partial")))
+        // a cancel that did not come from us is not a CancellationError
+        stub.failure = { _ in URLError(.cancelled) }
+        #expect(await installError { try await inst.install(spec) { _, _ in } } == .network("model.safetensors", "The download stopped."))
+    }
+
+    @Test func defaultSessionKeepsNothing() {
+        let c = ModelInstaller.makeSession().configuration
+        #expect(c.httpCookieStorage == nil && c.urlCredentialStorage == nil && c.urlCache == nil && !c.httpShouldSetCookies)
     }
 
     @Test func catalogPinsMatchHFLayout() throws {
