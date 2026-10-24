@@ -1,8 +1,8 @@
 import Foundation
 
-public enum ItemKind: String, Codable { case key, tip, suggestion }
+public enum ItemKind: String, Codable, Sendable { case key, tip, suggestion }
 
-public struct SearchItem: Hashable, Identifiable {
+public struct SearchItem: Hashable, Identifiable, Sendable {
     public var packID: String
     public var packName: String
     public var kind: ItemKind

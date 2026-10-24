@@ -1,0 +1,176 @@
+import Foundation
+
+public enum ModelStatus: Equatable, Sendable { case available, unavailable(String), off }
+
+public enum ChoiceError: Error, Equatable { case contextExceeded, notAllowed, http(Int), badResponse, noKey }
+
+/// A model that picks refs from a `ChoicePrompt`. It never sees anything but the prompt.
+public protocol Choosing: Sendable {
+    var name: String { get }
+    var isRemote: Bool { get }
+    func status() -> ModelStatus
+    func choose(_ prompt: ChoicePrompt) async throws -> [String]
+    func prewarm()
+}
+
+public extension Choosing { func prewarm() {} }
+
+/// The slot for the downloaded on-device model, tried first.
+public protocol OnDeviceChooser: Choosing {}
+
+public extension OnDeviceChooser { var isRemote: Bool { false } }
+
+/// Picks a chooser in the order on-device model, Apple Foundation Models, OpenAI-compatible server.
+public struct ModelRouter: Sendable {
+    public var config: LLMConfig
+    public var onDevice: (any OnDeviceChooser)?
+    public var appleFM: (any Choosing)?
+    public var remote: (any Choosing)?
+
+    public init(config: LLMConfig, onDevice: (any OnDeviceChooser)?, appleFM: (any Choosing)?, remote: (any Choosing)?) {
+        self.config = config; self.onDevice = onDevice; self.appleFM = appleFM; self.remote = remote
+    }
+
+    /// Enabled tiers in order, with the reason to give when the tier has no chooser.
+    func tiers(remote withRemote: Bool) -> [(chooser: (any Choosing)?, missing: String)] {
+        var t: [(chooser: (any Choosing)?, missing: String)] = []
+        if config.onDevice { t.append((onDevice, "on-device model is not set up")) }
+        if config.appleFM { t.append((appleFM, "Apple Intelligence is not available")) }
+        if withRemote && config.openai { t.append((remote, "OpenAI server is not set up")) }
+        return t
+    }
+
+    static func first(_ tiers: [(chooser: (any Choosing)?, missing: String)]) -> (any Choosing)? {
+        tiers.lazy.compactMap(\.chooser).first { $0.status() == .available }
+    }
+
+    public func searchChooser() -> (any Choosing)? { Self.first(tiers(remote: true)) }
+
+    /// On-device tiers only: the suggestion prompt holds shell history, which never leaves the machine.
+    public func suggestChooser() -> (any Choosing)? {
+        guard config.suggest else { return nil }
+        return Self.first(tiers(remote: false)).flatMap { $0.isRemote ? nil : $0 }
+    }
+
+    public func searchNote() -> String? {
+        if searchChooser() != nil { return nil }
+        let reasons = tiers(remote: true).compactMap { t -> String? in
+            guard let c = t.chooser else { return t.missing }
+            if case .unavailable(let why) = c.status() { return why }
+            return nil
+        }
+        return "Plain search: " + (reasons.isEmpty ? "no model turned on" : reasons.joined(separator: "; "))
+    }
+
+    public func prewarm() { searchChooser()?.prewarm() }
+}
+
+struct TimedOut: Error {}
+
+/// Calls the chooser with the timeout; on `.contextExceeded` it tries once more with half the entries.
+func choosePicks(_ chooser: any Choosing, _ prompt: ChoicePrompt, timeout: TimeInterval) async throws -> (picks: [String], prompt: ChoicePrompt) {
+    try await withThrowingTaskGroup(of: ([String], ChoicePrompt).self) { g in
+        g.addTask {
+            do { return (try await chooser.choose(prompt), prompt) }
+            catch ChoiceError.contextExceeded {
+                let h = prompt.halved()
+                return (try await chooser.choose(h), h)
+            }
+        }
+        g.addTask {
+            try await Task.sleep(for: .seconds(timeout))
+            throw TimedOut()
+        }
+        defer { g.cancelAll() }
+        return try await g.next()!
+    }
+}
+
+public struct SmartResult: Equatable, Sendable {
+    public var items: [SearchItem]
+    /// ids of the items the model chose; they come first
+    public var picked: Set<String>
+    public var note: String?
+
+    public init(items: [SearchItem], picked: Set<String> = [], note: String? = nil) {
+        self.items = items; self.picked = picked; self.note = note
+    }
+}
+
+/// Plain search, with the model's picks moved to the top for requests of 3 or more words.
+public struct SmartSearch: Sendable {
+    public var router: ModelRouter
+    public var timeout: TimeInterval
+    public static let maxPicks = 5
+
+    public init(router: ModelRouter, timeout: TimeInterval) { self.router = router; self.timeout = timeout }
+
+    static func reason(_ e: Error) -> String {
+        switch e {
+        case is TimedOut: return "timed out"
+        case ChoiceError.notAllowed: return "refused the request"
+        case ChoiceError.noKey: return "no key"
+        case ChoiceError.http(let n): return "HTTP \(n)"
+        default: return "failed"
+        }
+    }
+
+    public func results(_ query: String, _ items: [SearchItem], context: [String]) async -> SmartResult {
+        let ranked = Search.rank(query, items, context: context)
+        let local = ranked.isEmpty ? Retrieval.candidates(query, items, context: context) : ranked
+        guard query.split(whereSeparator: \.isWhitespace).count >= 3 else { return SmartResult(items: local) }
+        guard let chooser = router.searchChooser() else { return SmartResult(items: local, note: router.searchNote()) }
+        // menu items can hold window and document names: they never go to a remote server
+        let pool = chooser.isRemote ? items.filter { !$0.packID.hasPrefix("app:") } : items
+        let cands = Retrieval.candidates(query, pool, context: context)
+        guard !cands.isEmpty else { return SmartResult(items: local) }
+        let (prompt, _) = ChoicePrompt.build(task: .search(query), candidates: cands, maxPicks: Self.maxPicks)
+        do {
+            let (picks, used) = try await choosePicks(chooser, prompt, timeout: timeout)
+            let refs = Dictionary(uniqueKeysWithValues: zip(used.refs, cands))
+            let chosen = Grounding.resolve(picks, refs, order: used.refs, max: Self.maxPicks)
+            let ids = Set(chosen.map(\.id))
+            return SmartResult(items: chosen + local.filter { !ids.contains($0.id) }, picked: ids)
+        } catch {
+            return SmartResult(items: local, note: "Plain search: \(chooser.name) \(Self.reason(error))")
+        }
+    }
+}
+
+/// Up to 2 pack entries chosen by an on-device model for what the recent commands do.
+public enum SmartSuggest {
+    static let wrappers: Set<String> = ["sudo", "env", "command"]
+    public static let maxPicks = 2
+
+    /// The command names of each stage of `command`, past `sudo`, `env`, `command`, their options and `X=Y` words.
+    static func names(_ command: String, shell: Shell) -> [String] {
+        ShellLex.commands(command, shell: shell).flatMap(\.stages).compactMap { stage in
+            let w = stage.map(\.value).drop { wrappers.contains($0) || $0.hasPrefix("-")
+                || $0.range(of: #"^[A-Za-z_][A-Za-z0-9_]*="#, options: .regularExpression) != nil }
+            return w.first.map { ($0 as NSString).lastPathComponent }.flatMap { $0.isEmpty ? nil : $0 }
+        }
+    }
+
+    public static func candidates(recent: [HistoryEntry], library: PackLibrary, items: [SearchItem], excluding: Set<String>,
+                                  limit: Int = 30) -> [SearchItem] {
+        var packs: [String] = []
+        for e in recent.suffix(ChoicePrompt.commandCount).reversed() {
+            for n in names(e.command, shell: e.shell) {
+                if let p = library.pack(process: n, argv: [n]), !packs.contains(p.id) { packs.append(p.id) }
+            }
+        }
+        let byPack = Dictionary(grouping: items.filter { $0.kind == .tip || $0.kind == .key }, by: \.packID)
+        return Array(packs.flatMap { byPack[$0] ?? [] }.filter { !excluding.contains($0.id) }.prefix(limit))
+    }
+
+    public static func pick(recent: [HistoryEntry], library: PackLibrary, items: [SearchItem], excluding: Set<String>,
+                            router: ModelRouter, timeout: TimeInterval) async -> [SearchItem] {
+        guard let chooser = router.suggestChooser(), !chooser.isRemote else { return [] }
+        let cands = candidates(recent: recent, library: library, items: items, excluding: excluding)
+        guard !cands.isEmpty else { return [] }
+        let cmds = recent.suffix(ChoicePrompt.commandCount).map(\.command)
+        let (prompt, _) = ChoicePrompt.build(task: .suggest(cmds), candidates: cands, maxPicks: maxPicks)
+        guard let (picks, used) = try? await choosePicks(chooser, prompt, timeout: timeout) else { return [] }
+        return Grounding.resolve(picks, Dictionary(uniqueKeysWithValues: zip(used.refs, cands)), order: used.refs, max: maxPicks)
+    }
+}
