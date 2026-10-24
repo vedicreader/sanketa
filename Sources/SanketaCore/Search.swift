@@ -12,21 +12,24 @@ public struct SearchItem: Hashable, Identifiable, Sendable {
     public var tags: [String]
     /// in the active context of its layer; ranks higher
     public var active = false
+    /// may go to a remote model: set only for entries of TOML packs and live tmux keys
+    public var mayLeave = false
     public var id: String { "\(packID)|\(kind.rawValue)|\(title)" }
 
     public init(packID: String, packName: String, kind: ItemKind, title: String, detail: String,
-                explain: String? = nil, tags: [String] = []) {
+                explain: String? = nil, tags: [String] = [], mayLeave: Bool = false) {
         self.packID = packID; self.packName = packName; self.kind = kind; self.title = title
-        self.detail = detail; self.explain = explain; self.tags = tags
+        self.detail = detail; self.explain = explain; self.tags = tags; self.mayLeave = mayLeave
     }
 
     /// The pack's keys and tips; with `context`, those in that pack context are `active`.
     public static func items(from p: Pack, context: String? = nil) -> [SearchItem] {
         func mark(_ i: SearchItem, _ on: Bool) -> SearchItem { var i = i; i.active = on; return i }
-        return p.keys.map { k in mark(SearchItem(packID: p.id, packName: p.name, kind: .key, title: k.action, detail: k.keys),
+        return p.keys.map { k in mark(SearchItem(packID: p.id, packName: p.name, kind: .key, title: k.action, detail: k.keys,
+                                                 mayLeave: p.fromTOML),
                                       context.map { p.key(k, isIn: $0) } ?? false) }
         + p.tips.map { t in mark(SearchItem(packID: p.id, packName: p.name, kind: .tip, title: t.title, detail: t.snippet,
-                                            explain: t.explain, tags: t.tags), context.map { p.tip(t, isIn: $0) } ?? false) }
+                                            explain: t.explain, tags: t.tags, mayLeave: p.fromTOML), context.map { p.tip(t, isIn: $0) } ?? false) }
     }
 }
 

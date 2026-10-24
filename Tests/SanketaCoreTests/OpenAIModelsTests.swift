@@ -38,8 +38,15 @@ private func json(_ d: Data) throws -> [String: Any] { try #require(JSONSerializ
         for s in ["https://api.openai.com/v1", "https://openrouter.ai/api/v1", "http://localhost:11434/v1", "http://[::1]:8080/v1"] {
             #expect(OpenAIModels.isAllowed(try #require(URL(string: s))))
         }
-        for s in ["http://api.openai.com/v1", "http://192.168.1.20:11434/v1", "ftp://localhost/v1", "http://localhost.evil.com/v1"] {
-            #expect(!OpenAIModels.isAllowed(try #require(URL(string: s))))
+        for s in ["HTTPS://api.openai.com/v1", "HTTP://LOCALHOST:11434/v1", "Http://127.0.0.1:1234/v1"] {
+            #expect(OpenAIModels.isAllowed(try #require(URL(string: s))), "\(s)")
+        }
+        #expect(OpenAIModels.isOpenAI(try #require(URL(string: "HTTPS://API.OPENAI.COM/v1"))))
+        #expect(!OpenAIModels.isOpenAI(try #require(URL(string: "https://api.openai.com@evil.com/v1"))))
+        for s in ["http://api.openai.com/v1", "http://192.168.1.20:11434/v1", "ftp://localhost/v1", "http://localhost.evil.com/v1",
+                  "HTTP://api.openai.com/v1", "http://localhost@evil.com/v1", "http://localhost:pw@evil.com:11434/v1",
+                  "http://[::ffff:127.0.0.1]:1234/v1", "http://127.0.0.2/v1", "http://0.0.0.0:11434/v1"] {
+            #expect(!OpenAIModels.isAllowed(try #require(URL(string: s))), "\(s)")
         }
         #expect(OpenAIModels.isReasoning("o4-mini") && OpenAIModels.isReasoning("gpt-5-nano"))
         #expect(!OpenAIModels.isReasoning("gpt-4o-mini") && !OpenAIModels.isReasoning("gpt-4.1-nano"))
@@ -89,7 +96,10 @@ private func json(_ d: Data) throws -> [String: Any] { try #require(JSONSerializ
         #expect(!coach.isEmpty)
         let menu = SearchItem(packID: "app:com.apple.TextEdit", packName: "TextEdit Menus", kind: .key,
                               title: "Close Split budget.docx", detail: "⌘W")
-        let all = items + coach + [menu]
+        // a source added later that nobody marked: it stays on this Mac by default
+        let unknown = SearchItem(packID: "zz-new-source", packName: "New source", kind: .tip, title: "Count matches in Q4 forecast",
+                                 detail: "private-note")
+        let all = items + coach + [menu, unknown]
         var cfg = LLMConfig(); cfg.onDevice = false; cfg.appleFM = false; cfg.openai = true
         let remote = RecordingChooser(isRemote: true)
         let query = "count matches then split the pane"
@@ -101,13 +111,36 @@ private func json(_ d: Data) throws -> [String: Any] { try #require(JSONSerializ
         _ = await SmartSearch(router: ModelRouter(config: cfg, onDevice: nil, appleFM: local, remote: nil), timeout: 60)
             .results(query, all, context: ["tmux"])
         let localText = await local.prompts.map(\.userText).joined()
-        #expect(localText.contains("deploy-secrets") && localText.contains("budget.docx"))
+        #expect(localText.contains("deploy-secrets") && localText.contains("budget.docx") && localText.contains("Q4 forecast"))
         let sent = await remote.prompts
         #expect(sent.count == 1)
         let text = sent.map(\.userText).joined()
         #expect(!text.contains("deploy-secrets") && !text.contains("Better ways") && !text.contains("budget.docx"))
+        #expect(!text.contains("Q4 forecast") && !text.contains("private-note"))
         #expect(text.contains("Split pane left/right"))
-        #expect(all.filter(SmartSearch.mayLeave) == items)
+        #expect(all.filter(\.mayLeave) == items)
+    }
+
+    @Test func onlyTOMLAndLiveTmuxEntriesMayLeave() throws {
+        let toml = try PackLibrary.decode(Data("""
+            id = "tmux"
+            name = "tmux"
+            [[keys]]
+            keys = "prefix %"
+            action = "Split pane left/right"
+            command = "split-window -h"
+            [[tips]]
+            title = "Zoom a pane"
+            snippet = "prefix z"
+            """.utf8))
+        #expect(SearchItem.items(from: toml).count == 2 && SearchItem.items(from: toml).allSatisfy(\.mayLeave))
+        let live = Tmux.mergeLive(toml, live: [KeyEntry(keys: "prefix |", action: "split-window -h", command: "split-window -h"),
+                                                KeyEntry(keys: "prefix R", action: "source-file ~/.tmux.conf")])
+        #expect(SearchItem.items(from: live).count == 3 && SearchItem.items(from: live).allSatisfy(\.mayLeave))
+        let menu = MenuKeys.pack(bundleID: "com.apple.TextEdit", name: "TextEdit",
+                                 shortcuts: [MenuShortcut(path: ["File", "Close budget.docx"], keys: "⌘W", enabled: true)])
+        #expect(!SearchItem.items(from: menu).isEmpty && SearchItem.items(from: menu).filter(\.mayLeave).isEmpty)
+        #expect(SearchItem.items(from: Pack(id: "made-in-code", name: "x", keys: [KeyEntry(keys: "a", action: "b")])).filter(\.mayLeave).isEmpty)
     }
 
     @Test func parseReadsPicks() throws {

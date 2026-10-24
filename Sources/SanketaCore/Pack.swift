@@ -78,6 +78,9 @@ public struct Pack: Codable, Hashable {
     /// regexes on the window title of a `titleApps` app (a browser) that host this pack's app
     public var titles: [String]
     public var titleApps: [String]
+    /// True only for a pack read from TOML (bundled or user), and so for its live tmux merge. Only its entries
+    /// may go to a remote model; packs made in code (menu keys) stay false.
+    public var fromTOML = false
 
     public static let browsers = ["com.google.Chrome", "com.apple.Safari", "company.thebrowser.Browser"]
 
@@ -109,6 +112,7 @@ public struct Pack: Codable, Hashable {
         contexts = try c.decodeIfPresent([PackContext].self, forKey: .contexts) ?? []
         titles = try c.decodeIfPresent([String].self, forKey: .titles) ?? []
         titleApps = try c.decodeIfPresent([String].self, forKey: .titleApps) ?? Self.browsers
+        fromTOML = true
     }
 }
 

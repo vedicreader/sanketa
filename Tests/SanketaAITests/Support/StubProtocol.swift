@@ -36,8 +36,16 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL)); return
         }
         let (status, body) = stub.answer(request)
-        let resp = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1",
-                                   headerFields: ["Content-Type": "application/json"])!
+        var headers = ["Content-Type": "application/json"]
+        // a 3xx answer's body is the Location; the session asks its delegate whether to follow it
+        let location = (300..<400).contains(status) ? String(decoding: body, as: UTF8.self) : nil
+        if let location { headers["Location"] = location }
+        let resp = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: headers)!
+        if let location, let to = URL(string: location) {
+            var next = request
+            next.url = to
+            client?.urlProtocol(self, wasRedirectedTo: next, redirectResponse: resp)
+        }
         client?.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: body)
         client?.urlProtocolDidFinishLoading(self)

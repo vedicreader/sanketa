@@ -140,12 +140,6 @@ public struct SmartSearch: Sendable {
 
     public init(router: ModelRouter, timeout: TimeInterval) { self.router = router; self.timeout = timeout }
 
-    /// Only entries from TOML packs and live tmux keys go to a remote server. Menu entries (`app:` packs) can hold
-    /// window and document names, and coaching entries come from shell history.
-    public static func mayLeave(_ item: SearchItem) -> Bool {
-        !item.packID.hasPrefix("app:") && item.packID != "coach" && item.kind != .suggestion
-    }
-
     static func reason(_ e: Error) -> String {
         switch e {
         case is TimedOut: return "timed out"
@@ -162,7 +156,8 @@ public struct SmartSearch: Sendable {
         let local = (ranked.isEmpty ? Retrieval.candidates(query, items, context: context) : ranked).filter { seen.insert($0.id).inserted }
         guard query.split(whereSeparator: \.isWhitespace).count >= 3 else { return SmartResult(items: local) }
         guard let chooser = router.searchChooser() else { return SmartResult(items: local, note: router.searchNote()) }
-        let pool = chooser.isRemote ? items.filter(Self.mayLeave) : items
+        // allow-list: only entries marked by `SearchItem.items(from:)` for TOML packs and live tmux keys
+        let pool = chooser.isRemote ? items.filter(\.mayLeave) : items
         let cands = Retrieval.candidates(query, pool, context: context)
         guard !cands.isEmpty else { return SmartResult(items: local) }
         let (prompt, refs) = ChoicePrompt.build(task: .search(query), candidates: cands, maxPicks: Self.maxPicks)

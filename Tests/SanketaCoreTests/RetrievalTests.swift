@@ -2,8 +2,9 @@ import Testing
 import Foundation
 @testable import SanketaCore
 
+/// A pack entry, as `SearchItem.items(from:)` makes it for a TOML pack.
 func entry(_ pack: String, _ title: String, _ detail: String = "", kind: ItemKind = .key) -> SearchItem {
-    SearchItem(packID: pack, packName: pack, kind: kind, title: title, detail: detail)
+    SearchItem(packID: pack, packName: pack, kind: kind, title: title, detail: detail, mayLeave: true)
 }
 
 @Suite struct RetrievalTests {

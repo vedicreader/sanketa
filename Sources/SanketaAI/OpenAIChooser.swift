@@ -8,6 +8,14 @@ func authorized(_ url: URL, key: String?, timeout: TimeInterval) -> URLRequest {
     return r
 }
 
+/// Refuses every redirect, so the bearer key and the query can't be sent on to another host or over plain http.
+/// The 3xx answer then shows as `.http(3xx)`.
+final class NoRedirect: NSObject, URLSessionTaskDelegate {
+    static let shared = NoRedirect()
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest) async -> URLRequest? { nil }
+}
+
 /// The status code; a non-2xx answer throws `.http`.
 func checked(_ resp: URLResponse) throws -> Int {
     guard let h = resp as? HTTPURLResponse else { throw ChoiceError.badResponse }
@@ -59,7 +67,7 @@ public struct OpenAIChooser: Choosing {
         r.httpMethod = "POST"
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
         r.httpBody = OpenAIRequest.body(model: model, prompt: prompt, openAI: openAI, schema: schema)
-        let (data, resp) = try await session.data(for: r)
+        let (data, resp) = try await session.data(for: r, delegate: NoRedirect.shared)
         _ = try checked(resp)
         return try OpenAIRequest.parse(data)
     }
@@ -70,7 +78,8 @@ public enum ModelList {
     public static func fetch(baseURL: URL, key: String?, session: URLSession = .shared, timeout: TimeInterval = 8) async throws -> [String] {
         struct Reply: Decodable { struct Model: Decodable { var id: String }; var data: [Model] }
         guard OpenAIModels.isAllowed(baseURL) else { throw ChoiceError.notAllowed }
-        let (data, resp) = try await session.data(for: authorized(baseURL.appendingPathComponent("models"), key: key, timeout: timeout))
+        let req = authorized(baseURL.appendingPathComponent("models"), key: key, timeout: timeout)
+        let (data, resp) = try await session.data(for: req, delegate: NoRedirect.shared)
         _ = try checked(resp)
         guard let r = try? JSONDecoder().decode(Reply.self, from: data) else { throw ChoiceError.badResponse }
         return OpenAIModels.chatCapable(r.data.map(\.id), openAI: OpenAIModels.isOpenAI(baseURL))

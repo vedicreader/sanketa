@@ -7,9 +7,9 @@ private let openAI = URL(string: "https://api.openai.com/v1")!
 private let chatPath = "/v1/chat/completions"
 private let okReply = #"{"choices":[{"message":{"role":"assistant","content":"{\"picks\":[\"e2\",\"e1\"]}"}}]}"#
 private let items = [
-    SearchItem(packID: "tmux", packName: "tmux", kind: .key, title: "Split pane left/right", detail: "prefix %"),
-    SearchItem(packID: "tmux", packName: "tmux", kind: .key, title: "Split pane top/bottom", detail: "prefix \""),
-    SearchItem(packID: "vim", packName: "Vim", kind: .key, title: "Split window", detail: ":vsplit"),
+    SearchItem(packID: "tmux", packName: "tmux", kind: .key, title: "Split pane left/right", detail: "prefix %", mayLeave: true),
+    SearchItem(packID: "tmux", packName: "tmux", kind: .key, title: "Split pane top/bottom", detail: "prefix \"", mayLeave: true),
+    SearchItem(packID: "vim", packName: "Vim", kind: .key, title: "Split window", detail: ":vsplit", mayLeave: true),
 ]
 private let prompt = ChoicePrompt.build(task: .search("split the pane side by side"), candidates: items, maxPicks: 5).prompt
 
@@ -167,6 +167,16 @@ private func choiceError(_ body: () async throws -> [String]) async -> ChoiceErr
             .results("split the pane side by side", items, context: ["tmux"])
         #expect(r.note == "Plain search: The server address must start with https://")
         #expect(stub.requests.isEmpty)
+    }
+
+    @Test func redirectIsNotFollowed() async {
+        let evil = "http://evil.example/v1/chat/completions"
+        let stub = Stub([chatPath: [(302, evil)], "/v1/models": [(307, "https://other.example/v1/models")]])
+        #expect(await choiceError { try await chooser(stub).choose(prompt) } == .http(302))
+        await #expect(throws: ChoiceError.http(307)) { try await ModelList.fetch(baseURL: openAI, key: "sk-test", session: stub.session) }
+        let hosts = stub.requests.map { $0.url?.host }
+        #expect(hosts == ["api.openai.com", "api.openai.com"])
+        #expect(!stub.requests.contains { $0.url?.host != "api.openai.com" && $0.header("Authorization") != nil })
     }
 
     @Test func stubLeavesRegistryWhenReleased() async throws {
