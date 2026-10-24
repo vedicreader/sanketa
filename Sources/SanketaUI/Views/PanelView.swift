@@ -12,7 +12,7 @@ struct PanelView: View {
     let pick: (Int) -> Void
     let clickLayer: (Int) -> Void
     var openFile: (String) -> Void = { _ in }
-    var makePack: (String) -> Void = { _ in }
+    var makePack: (Layer) -> Void = { _ in }
     @Environment(\.colorScheme) var scheme
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @State var position = ScrollPosition(edge: .top)
@@ -48,7 +48,9 @@ struct PanelView: View {
                 .opacity(fade)
                 // a new stack: back to where the user left it (the top when new), and a short fade with no slide
                 .onChange(of: model.scrollToken) { _, _ in
-                    position.scrollTo(y: model.scrollTarget)
+                    // one run-loop turn later, after the new stack's layout, so the offset is not clamped to the old height
+                    let y = model.scrollTarget
+                    DispatchQueue.main.async { position.scrollTo(y: y) }
                     guard !reduceMotion else { return }
                     fade = 0
                     DispatchQueue.main.async { withAnimation(.easeOut(duration: 0.12)) { fade = 1 } }

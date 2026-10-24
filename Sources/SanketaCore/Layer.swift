@@ -11,12 +11,15 @@ public struct Layer: Hashable, Identifiable {
     public var context: String?
     /// why the layer got its pack, such as `match "bin/ramabana"`; for `--dump-context`
     public var reason: String?
+    /// the process name and argv of a program layer; "Make a pack" uses them to write a pack that matches
+    public var process: String?
+    public var argv: [String] = []
     public var id: String { "\(host ?? "local")/\(packID ?? name)" }
     public init(kind: LayerKind, name: String, packID: String? = nil, host: String? = nil, context: String? = nil, reason: String? = nil) {
         self.kind = kind; self.name = name; self.packID = packID; self.host = host; self.context = context; self.reason = reason
     }
 
-    /// `reason` follows from the other fields, so it takes no part in equality.
+    /// `reason`, `process` and `argv` follow from the other fields, so they take no part in equality.
     public static func == (a: Layer, b: Layer) -> Bool {
         a.kind == b.kind && a.name == b.name && a.packID == b.packID && a.host == b.host && a.context == b.context
     }

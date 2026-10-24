@@ -87,17 +87,26 @@ public struct LayerResolver {
     func layer(_ name: String, argv: [String], host: String? = nil) -> Layer {
         let kind: LayerKind = Self.shells.contains(name) ? .shell : name == "tmux" ? .multiplexer : .program
         let pick = library.pick(process: name, argv: argv)
-        return Layer(kind: kind, name: kind == .program ? Self.displayName(name, argv: argv) : name,
-                     packID: pick?.pack.id, host: host, reason: pick?.reason)
+        var l = Layer(kind: kind, name: kind == .program ? Self.displayName(name, argv: argv) : name,
+                      packID: pick?.pack.id, host: host, reason: pick?.reason)
+        l.process = name; l.argv = argv
+        return l
     }
 
     static let interpreters: Set = ["node", "python", "python3", "ruby", "perl", "bun", "deno"]
+
+    public static func isInterpreter(_ name: String) -> Bool { interpreters.contains(name) || name.hasPrefix("python") }
+
+    /// The script an interpreter runs: its first argument that is not an option.
+    public static func script(_ name: String, argv: [String]) -> String? {
+        isInterpreter(name) ? argv.dropFirst().first { !$0.hasPrefix("-") } : nil
+    }
 
     /// What the user typed: the script for interpreters, else argv[0]'s basename
     /// (Claude Code's executable is a version-numbered file, but argv[0] is `claude`).
     static func displayName(_ name: String, argv: [String]) -> String {
         func base(_ s: String) -> String { (s as NSString).lastPathComponent }
-        if interpreters.contains(name) || name.hasPrefix("python"), let script = argv.dropFirst().first(where: { !$0.hasPrefix("-") }) {
+        if let script = script(name, argv: argv) {
             let file = (base(script) as NSString).deletingPathExtension
             let generic: Set = ["cli", "index", "main", "__main__"]
             return generic.contains(file) ? base((script as NSString).deletingLastPathComponent) : file

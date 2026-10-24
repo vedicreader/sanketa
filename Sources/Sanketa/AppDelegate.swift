@@ -8,7 +8,9 @@ import SanketaUI
 let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Sanketa")
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
-    var config = loadConfig()
+    var config: Config
+    /// why config.toml did not load, for the footer and Copy Debug Info
+    var configError: String?
     lazy var library = loadLibrary(config: config)
     lazy var monitor = ContextMonitor(config: config, library: library)
     let model = PanelModel(tips: TipStore(url: supportDir.appendingPathComponent("tips.json")))
@@ -22,6 +24,11 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// Leela's keys.json, the user packs folder and config.toml: a save applies without a restart
     var watchers: [FileWatcher] = []
 
+    override init() {
+        (config, configError) = readConfig()
+        super.init()
+    }
+
     func applicationDidFinishLaunching(_ n: Notification) {
         if !AXReader.isTrusted { AXReader.promptForTrust() }
         model.packErrors = library.errors
@@ -33,9 +40,9 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         registerHotkey()
         panel.grantAccessibility = { [weak self] in self?.grantAccessibility() }
         panel.openFile = { [weak self] in self?.openForEditing(URL(fileURLWithPath: $0)) }
-        panel.makePack = { [weak self] name in
-            do { self?.openForEditing(try PackStarter.make(name: name, in: packsDir)) }
-            catch { FileHandle.standardError.write(Data("cannot make a pack for \(name): \(error.localizedDescription)\n".utf8)) }
+        panel.makePack = { [weak self] layer in
+            do { self?.openForEditing(try PackStarter.make(for: layer, in: packsDir)) }
+            catch { FileHandle.standardError.write(Data("cannot make a pack for \(layer.name): \(error.localizedDescription)\n".utf8)) }
         }
         panel.setTranslucency(config.translucency)
         scheduleRotation()
@@ -69,7 +76,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// config.toml was saved: apply the hotkey, translucency, terminals, poll and tip timing, and the Hyper label.
     func reloadConfig() {
         let old = config
-        config = loadConfig()
+        (config, configError) = readConfig()
         model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
         guard config != old else { return }
         if config.hotkey != old.hotkey { registerHotkey() }

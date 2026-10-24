@@ -32,7 +32,7 @@ public final class SanketaPanel: NSPanel {
     /// opens a pack or config file for editing (a footer line)
     public var openFile: (String) -> Void = { _ in }
     /// makes a first pack for a program with none, then opens it
-    public var makePack: (String) -> Void = { _ in }
+    public var makePack: (Layer) -> Void = { _ in }
 
     public init(model: PanelModel, search: SearchModel, hotkeyLabel: String? = nil) {
         self.model = model; self.search = search

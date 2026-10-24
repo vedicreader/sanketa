@@ -21,15 +21,14 @@ func loadLibrary(config: Config = loadConfig()) -> PackLibrary {
     return lib
 }
 
-/// The last config.toml error, for the footer; nil when the file loads.
-nonisolated(unsafe) var configError: String?
-
-func loadConfig() -> Config {
+/// config.toml and why it did not load (nil when it loads); errors also go to stderr.
+func readConfig() -> (Config, String?) {
     let (c, err) = Config.load(configURL)
-    configError = err
     if let err { FileHandle.standardError.write(Data("config error: \(err)\n".utf8)) }
-    return c
+    return (c, err)
 }
+
+func loadConfig() -> Config { readConfig().0 }
 
 func emit(_ lines: [String], to file: String?) {
     let s = lines.joined(separator: "\n") + "\n"

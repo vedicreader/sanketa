@@ -75,7 +75,7 @@ struct LayerSection: View {
 /// A program or shell with no pack: its name as a header, one line that says so, and a link that makes a pack.
 struct NoPackSection: View {
     let layer: Layer
-    var makePack: (String) -> Void = { _ in }
+    var makePack: (Layer) -> Void = { _ in }
 
     static func message(_ name: String) -> String { "Sanketa has no keys for \(name)." }
     static func link(_ name: String) -> String { "Make a pack for \(name)" }
@@ -84,7 +84,7 @@ struct NoPackSection: View {
         VStack(alignment: .leading, spacing: Theme.rowGap) {
             Text(layer.name + (layer.host.map { " @ \($0)" } ?? "")).font(Theme.header).foregroundStyle(Theme.secondary)
             Text(Self.message(layer.name)).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
-            Button { makePack(layer.name) } label: { Text(Self.link(layer.name)).underline() }
+            Button { makePack(layer) } label: { Text(Self.link(layer.name)).underline() }
                 .buttonStyle(.plain).font(Theme.small).foregroundStyle(.primary)
         }
         .padding(.vertical, 4).padding(.horizontal, 6)

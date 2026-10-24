@@ -9,14 +9,24 @@ public enum PackStarter {
         return id.isEmpty ? "pack" : id
     }
 
-    public static func text(name: String) -> String {
-        let q = name.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+    /// What makes the pack show for the layer. A script run by an interpreter (`python3 ~/.local/bin/ramabana`) has the
+    /// interpreter as its process, so the pack finds the end of the script path in the command line instead.
+    public static func trigger(_ l: Layer) -> (field: String, value: String) {
+        if let p = l.process, let script = LayerResolver.script(p, argv: l.argv) {
+            return ("match", script.split(separator: "/").suffix(2).joined(separator: "/"))
+        }
+        return ("processes", l.name)
+    }
+
+    public static func text(for l: Layer) -> String {
+        func q(_ s: String) -> String { s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") }
+        let t = trigger(l)
         return """
-        # A Sanketa pack for \(name). Sanketa loads it again when you save it.
-        # To check it, run: Sanketa --lint-pack \(id(name)).toml
-        id = "\(id(name))"
-        name = "\(q)"
-        processes = ["\(q)"]
+        # A Sanketa pack for \(l.name). Sanketa loads it again when you save it.
+        # To check it, run: Sanketa --lint-pack \(id(l.name)).toml
+        id = "\(id(l.name))"
+        name = "\(q(l.name))"
+        \(t.field) = ["\(q(t.value))"]
 
         # Remove the # signs to show this key. Write keys in Mac symbols, such as ⌃D or ⇧⌘P.
         # [[keys]]
@@ -28,11 +38,11 @@ public enum PackStarter {
     }
 
     /// Writes `<dir>/<id>.toml` if it does not exist, and returns its URL. An existing file stays as it is.
-    @discardableResult public static func make(name: String, in dir: URL) throws -> URL {
-        let f = dir.appendingPathComponent(id(name) + ".toml")
+    @discardableResult public static func make(for l: Layer, in dir: URL) throws -> URL {
+        let f = dir.appendingPathComponent(id(l.name) + ".toml")
         guard !FileManager.default.fileExists(atPath: f.path) else { return f }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try text(name: name).write(to: f, atomically: true, encoding: .utf8)
+        try text(for: l).write(to: f, atomically: true, encoding: .utf8)
         return f
     }
 }
