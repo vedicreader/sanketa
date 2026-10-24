@@ -38,6 +38,8 @@ public struct KeychainStore: KeyStore {
         let data = Data(key.utf8)
         var add = query(account)
         add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        add[kSecAttrLabel as String] = "Sanketa API key (\(account))"
         var status = SecItemAdd(add as CFDictionary, nil)
         if status == errSecDuplicateItem {
             status = SecItemUpdate(query(account) as CFDictionary, [kSecValueData as String: data] as CFDictionary)

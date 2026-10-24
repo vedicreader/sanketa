@@ -30,14 +30,28 @@ public enum APIKey {
         return t
     }
 
-    /// `printf %s "$NAME"` in a login shell (`shell -l -c`), with a 3 s timeout.
+    static let mark = "\u{1E}"
+
+    /// The `-c` text for the login shell: the value between two record separators, the same in fish, bash, zsh and sh.
+    static func shellCommand(_ varName: String) -> String { "printf '\\036%s\\036' \"$\(varName)\"" }
+
+    /// Only the text between the two marks, so banners that rc files print never count as the key.
+    static func marked(_ output: String?) -> String? {
+        guard let parts = output?.components(separatedBy: mark), parts.count == 3 else { return nil }
+        return clean(parts[1])
+    }
+
+    /// The variable from a login shell (`shell -l -c`), with a 3 s timeout.
     static func fromShell(varName: String, shell: String, runner: CommandRunning) -> String? {
-        nonEmpty(runner.run(shell, ["-l", "-c", "printf %s \"$\(varName)\""], timeout: 3))
+        marked(runner.run(shell, ["-l", "-c", shellCommand(varName)], timeout: 3))
     }
 
     public static func resolve(varName: String, env: [String: String], shell: String?, runner: CommandRunning,
                                store: KeyStore, account: String) -> String? {
-        KeyLookup(varName: varName, env: env, shell: shell, runner: runner, store: store, account: account).key()
+        guard validName(varName) else { return nil }
+        if let k = nonEmpty(env[varName]) { return k }
+        if let shell, let k = fromShell(varName: varName, shell: shell, runner: runner) { return k }
+        return nonEmpty(store.read(account: account))
     }
 
     /// A typed key, trimmed; nil when empty or when it has spaces or control characters inside.
@@ -49,27 +63,30 @@ public enum APIKey {
 }
 
 /// `APIKey.resolve` that asks the login shell at most once per launch; the Keychain is read again on each call, so a key
-/// typed later is found.
-public final class KeyLookup: @unchecked Sendable {
-    let varName: String, env: [String: String], shell: String?, runner: CommandRunning, store: KeyStore, account: String
-    private let lock = NSLock()
-    private var shellAsked = false
-    private var shellKey: String?
+/// typed later is found. Callers that come while the shell runs wait for the same answer without holding a thread.
+public actor KeyLookup {
+    let varName: String, env: [String: String], shell: String?, store: KeyStore, account: String
+    nonisolated(unsafe) let runner: CommandRunning
+    private var shellAnswer: Task<String?, Never>?
 
     public init(varName: String, env: [String: String], shell: String?, runner: CommandRunning, store: KeyStore, account: String) {
         self.varName = varName; self.env = env; self.shell = shell; self.runner = runner; self.store = store; self.account = account
     }
 
-    public func key() -> String? {
+    public func key() async -> String? {
         guard APIKey.validName(varName) else { return nil }
         if let k = APIKey.nonEmpty(env[varName]) { return k }
-        let fromShell: String? = lock.withLock {
-            if !shellAsked, let shell {
-                shellKey = APIKey.fromShell(varName: varName, shell: shell, runner: runner)
+        if let shell {
+            if shellAnswer == nil {
+                let (name, runner) = (varName, runner)
+                shellAnswer = Task {
+                    await withCheckedContinuation { c in
+                        DispatchQueue.global().async { c.resume(returning: APIKey.fromShell(varName: name, shell: shell, runner: runner)) }
+                    }
+                }
             }
-            shellAsked = true
-            return shellKey
+            if let k = await shellAnswer?.value { return k }
         }
-        return fromShell ?? APIKey.nonEmpty(store.read(account: account))
+        return APIKey.nonEmpty(store.read(account: account))
     }
 }

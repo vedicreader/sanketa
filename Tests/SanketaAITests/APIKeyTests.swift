@@ -10,13 +10,19 @@ private func keyTempDir() throws -> URL {
     return d
 }
 
-/// Writes an executable `/bin/sh` script and gives its path.
-private func script(_ body: String, in dir: URL? = nil) throws -> String {
-    let d = try dir ?? keyTempDir()
-    let f = d.appendingPathComponent("shell-\(UUID().uuidString)")
-    try ("#!/bin/sh\n" + body + "\n").write(to: f, atomically: true, encoding: .utf8)
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: f.path)
-    return f.path
+/// Records each call and answers with fixed text; runs nothing.
+private final class RecordingRunner: CommandRunning, @unchecked Sendable {
+    struct Call: Equatable { var path: String, args: [String], timeout: TimeInterval }
+    private let lock = NSLock()
+    private var log: [Call] = []
+    let answer: String?, delay: TimeInterval
+    init(answer: String? = nil, delay: TimeInterval = 0) { self.answer = answer; self.delay = delay }
+    var calls: [Call] { lock.withLock { log } }
+    func run(_ path: String, _ args: [String], timeout: TimeInterval) -> String? {
+        lock.withLock { log.append(Call(path: path, args: args, timeout: timeout)) }
+        if delay > 0 { Thread.sleep(forTimeInterval: delay) }
+        return answer
+    }
 }
 
 /// Runs each command through `/usr/bin/env -i` with only the given variables, so a real login shell reads a temp HOME
@@ -30,81 +36,128 @@ private struct CleanEnvRunner: CommandRunning {
 }
 
 private let openAI = "api.openai.com"
+private let fish = "/opt/homebrew/bin/fish"
+private let hasFish = FileManager.default.fileExists(atPath: fish)
+private let marked = "\u{1E}sk-shell\u{1E}"
 
 private func resolve(_ varName: String = "OPENAI_API_KEY", env: [String: String] = [:], shell: String?,
-                     runner: CommandRunning = ProcessRunner(), store: KeyStore = MemoryKeyStore()) -> String? {
+                     runner: CommandRunning = RecordingRunner(), store: KeyStore = MemoryKeyStore()) -> String? {
     APIKey.resolve(varName: varName, env: env, shell: shell, runner: runner, store: store, account: openAI)
 }
 
-// serial: each new script is checked on its first exec, and parallel checks queue past the 3 s shell timeout
-@Suite(.serialized) struct APIKeyTests {
+/// A temp HOME whose login files hold the given text; plain files only, nothing executable.
+private func home(bashProfile: String? = nil, fishConfig: String? = nil) throws -> URL {
+    let h = try keyTempDir()
+    if let bashProfile { try bashProfile.write(to: h.appendingPathComponent(".bash_profile"), atomically: true, encoding: .utf8) }
+    if let fishConfig {
+        try FileManager.default.createDirectory(at: h.appendingPathComponent("fish"), withIntermediateDirectories: true)
+        try fishConfig.write(to: h.appendingPathComponent("fish/config.fish"), atomically: true, encoding: .utf8)
+    }
+    return h
+}
+
+/// The key that real `/bin/bash -l` finds with the given `.bash_profile`, in a clean environment.
+private func bashKey(_ profile: String, store: KeyStore = MemoryKeyStore()) throws -> String? {
+    resolve(shell: "/bin/bash", runner: CleanEnvRunner(vars: ["HOME": try home(bashProfile: profile).path]), store: store)
+}
+
+/// The key that real `fish -l` finds with the given `config.fish`, in a clean environment.
+private func fishKey(_ config: String, store: KeyStore = MemoryKeyStore()) throws -> String? {
+    let h = try home(fishConfig: config).path
+    return resolve(shell: fish, runner: CleanEnvRunner(vars: ["HOME": h, "XDG_CONFIG_HOME": h]), store: store)
+}
+
+private func storeWith(_ key: String) throws -> MemoryKeyStore {
+    let s = MemoryKeyStore()
+    try s.write(key, account: openAI)
+    return s
+}
+
+private func lookup(_ runner: CommandRunning, store: KeyStore = MemoryKeyStore()) -> KeyLookup {
+    KeyLookup(varName: "OPENAI_API_KEY", env: [:], shell: "/bin/bash", runner: runner, store: store, account: openAI)
+}
+
+@Suite struct APIKeyTests {
     @Test func keyFromEnvWins() throws {
-        let store = MemoryKeyStore()
-        try store.write("sk-store", account: openAI)
-        #expect(resolve(env: ["OPENAI_API_KEY": " sk-env \n"], shell: "/nonexistent/shell", store: store) == "sk-env")
+        let runner = RecordingRunner(answer: marked)
+        #expect(resolve(env: ["OPENAI_API_KEY": " sk-env \n"], shell: "/bin/bash", runner: runner, store: try storeWith("sk-store"))
+                == "sk-env")
+        #expect(runner.calls.isEmpty)
     }
 
-    @Test func keyFromLoginShell() throws {
-        #expect(resolve(shell: try script("printf 'sk-from-shell'")) == "sk-from-shell")
+    @Test func loginShellGetsTheVariableName() {
+        let runner = RecordingRunner()
+        _ = resolve("OPENROUTER_API_KEY", shell: "/bin/bash", runner: runner)
+        #expect(runner.calls == [.init(path: "/bin/bash", args: ["-l", "-c", #"printf '\036%s\036' "$OPENROUTER_API_KEY""#],
+                                       timeout: 3)])
     }
 
-    @Test func loginShellGetsTheVariableName() throws {
-        let shell = try script(#"for a in "$@"; do last="$a"; done; printf '%s' "$last""#)
-        #expect(resolve("OPENROUTER_API_KEY", shell: shell) == #"printf %s "$OPENROUTER_API_KEY""#)
-    }
-
-    @Test func realFishLoginShellReadsItsConfig() throws {
-        let home = try keyTempDir()
-        try FileManager.default.createDirectory(at: home.appendingPathComponent("fish"), withIntermediateDirectories: true)
-        try "set -gx OPENAI_API_KEY sk-dummy-fish\n".write(to: home.appendingPathComponent("fish/config.fish"), atomically: true,
-                                                         encoding: .utf8)
-        let runner = CleanEnvRunner(vars: ["HOME": home.path, "XDG_CONFIG_HOME": home.path])
-        #expect(resolve(shell: "/opt/homebrew/bin/fish", runner: runner) == "sk-dummy-fish")
-    }
-
-    @Test func realBashLoginShellReadsItsProfile() throws {
-        let home = try keyTempDir()
-        try "export OPENAI_API_KEY=sk-dummy-bash\n".write(to: home.appendingPathComponent(".bash_profile"), atomically: true,
-                                                         encoding: .utf8)
-        let runner = CleanEnvRunner(vars: ["HOME": home.path])
-        #expect(resolve(shell: "/bin/bash", runner: runner) == "sk-dummy-bash")
-    }
-
-    @Test func keyFromStoreWhenShellHasNone() throws {
-        let store = MemoryKeyStore()
-        try store.write("sk-store", account: openAI)
-        #expect(resolve(shell: try script(":"), store: store) == "sk-store")
-    }
-
-    @Test func keyFromStoreWithoutShell() throws {
-        let store = MemoryKeyStore()
-        try store.write("sk-store", account: openAI)
-        #expect(resolve(shell: nil, store: store) == "sk-store")
-    }
-
-    @Test func keyMissingIsNil() throws {
-        #expect(resolve(shell: try script(":")) == nil)
-    }
-
-    @Test func badVarNameRunsNothing() throws {
-        let dir = try keyTempDir(), marker = dir.appendingPathComponent("ran")
-        let shell = try script("touch '\(marker.path)'; printf sk-bad", in: dir)
-        for name in ["X; rm -rf /", "lower", "1ABC", "", "A-B", "A$B"] {
-            #expect(resolve(name, env: [name: "sk-env"], shell: shell) == nil)
+    @Test func badVarNameRunsNothing() {
+        let runner = RecordingRunner(answer: marked)
+        for name in ["X; touch /tmp/sanketa-marker", "lower", "1ABC", "", "A-B", "A$B", "A B"] {
+            #expect(resolve(name, env: [name: "sk-env"], shell: "/bin/bash", runner: runner) == nil)
         }
-        #expect(!FileManager.default.fileExists(atPath: marker.path))
+        #expect(runner.calls.isEmpty)
     }
 
-    @Test func slowShellTimesOut() throws {
+    @Test func realBashFindsTheKey() throws {
+        #expect(try bashKey("export OPENAI_API_KEY=sk-test-bash\n") == "sk-test-bash")
+    }
+
+    @Test func realBashBannersAreNotTheKey() throws {
+        #expect(try bashKey("echo 'Welcome to the box'\nexport OPENAI_API_KEY=sk-test-bash\necho 'conda: base active'\n")
+                == "sk-test-bash")
+    }
+
+    @Test func realBashBannerOnlyIsNoKey() throws {
+        #expect(try bashKey("echo 'Welcome to the box'\n", store: try storeWith("sk-store")) == "sk-store")
+    }
+
+    @Test func realBashEmptyFallsToStore() throws {
+        #expect(try bashKey("", store: try storeWith("sk-store")) == "sk-store")
+        #expect(try bashKey("") == nil)
+    }
+
+    @Test func realBashFailingFallsToStore() throws {
+        #expect(try bashKey("export OPENAI_API_KEY=sk-test-bash\nprintf sk-partial; exit 1\n", store: try storeWith("sk-store"))
+                == "sk-store")
+    }
+
+    @Test func realBashSlowTimesOut() throws {
         let clock = ContinuousClock(), t = clock.now
-        #expect(resolve(shell: try script("/bin/sleep 10")) == nil)
+        #expect(try bashKey("/bin/sleep 10\nexport OPENAI_API_KEY=sk-test-bash\n") == nil)
         #expect(clock.now - t < .milliseconds(4500))
     }
 
-    @Test func failingShellFallsToStore() throws {
-        let store = MemoryKeyStore()
-        try store.write("sk-store", account: openAI)
-        #expect(resolve(shell: try script("printf sk-partial; exit 1"), store: store) == "sk-store")
+    @Test func realBashKeyWithSpacesIsRejected() throws {
+        #expect(try bashKey("export OPENAI_API_KEY='sk test'\n") == nil)
+    }
+
+    @Test(.enabled(if: hasFish)) func realFishFindsTheKey() throws {
+        #expect(try fishKey("echo 'hello from fish'\nset -gx OPENAI_API_KEY sk-test-fish\necho bye\n") == "sk-test-fish")
+    }
+
+    @Test(.enabled(if: hasFish)) func realFishEmptyAndFailing() throws {
+        #expect(try fishKey("", store: try storeWith("sk-store")) == "sk-store")
+        // in fish, `exit` in config.fish ends only that file, so the command still runs; the marks drop "sk-partial"
+        #expect(try fishKey("set -gx OPENAI_API_KEY sk-test-fish\nprintf sk-partial; exit 1\n") == "sk-test-fish")
+    }
+
+    @Test(.enabled(if: hasFish)) func realFishSlowTimesOut() throws {
+        let clock = ContinuousClock(), t = clock.now
+        #expect(try fishKey("/bin/sleep 10\nset -gx OPENAI_API_KEY sk-test-fish\n") == nil)
+        #expect(clock.now - t < .milliseconds(4500))
+    }
+
+    @Test func keyFromStoreWithoutShell() throws {
+        #expect(resolve(shell: nil, store: try storeWith("sk-store")) == "sk-store")
+    }
+
+    @Test func markedTakesOnlyTheMarkedText() {
+        #expect(APIKey.marked("motd\n\u{1E}sk-1\u{1E}bye\n") == "sk-1")
+        for bad in [nil, "", "sk-1", "\u{1E}sk-1", "\u{1E}\u{1E}", "\u{1E}sk 1\u{1E}", "\u{1E}a\u{1E}b\u{1E}c\u{1E}"] {
+            #expect(APIKey.marked(bad) == nil)
+        }
     }
 
     @Test func loginShellNeedsExecutable() throws {
@@ -145,28 +198,31 @@ private func resolve(_ varName: String = "OPENAI_API_KEY", env: [String: String]
         try s.delete(account: "a")
     }
 
-    @Test func lookupAsksTheShellOncePerLaunch() throws {
-        let dir = try keyTempDir(), count = dir.appendingPathComponent("count")
-        let shell = try script("printf x >> '\(count.path)'", in: dir)
-        let store = MemoryKeyStore()
-        let lookup = KeyLookup(varName: "OPENAI_API_KEY", env: [:], shell: shell, runner: ProcessRunner(), store: store,
-                               account: openAI)
-        #expect(lookup.key() == nil)
-        #expect(lookup.key() == nil)
-        #expect((try? String(contentsOf: count, encoding: .utf8)) == "x")
+    @Test func lookupAsksTheShellOncePerLaunch() async throws {
+        let runner = RecordingRunner(), store = MemoryKeyStore(), l = lookup(runner, store: store)
+        #expect(await l.key() == nil)
+        #expect(await l.key() == nil)
+        #expect(runner.calls.count == 1)
         try store.write("sk-typed", account: openAI)
-        #expect(lookup.key() == "sk-typed")
-        #expect((try? String(contentsOf: count, encoding: .utf8)) == "x")
+        #expect(await l.key() == "sk-typed")
+        #expect(runner.calls.count == 1)
     }
 
-    @Test func lookupKeepsTheShellKey() throws {
-        let dir = try keyTempDir(), count = dir.appendingPathComponent("count")
-        let shell = try script("printf x >> '\(count.path)'; printf sk-shell", in: dir)
-        let lookup = KeyLookup(varName: "OPENAI_API_KEY", env: [:], shell: shell, runner: ProcessRunner(),
-                               store: MemoryKeyStore(), account: openAI)
-        #expect(lookup.key() == "sk-shell")
-        #expect(lookup.key() == "sk-shell")
-        #expect((try? String(contentsOf: count, encoding: .utf8)) == "x")
+    @Test func lookupKeepsTheShellKey() async {
+        let runner = RecordingRunner(answer: marked), l = lookup(runner)
+        #expect(await l.key() == "sk-shell")
+        #expect(await l.key() == "sk-shell")
+        #expect(runner.calls.count == 1)
+    }
+
+    @Test func lookupCallersShareOneShellRun() async {
+        let runner = RecordingRunner(answer: marked, delay: 0.3), l = lookup(runner)
+        let keys = await withTaskGroup(of: String?.self) { g in
+            for _ in 0..<5 { g.addTask { await l.key() } }
+            return await g.reduce(into: [String?]()) { $0.append($1) }
+        }
+        #expect(keys == Array(repeating: "sk-shell", count: 5))
+        #expect(runner.calls.count == 1)
     }
 
     @Test func keychainErrorShowsStatusOnly() {

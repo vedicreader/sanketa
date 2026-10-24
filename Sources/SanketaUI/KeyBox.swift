@@ -2,11 +2,14 @@ import AppKit
 
 /// The box where the user pastes an API key. Opened only from the status-menu item "OpenAI Key…".
 @MainActor public enum KeyBox {
+    /// "OpenAI Key" for OpenAI, else the provider's host.
+    static func title(host: String) -> String { host == "api.openai.com" ? "OpenAI Key" : "API key for \(host)" }
+
     /// Shows the box and gives the typed text, or nil on Cancel. Focus goes back to the previous app after.
     public static func ask(host: String) -> String? {
         let previous = NSWorkspace.shared.frontmostApplication.flatMap { $0 == .current ? nil : $0 }
         let alert = NSAlert()
-        alert.messageText = "OpenAI Key"
+        alert.messageText = title(host: host)
         alert.informativeText = "Paste your API key for \(host). Sanketa keeps it in your Keychain."
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
