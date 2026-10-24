@@ -1,0 +1,20 @@
+id = "tmux"
+name = "tmux"
+processes = ["tmux"]
+prefix = "C-b"
+
+[[keys]]
+keys = "prefix %"
+action = "Split pane left/right"
+group = "Panes"
+
+[[keys]]
+keys = "prefix c"
+action = "New window"
+group = "Windows"
+
+[[tips]]
+title = "Detach"
+snippet = "tmux detach"
+explain = "Leave the session running"
+tags = ["sessions"]

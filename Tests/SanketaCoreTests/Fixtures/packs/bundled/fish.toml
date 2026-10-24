@@ -1,0 +1,9 @@
+id = "fish"
+name = "fish"
+processes = ["fish"]
+
+[[tips]]
+title = "Loop over files"
+snippet = "for f in *.log; echo $f; end"
+explain = "fish for-loop; no do/done needed"
+tags = ["loops", "files"]

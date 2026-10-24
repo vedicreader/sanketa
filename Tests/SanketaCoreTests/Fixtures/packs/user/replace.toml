@@ -1,0 +1,7 @@
+id = "fish"
+name = "fish replaced"
+mode = "replace"
+
+[[keys]]
+keys = "ctrl-r"
+action = "History search"

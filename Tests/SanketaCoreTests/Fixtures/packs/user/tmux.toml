@@ -1,0 +1,18 @@
+id = "tmux"
+name = "tmux (mine)"
+processes = ["tmux-next"]
+apps = ["com.example.Mux"]
+
+[[keys]]
+keys = "prefix %"
+action = "Vertical split (my wording)"
+
+[[keys]]
+keys = "prefix z"
+action = "Zoom pane"
+
+[[tips]]
+title = "Detach"
+snippet = "tmux detach -a"
+explain = "Detach everyone else"
+tags = ["sessions"]
