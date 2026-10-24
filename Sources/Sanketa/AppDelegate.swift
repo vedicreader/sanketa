@@ -13,6 +13,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     var configError: String?
     lazy var library = loadLibrary(config: config)
     lazy var monitor = ContextMonitor(config: config, library: library)
+    lazy var coach = CoachMonitor(config: config.coach)
     let model = PanelModel(tips: TipStore(url: supportDir.appendingPathComponent("tips.json")))
     let search = SearchModel()
     lazy var panel = PanelController(model: model, search: search, hotkeyLabel: Theme.display(hotkey: config.hotkey))
@@ -37,6 +38,10 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             self?.model.update(c)
             self?.search.setSource(context: c)
         }.store(in: &subs)
+        coach.$items.sink { [weak self] items in
+            self?.model.coachItems = items
+            self?.search.setSource(extra: items)
+        }.store(in: &subs)
         registerHotkey()
         panel.grantAccessibility = { [weak self] in self?.grantAccessibility() }
         panel.openFile = { [weak self] in self?.openForEditing(URL(fileURLWithPath: $0)) }
@@ -54,6 +59,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
                     FileWatcher(url: packsDir, children: "toml", delay: 0.3, onChange: reload),
                     FileWatcher(url: configURL, delay: 0.3) { [weak self] in MainActor.assumeIsolated { self?.reloadConfig() } }]
         monitor.start()
+        coach.start()
         panel.show()
     }
 
@@ -89,6 +95,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         if config.tipRotateSeconds != old.tipRotateSeconds { scheduleRotation() }
         if config.hyperLabel != old.hyperLabel { library = loadLibrary(config: config); model.packErrors = library.errors; search.setSource(library: library) }
         monitor.reload(config: config, library: library)
+        coach.reload(config: config.coach)
     }
 
     func hotkeyPressed() {

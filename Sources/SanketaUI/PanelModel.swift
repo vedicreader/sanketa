@@ -82,6 +82,14 @@ struct StackState {
     /// Groups with this many keys or fewer never fold: a fold line would save no space.
     public nonisolated static let alwaysOpen = 2
 
+    /// Better ways from shell history, set by the app. A change picks a new card only when the card is one that went.
+    public var coachItems: [SearchItem] = [] {
+        didSet {
+            guard coachItems != oldValue, let c = tipCards.first, c.packID == "coach", !coachItems.contains(c) else { return }
+            rotate()
+        }
+    }
+
     public init(tips: TipStore, seed: UInt64 = .random(in: 0...UInt64.max)) {
         store = tips; self.seed = seed
     }
@@ -194,7 +202,8 @@ struct StackState {
             scrollToken &+= 1
         }
         let packs = Set(sections.map(\.pack.id))
-        if tipCards.isEmpty || tipCards.contains(where: { !packs.contains($0.packID) }) { seed &+= 1; pickTips() }
+        let coach = coachPool
+        if tipCards.isEmpty || tipCards.contains(where: { !packs.contains($0.packID) && !coach.contains($0) }) { seed &+= 1; pickTips() }
         blocks = Self.blocks(layers: c.layers, sections: sections, tips: !tipCards.isEmpty)
     }
 
@@ -257,13 +266,21 @@ struct StackState {
     /// Items the tip cards draw from: the context packs' keys and tips, innermost layer first.
     public var tipPool: [SearchItem] { sections.flatMap { SearchItem.items(from: $0.pack, context: $0.layer.context) } }
 
-    /// First card from the innermost layer that has any (from its active context when that has any), the rest from
-    /// all current layers.
+    /// Coaching items for the shell in front: only at a local shell prompt (the shell is the innermost layer).
+    public var coachPool: [SearchItem] {
+        guard let l = context.layers.first, l.kind == .shell, l.host == nil else { return [] }
+        return coachItems.filter { $0.tags.contains(l.name) }
+    }
+
+    /// On even seeds at a local shell prompt, a coaching card. Else the first card is from the innermost layer that
+    /// has any (from its active context when that has any), the rest from all current layers.
     func pickTips() {
         let all = sections.lazy.map { SearchItem.items(from: $0.pack, context: $0.layer.context) }.first { !$0.isEmpty } ?? []
         let inner = all.contains(where: \.active) ? all.filter(\.active) : all
-        let first = store.pick(from: inner, count: 1, seed: seed)
+        let coach = seed % 2 == 0 ? store.pick(from: coachPool, count: 1, seed: seed) : []
+        let first = coach.isEmpty ? store.pick(from: inner, count: 1, seed: seed) : coach
         let rest = store.pick(from: tipPool.filter { !first.contains($0) }, count: Self.tipCount - first.count, seed: seed &+ 0x9E37)
         tipCards = first + rest
+        blocks = Self.blocks(layers: context.layers, sections: sections, tips: !tipCards.isEmpty)
     }
 }

@@ -96,11 +96,21 @@ func dumpAX(_ bundleID: String, out: String?) {
     emit(AXReader.dump(pid: app.processIdentifier), to: out)
 }
 
+/// `--dump-coach [--full]`: what the coach finds in the `[coach]` history files. Each line is shell, detector id and
+/// count, with no command text; `--full` adds before and after, for the user only.
+func dumpCoach(out: String?) {
+    let c = loadConfig().coach
+    guard c.enabled else { return emit(["coach is off in config.toml"], to: out) }
+    let es = HistoryCache().entries(fish: c.fishURL, bash: c.bashURL, maxEntries: c.maxEntries)
+    emit(CoachMonitor.dumpLines(Coach.analyze(es), full: CommandLine.arguments.contains("--full")), to: out)
+}
+
 for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay"] where CommandLine.arguments.contains(flag) {
     if arg(after: flag)?.hasPrefix("--") ?? true {
         FileHandle.standardError.write(Data("""
             \(flag) needs a value
-            usage: Sanketa [--dump-context [--watch] [--pack FILE] [--delay S] | --dump-menus <bundleID> | --dump-ax <bundleID>] [--out FILE]
+            usage: Sanketa [--dump-context [--watch] [--pack FILE] [--delay S] | --dump-menus <bundleID> | --dump-ax <bundleID>
+                           | --dump-coach [--full]] [--out FILE]
                    Sanketa --lint-pack FILE|FOLDER...
 
             """.utf8))
@@ -133,6 +143,8 @@ if CommandLine.arguments.contains("--lint-pack") {
     exit(r.status)
 } else if CommandLine.arguments.contains("--quit-running") {
     quitRunning()
+} else if CommandLine.arguments.contains("--dump-coach") {
+    dumpCoach(out: out)
 } else if CommandLine.arguments.contains("--dump-context") {
     dumpContext(out: out)
 } else if let b = arg(after: "--dump-menus") {

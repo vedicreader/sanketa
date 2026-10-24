@@ -10,7 +10,7 @@ struct TipCard: View {
         HStack(alignment: .top, spacing: 10) {
             RoundedRectangle(cornerRadius: 1).fill(Theme.accent).frame(width: 2.5)
             VStack(alignment: .leading, spacing: 5) {
-                Text("tip · \(item.packName)").font(Theme.header).foregroundStyle(Theme.secondary)
+                Text(item.packID == "coach" ? "better way" : "tip · \(item.packName)").font(Theme.header).foregroundStyle(Theme.secondary)
                 HStack(alignment: .firstTextBaseline) {
                     Text(item.title).font(Theme.text).foregroundStyle(.primary)
                     Spacer(minLength: 8)
