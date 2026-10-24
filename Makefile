@@ -26,7 +26,7 @@ $(foreach v,FILTER PACKS SHOTS,$(call check_var,$v,$(SAFE_CHARS)))
 $(call check_var,HOST,$(SAFE_CHARS) @ :)
 export FILTER PACKS SHOTS HOST
 
-# FILTER=<regex> runs only the matching tests
+# FILTER=<name> runs only the tests whose names match (letters, digits and _ . / - only)
 test:
 	swift test $(if $(value FILTER),--filter "$$FILTER")
 

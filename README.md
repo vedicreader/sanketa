@@ -183,7 +183,7 @@ Some hosts have no script. If you connect to such a host through an ssh ControlM
 To help, read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```sh
-make test        # swift test; FILTER=<regex> runs some of the tests
+make test        # swift test; FILTER=<name> runs the tests with that name
 make lint        # check the bundled packs; PACKS=<file or folder> checks yours
 make shots       # draw the panel to PNG files; SHOTS=<folder> keeps them
 make app         # build and sign build/Sanketa.app
