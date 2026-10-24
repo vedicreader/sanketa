@@ -8,7 +8,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
     var config = loadConfig()
-    var library = loadLibrary()
+    lazy var library = loadLibrary(config: config)
     lazy var monitor = ContextMonitor(config: config, library: library)
     let model = PanelModel(tips: TipStore(url: supportDir.appendingPathComponent("tips.json")))
     let search = SearchModel()
@@ -17,6 +17,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     var status: NSStatusItem?
     var subs = Set<AnyCancellable>()
     var rotation: Timer?
+    var keymapWatcher: FileWatcher?
 
     func applicationDidFinishLaunching(_ n: Notification) {
         if !AXReader.isTrusted { AXReader.promptForTrust() }
@@ -35,6 +36,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         }
         rotation?.tolerance = 5
         buildStatusItem()
+        // Leela rewrites keys.json when its keys change; the panel follows without a manual reload
+        keymapWatcher = FileWatcher(url: LeelaKeymap.defaultURL()) { [weak self] in MainActor.assumeIsolated { self?.reloadPacks() } }
         monitor.start()
         panel.show()
     }
@@ -84,7 +87,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     @objc func startSearch() { hotkeyPressed() }
 
     @objc func reloadPacks() {
-        library = loadLibrary()
+        library = loadLibrary(config: config)
         model.packErrors = library.errors
         search.setSource(library: library)
         monitor.reload(library: library)
@@ -107,6 +110,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # pollInterval = \(c.pollInterval)
             # tipRotateSeconds = \(c.tipRotateSeconds)
             # translucency = "\(c.translucency.rawValue)"   # low, medium or high
+            # hyper_label = "\(c.hyperLabel)"   # how Leela's Hyper key (⌃⌥⇧⌘) shows
             # terminals = [\(c.terminals.map { "\"\($0)\"" }.joined(separator: ", "))]
 
             """.write(to: f, atomically: true, encoding: .utf8)

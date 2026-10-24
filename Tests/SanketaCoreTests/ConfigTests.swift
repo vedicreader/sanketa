@@ -24,6 +24,12 @@ struct ConfigTests {
         #expect(c.terminals == Config().terminals && c.pollInterval == 1.0)
     }
 
+    @Test func hyperLabelDefaultsToCapsAndIsConfigurable() throws {
+        #expect(Config().hyperLabel == "Caps")
+        let (c, err) = Config.load(try writeConfig("hyper_label = \"Hyper\"\n"))
+        #expect(err == nil && c.hyperLabel == "Hyper")
+    }
+
     @Test func badTomlReturnsError() throws {
         let (c, err) = Config.load(try writeConfig("hotkey = = oops ["))
         #expect(err != nil && c == Config())

@@ -1,963 +1,1422 @@
 id = "leela"
 name = "Leela"
-# Leela.app is pywebview (WKWebView) with this bundle id. Browser-hosted Leela (Chrome tab / --app window) needs title matching; see leela-contexts-proposal.md.
+# Leela.app is pywebview (WKWebView) with this bundle id.
 apps = ["org.vedicreader.leela"]
 processes = []
 match = []
 
-# Generated from leela/core/keys.py DEFAULTS + ~/.config/leela/keys.json overrides. ⌘ = mod on macOS; ⌃⌥⇧⌘ = Hyper.
+# Leela's shipped defaults (leela/core/keys.py), in Leela's chord syntax, with the action id in `command`.
+# At load Sanketa overlays ~/.config/leela/keys.json (or $LEELA_KEYMAP): `keys` overrides win, "" hides the entry,
+# and space-separated chords are alternatives. Entries without `command` are fixed keys that keys.json can't change.
 
 [[keys]]
-keys = "⌥⇧1"
+keys = "alt+shift+1"
 action = "Focus file tree"
 group = "Panes"
+command = "focus_files"
 
 [[keys]]
-keys = "⌥⇧2"
+keys = "alt+shift+2"
 action = "Focus editor"
 group = "Panes"
+command = "focus_editor"
 
 [[keys]]
-keys = "⌥⇧3"
+keys = "alt+shift+3"
 action = "Focus exec console"
 group = "Panes"
+command = "focus_exec"
 
 [[keys]]
-keys = "⌥⇧4"
+keys = "alt+shift+4"
 action = "Focus variables"
 group = "Panes"
+command = "focus_vars"
 
 [[keys]]
-keys = "⌥⇧5"
+keys = "alt+shift+5"
 action = "Focus agent"
 group = "Panes"
+command = "focus_agent"
 
 [[keys]]
-keys = "⌥⇧B / ⌃⌥⇧⌘←"
+keys = "alt+shift+b hyper+left"
 action = "Toggle file pane"
 group = "Panes"
+command = "toggle_left"
 
 [[keys]]
-keys = "⌥⇧V / ⌃⌥⇧⌘→"
-action = "Toggle agent / variables pane"
+keys = "alt+shift+v hyper+right"
+action = "Toggle agent or variables pane"
 group = "Panes"
+command = "toggle_right"
 
 [[keys]]
-keys = "⌃⌥⇧⌘↓"
+keys = "hyper+down"
 action = "Toggle bottom tools"
 group = "Panes"
+command = "toggle_bottom"
 
 [[keys]]
-keys = "⌃`"
+keys = "ctrl+`"
 action = "Terminal"
 group = "Panes"
+command = "terminal"
 
 [[keys]]
-keys = "⌥⇧G"
+keys = "alt+shift+g"
 action = "Lazygit"
 group = "Panes"
+command = "git"
 
 [[keys]]
-keys = "⌃⌥⇧⌘G"
+keys = "hyper+g"
 action = "Source control panel"
 group = "Panes"
+command = "panel_git"
 
 [[keys]]
-keys = "⌃⌥⇧⌘P"
+keys = "hyper+p"
 action = "Releases panel"
 group = "Panes"
+command = "panel_releases"
 
 [[keys]]
-keys = "⌃⌥⇧⌘L"
+keys = "hyper+l"
 action = "Deploys panel"
 group = "Panes"
+command = "panel_deploys"
 
 [[keys]]
-keys = "⇧⌘P"
+keys = "mod+shift+p"
 action = "Command palette"
 group = "Find & navigate"
+command = "palette"
 
 [[keys]]
-keys = "⌘,"
+keys = "mod+,"
 action = "Settings"
 group = "Find & navigate"
+command = "settings"
 
 [[keys]]
-keys = "⌘P"
+keys = "mod+p"
 action = "Open file"
 group = "Find & navigate"
+command = "quick_open"
 
 [[keys]]
-keys = "⌘E"
+keys = "mod+e"
 action = "Recent files"
 group = "Find & navigate"
+command = "recent_tabs"
 
 [[keys]]
-keys = "⇧⌘F"
+keys = "mod+shift+f"
 action = "Search code"
 group = "Find & navigate"
+command = "code_search"
 
 [[keys]]
-keys = "⇧⌘O"
+keys = "mod+shift+o"
 action = "Find repository"
 group = "Find & navigate"
+command = "find_repo"
 
 [[keys]]
-keys = "⌘B"
+keys = "mod+b"
 action = "Declaration or usages"
 group = "Find & navigate"
+command = "find_definition"
 
 [[keys]]
-keys = "⌘F"
-action = "Find in file / across cells"
+keys = "mod+f"
+action = "Find in file or cells"
 group = "Find & navigate"
+command = "find_in_file"
 
 [[keys]]
-keys = "⌃⌥⇧⌘U"
+keys = "hyper+u"
 action = "Find usages"
 group = "Find & navigate"
+command = "find_usages"
 
 [[keys]]
-keys = "⌃⌥⇧⌘K"
+keys = "hyper+k"
 action = "Edit keybindings"
 group = "Find & navigate"
+command = "edit_keys"
 
 [[keys]]
-keys = "⇧⌘/"
+keys = "mod+shift+/"
 action = "Keys help"
 group = "Find & navigate"
+command = "help"
 
 [[keys]]
-keys = "⌘S"
+keys = ""
+action = "Go to definition"
+group = "Find & navigate"
+command = "find_definition_only"
+
+[[keys]]
+keys = "mod+s"
 action = "Save"
 group = "Tabs & files"
+command = "save"
 
 [[keys]]
-keys = "⌥⇧S"
+keys = "alt+shift+s"
 action = "Save all"
 group = "Tabs & files"
+command = "save_all"
 
 [[keys]]
-keys = "⌥⇧D"
+keys = "alt+shift+d"
 action = "What changed (diff)"
 group = "Tabs & files"
+command = "show_diff"
 
 [[keys]]
-keys = "⌃⌥⇧⌘H"
+keys = "hyper+h"
 action = "Local file history"
 group = "Tabs & files"
+command = "local_history"
 
 [[keys]]
-keys = "⌃⌥⇧⌘B"
-action = "Git blame (who wrote this)"
+keys = "hyper+b"
+action = "Who wrote this line (git blame)"
 group = "Tabs & files"
+command = "git_blame"
 
 [[keys]]
-keys = "⌥W"
+keys = "alt+w"
 action = "Close tab"
 group = "Tabs & files"
+command = "close_tab"
 
 [[keys]]
-keys = "⌥Y"
+keys = "alt+y"
 action = "Copy relative path"
 group = "Tabs & files"
+command = "copy_rel_path"
 
 [[keys]]
-keys = "⌥⇧Y"
+keys = "alt+shift+y"
 action = "Copy absolute path"
 group = "Tabs & files"
+command = "copy_abs_path"
 
 [[keys]]
-keys = "⌥S"
+keys = "alt+]"
 action = "Next tab"
 group = "Tabs & files"
+command = "next_tab"
 
 [[keys]]
-keys = "⌥A"
+keys = "alt+["
 action = "Previous tab"
 group = "Tabs & files"
+command = "prev_tab"
 
 [[keys]]
-keys = "⌃⌥⇧⌘N"
+keys = "hyper+n"
 action = "New notebook"
 group = "Tabs & files"
+command = "new_notebook"
 
 [[keys]]
-keys = "⌥R"
+keys = "alt+r"
 action = "Present notebook as slides"
 group = "Tabs & files"
+command = "present_notebook"
 
 [[keys]]
-keys = "⌥1…⌥9"
-action = "Go to tab 1–9"
+keys = "alt+1"
+action = "Go to tab 1"
 group = "Tabs & files"
+command = "tab_1"
 
 [[keys]]
-keys = "⌥⌘R"
+keys = "alt+2"
+action = "Go to tab 2"
+group = "Tabs & files"
+command = "tab_2"
+
+[[keys]]
+keys = "alt+3"
+action = "Go to tab 3"
+group = "Tabs & files"
+command = "tab_3"
+
+[[keys]]
+keys = "alt+4"
+action = "Go to tab 4"
+group = "Tabs & files"
+command = "tab_4"
+
+[[keys]]
+keys = "alt+5"
+action = "Go to tab 5"
+group = "Tabs & files"
+command = "tab_5"
+
+[[keys]]
+keys = "alt+6"
+action = "Go to tab 6"
+group = "Tabs & files"
+command = "tab_6"
+
+[[keys]]
+keys = "alt+7"
+action = "Go to tab 7"
+group = "Tabs & files"
+command = "tab_7"
+
+[[keys]]
+keys = "alt+8"
+action = "Go to tab 8"
+group = "Tabs & files"
+command = "tab_8"
+
+[[keys]]
+keys = "alt+9"
+action = "Go to tab 9"
+group = "Tabs & files"
+command = "tab_9"
+
+[[keys]]
+keys = ""
+action = "Notebook language"
+group = "Tabs & files"
+command = "notebook_language"
+
+[[keys]]
+keys = ""
+action = "Reload from disk"
+group = "Tabs & files"
+command = "reload_file"
+
+[[keys]]
+keys = ""
+action = "Close other tabs"
+group = "Tabs & files"
+command = "close_others"
+
+[[keys]]
+keys = ""
+action = "Close tabs to the right"
+group = "Tabs & files"
+command = "close_right"
+
+[[keys]]
+keys = ""
+action = "Close saved tabs"
+group = "Tabs & files"
+command = "close_saved"
+
+[[keys]]
+keys = "mod+alt+r"
 action = "Rename symbol"
 group = "Refactor"
+command = "rename_symbol"
 
 [[keys]]
-keys = "⇧⌘H"
+keys = "mod+shift+h"
 action = "Replace in workspace"
 group = "Refactor"
+command = "replace_workspace"
 
 [[keys]]
-keys = "⌃⌥⇧⌘,"
+keys = "hyper+,"
 action = "Undo workspace operation"
 group = "Refactor"
+command = "workspace_undo"
 
 [[keys]]
-keys = "⌃⌥⇧⌘."
+keys = "hyper+."
 action = "Redo workspace operation"
 group = "Refactor"
+command = "workspace_redo"
 
 [[keys]]
-keys = "⌥⌘V"
+keys = "mod+alt+v"
 action = "Extract variable"
 group = "Refactor"
+command = "extract_variable"
 
 [[keys]]
-keys = "⌥⌘M"
-action = "Extract method / function"
+keys = "mod+alt+m"
+action = "Extract method or function"
 group = "Refactor"
+command = "extract_method"
 
 [[keys]]
-keys = "⌥⌘C"
+keys = "mod+alt+c"
 action = "Extract constant"
 group = "Refactor"
+command = "extract_constant"
 
 [[keys]]
-keys = "⌥⌘N"
+keys = "mod+alt+n"
 action = "Inline variable"
 group = "Refactor"
+command = "inline_variable"
 
 [[keys]]
-keys = "⌥⌘F"
-action = "Move function/class to file"
+keys = "mod+alt+f"
+action = "Move function or class to a file"
 group = "Refactor"
+command = "move_symbol"
 
 [[keys]]
-keys = "⌃⌥⇧⌘I"
+keys = "hyper+i"
 action = "Sync Kosha index"
 group = "Refactor"
+command = "sync_index"
 
 [[keys]]
-keys = "⌥/ / ⌃Space"
+keys = "alt+/ ctrl+space"
 action = "Complete"
 group = "Assist & AI"
+command = "complete"
 
 [[keys]]
-keys = "⌥⇧Space"
-action = "Ai completion"
+keys = "alt+shift+space"
+action = "AI completion"
 group = "Assist & AI"
+command = "ai_complete"
 
 [[keys]]
-keys = "⌥⇧H"
+keys = "alt+shift+h"
 action = "Docs for symbol"
 group = "Assist & AI"
+command = "show_docs"
 
 [[keys]]
-keys = "⌃⌥⇧⌘A"
+keys = "hyper+a"
 action = "Ask AI about selection"
 group = "Assist & AI"
+command = "ask_ai"
 
 [[keys]]
-keys = "⌃⌥⇧⌘M"
+keys = "hyper+m"
 action = "Summarise selection"
 group = "Assist & AI"
+command = "summarise"
 
 [[keys]]
-keys = "⌥⇧P"
+keys = "alt+shift+p"
 action = "Screenshot for the assistant"
 group = "Assist & AI"
+command = "capture"
 
 [[keys]]
-keys = "⌥⇧N"
+keys = "alt+shift+n"
 action = "Send selection to agent"
 group = "Assist & AI"
+command = "agent_selection"
 
 [[keys]]
-keys = "⌃⌥⇧⌘V"
+keys = "hyper+v"
 action = "Open the vault"
 group = "Assist & AI"
+command = "open_vault"
 
 [[keys]]
-keys = "⌥⇧W"
+keys = "alt+shift+w"
 action = "Search the web"
 group = "Assist & AI"
+command = "web_search"
 
 [[keys]]
-keys = "⌥⇧Q"
+keys = "alt+shift+q"
 action = "Research a question"
 group = "Assist & AI"
+command = "research"
 
 [[keys]]
-keys = "⌥⇧U"
+keys = "alt+shift+u"
 action = "Read a url"
 group = "Assist & AI"
+command = "read_url"
 
 [[keys]]
-keys = "⌥⇧O"
+keys = "alt+shift+o"
 action = "Browse a url in a tab"
 group = "Assist & AI"
+command = "browse_url"
 
 [[keys]]
-keys = "⌥I"
-action = "Live / isolated namespace"
+keys = ""
+action = "Find in the vault"
+group = "Assist & AI"
+command = "vault_find"
+
+[[keys]]
+keys = ""
+action = "Adopt a page open in the browser"
+group = "Assist & AI"
+command = "browse_tabs"
+
+[[keys]]
+keys = ""
+action = "Clip into the vault"
+group = "Assist & AI"
+command = "clip_to_vault"
+
+[[keys]]
+keys = ""
+action = "Read a file into the vault"
+group = "Assist & AI"
+command = "vault_read"
+
+[[keys]]
+keys = ""
+action = "Vault review queue"
+group = "Assist & AI"
+command = "vault_review"
+
+[[keys]]
+keys = ""
+action = "Review what the agent learned"
+group = "Assist & AI"
+command = "learned_review"
+
+[[keys]]
+keys = ""
+action = "Manage memory notes"
+group = "Assist & AI"
+command = "memory_notes"
+
+[[keys]]
+keys = ""
+action = "Create a memory note"
+group = "Assist & AI"
+command = "new_memory_note"
+
+[[keys]]
+keys = ""
+action = "Vault settings"
+group = "Assist & AI"
+command = "vault_settings"
+
+[[keys]]
+keys = "alt+i"
+action = "Live or isolated namespace"
 group = "Kernel & run"
+command = "toggle_scope"
 
 [[keys]]
-keys = "⌥⇧I"
+keys = "alt+shift+i"
 action = "Interrupt kernel"
 group = "Kernel & run"
+command = "interrupt"
 
 [[keys]]
-keys = "⌥⇧R / ⌃⌥⇧⌘R"
+keys = "alt+shift+r hyper+r"
 action = "Restart kernel"
 group = "Kernel & run"
+command = "restart"
 
 [[keys]]
-keys = "⌥⇧K"
+keys = "alt+shift+k"
 action = "Choose kernel"
 group = "Kernel & run"
+command = "pick_kernel"
 
 [[keys]]
-keys = "⌥⇧E"
+keys = "alt+shift+e"
 action = "Watch another env"
 group = "Kernel & run"
+command = "switch_env"
 
 [[keys]]
-keys = "⌥⌘↩"
+keys = "mod+alt+enter"
 action = "Run this script"
 group = "Kernel & run"
+command = "run_file"
 
 [[keys]]
-keys = "⌃⌥⇧⌘S"
+keys = "hyper+s"
 action = "Run the selection in the kernel"
 group = "Kernel & run"
+command = "run_selection"
 
 [[keys]]
-keys = "⌥⇧A"
+keys = "alt+shift+a"
 action = "Run a configuration"
 group = "Kernel & run"
+command = "run_app"
 
 [[keys]]
-keys = "⌘↩"
+keys = ""
+action = "Run configurations"
+group = "Kernel & run"
+command = "edit_runs"
+
+[[keys]]
+keys = "mod+enter"
 action = "Run cell"
 group = "Notebook: run"
+command = "run_cell"
 
 [[keys]]
-keys = "⇧↩"
+keys = "shift+enter"
 action = "Run and select below"
 group = "Notebook: run"
+command = "run_advance"
 
 [[keys]]
-keys = "⌥↩"
+keys = "alt+enter"
 action = "Run and insert below"
 group = "Notebook: run"
+command = "run_insert"
 
 [[keys]]
-keys = "⌥⇧C"
+keys = "alt+shift+c"
 action = "Stop running cell"
 group = "Notebook: run"
+command = "stop_cell"
 
 [[keys]]
-keys = "⌃⌥⇧⌘↩"
+keys = "hyper+enter"
 action = "Run all cells above"
 group = "Notebook: run"
+command = "run_above"
 
 [[keys]]
-keys = "⌃⌥⇧⌘PgDn"
+keys = "hyper+pageDown"
 action = "Run this cell and below"
 group = "Notebook: run"
+command = "run_below"
 
 [[keys]]
-keys = "⇧⌘↩"
+keys = "mod+shift+enter"
 action = "Run every cell"
 group = "Notebook: run"
+command = "run_all"
 
 [[keys]]
-keys = "⌃⌥⇧⌘⌫"
-action = "Restart kernel, run all"
+keys = "hyper+backspace"
+action = "Restart kernel and run all"
 group = "Notebook: run"
+command = "restart_run_all"
 
 [[keys]]
-keys = "⌃⇧↑"
+keys = "ctrl+shift+up"
 action = "Select cell above"
 group = "Notebook: cells"
+command = "cell_select_above"
 
 [[keys]]
-keys = "⌃⇧↓"
+keys = "ctrl+shift+down"
 action = "Select cell below"
 group = "Notebook: cells"
+command = "cell_select_below"
 
 [[keys]]
-keys = "⌘Home"
+keys = "mod+home"
 action = "First cell"
 group = "Notebook: cells"
+command = "cell_first"
 
 [[keys]]
-keys = "⌘End"
+keys = "mod+end"
 action = "Last cell"
 group = "Notebook: cells"
+command = "cell_last"
 
 [[keys]]
-keys = "⌥PgUp"
+keys = "alt+pageup"
 action = "Previous page of cells"
 group = "Notebook: cells"
+command = "cell_page_up"
 
 [[keys]]
-keys = "⌥PgDn"
+keys = "alt+pagedown"
 action = "Next page of cells"
 group = "Notebook: cells"
+command = "cell_page_down"
 
 [[keys]]
-keys = "⌥⇧↑"
+keys = "alt+shift+up alt+shift+pageup"
 action = "Move cell up"
 group = "Notebook: cells"
+command = "cell_move_up"
 
 [[keys]]
-keys = "⌥⇧↓"
+keys = "alt+shift+down alt+shift+pagedown"
 action = "Move cell down"
 group = "Notebook: cells"
+command = "cell_move_down"
 
 [[keys]]
-keys = "⌥⌘↑"
+keys = "mod+alt+up"
 action = "Insert cell above"
 group = "Notebook: cells"
+command = "cell_above"
 
 [[keys]]
-keys = "⌥⌘↓"
+keys = "mod+alt+down"
 action = "Insert cell below"
 group = "Notebook: cells"
+command = "cell_below"
 
 [[keys]]
-keys = "⌥⌘⌫"
+keys = "mod+alt+backspace"
 action = "Delete cell"
 group = "Notebook: cells"
+command = "cell_delete"
 
 [[keys]]
-keys = "⇧I"
+keys = "shift+i"
 action = "Slide type: slide"
 group = "Notebook: cells"
+command = "slide_slide"
 
 [[keys]]
-keys = "⇧B"
+keys = "shift+b"
 action = "Slide type: subslide"
 group = "Notebook: cells"
+command = "slide_subslide"
 
 [[keys]]
-keys = "⇧G"
+keys = "shift+g"
 action = "Slide type: fragment"
 group = "Notebook: cells"
+command = "slide_fragment"
 
 [[keys]]
-keys = "⌘Z"
+keys = "mod+z"
 action = "Undo cell operation"
 group = "Notebook: cells"
+command = "notebook_undo"
 
 [[keys]]
-keys = "⇧⌘Z"
+keys = "mod+shift+z"
 action = "Redo cell operation"
 group = "Notebook: cells"
+command = "notebook_redo"
 
 [[keys]]
-keys = "⌥⇧M"
-action = "Cell type: code/markdown/prompt"
+keys = "alt+shift+m"
+action = "Cell type: code, markdown or prompt"
 group = "Notebook: cells"
+command = "cell_type"
 
 [[keys]]
-keys = "↩"
+keys = "enter"
 action = "Edit markdown cell"
 group = "Notebook: cells"
+command = "cell_edit"
 
 [[keys]]
-keys = "⎋"
+keys = "escape"
 action = "Render markdown cell"
 group = "Notebook: cells"
+command = "cell_render"
 
 [[keys]]
-keys = "⌥⇧-"
+keys = "alt+shift+-"
 action = "Split cell"
 group = "Notebook: cells"
+command = "cell_split"
 
 [[keys]]
-keys = "⌥⇧/"
+keys = "alt+shift+/"
 action = "Split cell per def"
 group = "Notebook: cells"
+command = "cell_split_symbols"
 
 [[keys]]
-keys = "⌃⌥⇧⌘C"
-action = "Collapse / expand cell"
+keys = "hyper+c"
+action = "Collapse or expand cell"
 group = "Notebook: cells"
+command = "cell_collapse"
 
 [[keys]]
-keys = "⌃⌥⇧⌘D"
+keys = "hyper+d"
 action = "Duplicate cell below"
 group = "Notebook: cells"
+command = "cell_duplicate"
 
 [[keys]]
-keys = "⌃⌥⇧⌘/"
+keys = "hyper+/"
 action = "Comment the whole cell"
 group = "Notebook: cells"
+command = "cell_comment"
 
 [[keys]]
-keys = "⌘C / ⇧⌘C"
+keys = "mod+c mod+shift+c"
 action = "Copy cell"
 group = "Notebook: cells"
+command = "cell_copy"
 
 [[keys]]
-keys = "⌘X / ⇧⌘X"
+keys = "mod+x mod+shift+x"
 action = "Cut cell"
 group = "Notebook: cells"
+command = "cell_cut"
 
 [[keys]]
-keys = "⌃⌥⇧⌘↑"
+keys = "hyper+up"
 action = "Merge cell above"
 group = "Notebook: cells"
+command = "cell_merge_above"
 
 [[keys]]
-keys = "⌃⌥⇧⌘PgUp"
+keys = "hyper+pageup"
 action = "Merge cell below"
 group = "Notebook: cells"
+command = "cell_merge_below"
 
 [[keys]]
-keys = "⌃⌥⇧⌘⌦"
+keys = "hyper+delete"
 action = "Clear this cell output"
 group = "Notebook: cells"
+command = "clear_cell_output"
 
 [[keys]]
-keys = "⇧⌘⌫"
+keys = "mod+shift+backspace"
 action = "Clear all outputs"
 group = "Notebook: cells"
+command = "clear_all_outputs"
 
 [[keys]]
-keys = "⌘]"
+keys = ""
+action = "Present from this cell"
+group = "Notebook: cells"
+command = "present_from_cell"
+
+[[keys]]
+keys = ""
+action = "Slide type: none"
+group = "Notebook: cells"
+command = "slide_none"
+
+[[keys]]
+keys = ""
+action = "Slide type: skip"
+group = "Notebook: cells"
+command = "slide_skip"
+
+[[keys]]
+keys = ""
+action = "Slide type: notes"
+group = "Notebook: cells"
+command = "slide_notes"
+
+[[keys]]
+keys = ""
+action = "Collapse / expand heading section"
+group = "Notebook: cells"
+command = "heading_toggle"
+
+[[keys]]
+keys = ""
+action = "Collapse every heading"
+group = "Notebook: cells"
+command = "collapse_all_headings"
+
+[[keys]]
+keys = ""
+action = "Expand every heading"
+group = "Notebook: cells"
+command = "expand_all_headings"
+
+[[keys]]
+keys = ""
+action = "Paste cell above"
+group = "Notebook: cells"
+command = "cell_paste_above"
+
+[[keys]]
+keys = ""
+action = "Paste cell below"
+group = "Notebook: cells"
+command = "cell_paste_below"
+
+[[keys]]
+keys = "mod+]"
 action = "Indent"
 group = "Editing"
+command = "indent_more"
 
 [[keys]]
-keys = "⌘["
+keys = "mod+["
 action = "Outdent"
 group = "Editing"
+command = "indent_less"
 
 [[keys]]
-keys = "⌃⌥⇧⌘]"
+keys = "hyper+]"
 action = "Re-indent to syntax"
 group = "Editing"
+command = "indent_selection"
 
 [[keys]]
-keys = "⌥↑"
+keys = "alt+up"
 action = "Move line up"
 group = "Editing"
+command = "move_line_up"
 
 [[keys]]
-keys = "⌥↓"
+keys = "alt+down"
 action = "Move line down"
 group = "Editing"
+command = "move_line_down"
 
 [[keys]]
-keys = "⇧⌘D"
+keys = "mod+shift+d"
 action = "Duplicate line"
 group = "Editing"
+command = "copy_line_down"
 
 [[keys]]
-keys = "⇧⌘K"
+keys = "mod+shift+k"
 action = "Delete line"
 group = "Editing"
+command = "delete_line"
 
 [[keys]]
-keys = "⌘D"
+keys = "mod+d"
 action = "Add next occurrence"
 group = "Editing"
+command = "select_next_occurrence"
 
 [[keys]]
-keys = "⇧⌘L"
+keys = "mod+shift+l"
 action = "Select every occurrence"
 group = "Editing"
+command = "select_all_occurrences"
 
 [[keys]]
-keys = "⌃⌥⇧⌘\\"
-action = "Column mode (multi-cursor)"
+keys = "hyper+\\"
+action = "Column mode (many cursors)"
 group = "Editing"
+command = "column_mode"
 
 [[keys]]
-keys = "⇧⌘\\"
+keys = "mod+shift+\\"
 action = "Go to matching bracket"
 group = "Editing"
+command = "matching_bracket"
 
 [[keys]]
-keys = "⌘I"
+keys = "mod+i"
 action = "Expand selection to syntax"
 group = "Editing"
+command = "select_parent_syntax"
 
 [[keys]]
-keys = "⌘/"
+keys = "mod+/"
 action = "Toggle comment"
 group = "Editing"
+command = "comment"
 
 [[keys]]
-keys = "⌃⇧A"
+keys = "ctrl+shift+a"
 action = "Find code like this"
 group = "Editing"
+command = "find_similar"
 
 [[keys]]
-keys = "⌃⇧M"
+keys = "ctrl+shift+m"
 action = "Code map (clusters)"
 group = "Editing"
+command = "code_map"
 
 [[keys]]
-keys = "⌥⇧F"
+keys = "alt+shift+f"
 action = "Format document"
 group = "Editing"
+command = "format_doc"
 
 [[keys]]
-keys = "⌘↩"
+keys = ""
+action = "Duplicate line above"
+group = "Editing"
+command = "copy_line_up"
+
+[[keys]]
+keys = ""
+action = "Select line"
+group = "Editing"
+command = "select_line"
+
+[[keys]]
+keys = ""
+action = "Add cursor above"
+group = "Editing"
+command = "add_cursor_above"
+
+[[keys]]
+keys = ""
+action = "Add cursor below"
+group = "Editing"
+command = "add_cursor_below"
+
+[[keys]]
+keys = ""
+action = "Toggle block comment"
+group = "Editing"
+command = "block_comment"
+
+[[keys]]
+keys = "mod+enter"
 action = "Run"
 group = "Exec console"
+command = "exec_run"
 
 [[keys]]
-keys = "⌥↩"
+keys = "alt+enter"
 action = "Newline"
 group = "Exec console"
+command = "exec_newline"
 
 [[keys]]
-keys = "⌃⇧↑"
+keys = "ctrl+shift+up"
 action = "Older history entry"
 group = "Exec console"
+command = "exec_prev"
 
 [[keys]]
-keys = "⌃⇧↓"
+keys = "ctrl+shift+down"
 action = "Newer history entry"
 group = "Exec console"
+command = "exec_next"
 
 [[keys]]
-keys = "⌥⇧L"
+keys = "alt+shift+l"
 action = "Clear log"
 group = "Exec console"
+command = "exec_clear"
 
 [[keys]]
-keys = "⇧⌘G"
+keys = "mod+shift+g"
 action = "Run in live namespace"
 group = "Exec console"
+command = "exec_promote"
 
 [[keys]]
-keys = "↩"
-action = "Open / toggle folder"
+keys = "enter"
+action = "Open file or toggle folder"
 group = "File tree"
+command = "open"
 
 [[keys]]
-keys = "↓"
+keys = "down"
 action = "Next item"
 group = "File tree"
+command = "tree_down"
 
 [[keys]]
-keys = "↑"
+keys = "up"
 action = "Previous item"
 group = "File tree"
+command = "tree_up"
 
 [[keys]]
-keys = "→"
-action = "Expand / enter folder"
+keys = "right"
+action = "Expand or open folder"
 group = "File tree"
+command = "tree_expand"
 
 [[keys]]
-keys = "←"
-action = "Collapse / go to parent"
+keys = "left"
+action = "Collapse or go to parent"
 group = "File tree"
+command = "tree_collapse"
 
 [[keys]]
-keys = "⌫"
+keys = "backspace"
 action = "Parent folder"
 group = "File tree"
+command = "up_dir"
 
 [[keys]]
 keys = "n"
 action = "New file"
 group = "File tree"
+command = "new_file"
 
 [[keys]]
-keys = "⇧N"
+keys = "N"
 action = "New folder"
 group = "File tree"
+command = "new_dir"
 
 [[keys]]
 keys = "r"
 action = "Rename"
 group = "File tree"
+command = "rename"
 
 [[keys]]
-keys = "⌘C"
+keys = "mod+c"
 action = "Copy"
 group = "File tree"
+command = "file_copy"
 
 [[keys]]
-keys = "⌘X"
+keys = "mod+x"
 action = "Cut"
 group = "File tree"
+command = "file_cut"
 
 [[keys]]
-keys = "⌘V"
+keys = "mod+v"
 action = "Paste into folder"
 group = "File tree"
+command = "file_paste"
 
 [[keys]]
-keys = "⌘D"
+keys = "mod+d"
 action = "Duplicate"
 group = "File tree"
+command = "file_duplicate"
 
 [[keys]]
-keys = "⇧↑"
+keys = "shift+up"
 action = "Extend selection up"
 group = "File tree"
+command = "tree_mark_up"
 
 [[keys]]
-keys = "⇧↓"
+keys = "shift+down"
 action = "Extend selection down"
 group = "File tree"
+command = "tree_mark_down"
 
 [[keys]]
 keys = "d"
 action = "Delete from disk"
 group = "File tree"
+command = "delete"
 
 [[keys]]
-keys = "⇧R"
+keys = "R"
 action = "Refresh"
 group = "File tree"
+command = "refresh_files"
 
 [[keys]]
-keys = "⇧H"
+keys = "H"
 action = "Show dotfiles"
 group = "File tree"
+command = "show_hidden"
 
 [[keys]]
 keys = "o"
 action = "Open folder in new window"
 group = "File tree"
+command = "open_folder"
 
 [[keys]]
-keys = "⇧O"
+keys = "O"
 action = "Add folder to window"
 group = "File tree"
+command = "add_root"
 
 [[keys]]
 keys = "/"
 action = "Filter"
 group = "File tree"
+command = "filter_files"
 
 [[keys]]
-keys = "↩"
+keys = "⌘Click"
+action = "Toggle mark on row"
+group = "File tree"
+
+[[keys]]
+keys = "⇧Click"
+action = "Mark a range"
+group = "File tree"
+
+[[keys]]
+keys = ""
+action = "Stage selected path"
+group = "File tree"
+command = "git_stage"
+
+[[keys]]
+keys = ""
+action = "Unstage selected path"
+group = "File tree"
+command = "git_unstage"
+
+[[keys]]
+keys = ""
+action = "Discard selected changes"
+group = "File tree"
+command = "git_discard"
+
+[[keys]]
+keys = ""
+action = "Add selected path to .gitignore"
+group = "File tree"
+command = "git_ignore"
+
+[[keys]]
+keys = ""
+action = "Remove folder from workspace"
+group = "File tree"
+command = "remove_root"
+
+[[keys]]
+keys = "enter"
 action = "Expand"
 group = "Variables"
+command = "expand"
 
 [[keys]]
 keys = "/"
 action = "Filter"
 group = "Variables"
+command = "filter_vars"
 
 [[keys]]
 keys = "i"
 action = "Edit"
 group = "Variables"
+command = "edit_value"
 
 [[keys]]
 keys = "g"
 action = "Grid"
 group = "Variables"
+command = "grid"
 
 [[keys]]
 keys = "y"
 action = "Copy value"
 group = "Variables"
+command = "copy_value"
 
 [[keys]]
-keys = "⇧Y"
+keys = "Y"
 action = "Copy path"
 group = "Variables"
+command = "copy_path"
 
 [[keys]]
 keys = "p"
 action = "Promote to live"
 group = "Variables"
+command = "promote"
 
 [[keys]]
 keys = "o"
 action = "Cycle sort"
 group = "Variables"
+command = "sort"
 
 [[keys]]
 keys = "1"
 action = "Profile: minimal"
 group = "Variables"
+command = "profile_minimal"
 
 [[keys]]
 keys = "2"
 action = "Profile: standard"
 group = "Variables"
+command = "profile_standard"
 
 [[keys]]
 keys = "3"
 action = "Profile: full"
 group = "Variables"
+command = "profile_full"
 
 [[keys]]
-keys = "⌘↩"
+keys = "mod+enter"
 action = "Send"
 group = "Agent"
+command = "agent_send"
 
 [[keys]]
-keys = "⇧⌘↩"
+keys = "mod+shift+enter"
 action = "Stop and send next"
 group = "Agent"
+command = "agent_steer_force"
 
 [[keys]]
-keys = "⇧⌘N"
+keys = "mod+shift+n"
 action = "New conversation"
 group = "Agent"
+command = "agent_new"
 
 [[keys]]
-keys = "⇧⌘T"
+keys = "mod+shift+t"
 action = "Switch conversation"
 group = "Agent"
+command = "agent_threads"
 
 [[keys]]
-keys = "⌥⇧C"
+keys = "alt+shift+c"
 action = "Stop agent"
 group = "Agent"
+command = "agent_stop"
 
 [[keys]]
-keys = "⌥⇧T"
+keys = "alt+shift+t"
 action = "What the agent did"
 group = "Agent"
+command = "agent_tools"
 
 [[keys]]
-keys = "⌥⇧J"
+keys = "alt+shift+j"
 action = "Fold this turn"
 group = "Agent"
+command = "agent_fold_turn"
 
 [[keys]]
-keys = "⌥⇧Z"
+keys = "alt+shift+z"
 action = "Fold every turn"
 group = "Agent"
+command = "agent_fold_all"
 
 [[keys]]
-keys = "⌃⇧`"
+keys = "ctrl+shift+`"
 action = "New terminal"
 group = "Terminal"
+command = "term_new"
 
 [[keys]]
-keys = "⌃⇧]"
+keys = "ctrl+shift+]"
 action = "Next terminal"
 group = "Terminal"
+command = "term_next"
 
 [[keys]]
-keys = "⌃⇧["
+keys = "ctrl+shift+["
 action = "Previous terminal"
 group = "Terminal"
+command = "term_prev"
 
 [[keys]]
-keys = "⌥⇧X"
+keys = "alt+shift+x"
 action = "Close terminal"
 group = "Terminal"
+command = "term_close"
 
 [[keys]]
 keys = "j"
 action = "Next page"
 group = "Vault reader"
+command = "vault_next_page"
 
 [[keys]]
 keys = "k"
 action = "Previous page"
 group = "Vault reader"
+command = "vault_prev_page"
 
 [[keys]]
 keys = "]"
 action = "Next flagged page"
 group = "Vault reader"
+command = "vault_next_flag"
 
 [[keys]]
 keys = "["
 action = "Previous flagged page"
 group = "Vault reader"
+command = "vault_prev_flag"
 
 [[keys]]
 keys = "r"
 action = "Re-read with another model"
 group = "Vault reader"
+command = "vault_reread"
 
 [[keys]]
 keys = "h"
 action = "Page versions"
 group = "Vault reader"
+command = "vault_history"
 
 [[keys]]
 keys = "p"
 action = "Proofread this document"
 group = "Vault reader"
+command = "vault_proofread"
 
 [[keys]]
 keys = "m"
-action = "Show as sent to model"
+action = "Show as sent to a hosted model"
 group = "Vault reader"
+command = "vault_as_sent"
 
 [[keys]]
 keys = "/"
 action = "Find in this document"
 group = "Vault reader"
+command = "vault_find_doc"
 
 [[keys]]
 keys = "a"
 action = "Ask about this page"
 group = "Vault reader"
+command = "vault_ask_page"
 
 [[keys]]
 keys = "j"
 action = "Next change"
 group = "Vault review"
+command = "review_next"
 
 [[keys]]
 keys = "k"
 action = "Previous change"
 group = "Vault review"
+command = "review_prev"
 
 [[keys]]
 keys = "a"
 action = "Accept"
 group = "Vault review"
+command = "review_accept"
 
 [[keys]]
 keys = "x"
 action = "Reject"
 group = "Vault review"
+command = "review_reject"
 
 [[keys]]
-keys = "⇧A"
+keys = "A"
 action = "Accept the page"
 group = "Vault review"
+command = "review_accept_page"
 
 [[keys]]
-keys = "⌥A"
+keys = "alt+a"
 action = "Accept the document"
 group = "Vault review"
+command = "review_accept_doc"
 
 [[keys]]
 keys = "d"
 action = "Doubts only"
 group = "Vault review"
+command = "review_doubts"
 
 [[keys]]
 keys = "e"
 action = "Edit, then accept"
 group = "Vault review"
+command = "review_edit"
 
 [[keys]]
 keys = "u"
 action = "Undo"
 group = "Vault review"
+command = "review_undo"
 
-# Not in the keymap registry: hard-coded handlers (see NOTES-leela.md)
 [[keys]]
 keys = "↩"
 action = "Approve the tool call"
@@ -1030,7 +1489,7 @@ group = "Palette, menus & dialogs"
 
 [[keys]]
 keys = "↩"
-action = "Run / choose"
+action = "Run or choose"
 group = "Palette, menus & dialogs"
 
 [[keys]]
@@ -1045,7 +1504,7 @@ group = "Palette, menus & dialogs"
 
 [[keys]]
 keys = "← / →"
-action = "Previous / next tab"
+action = "Previous or next tab"
 group = "Tab strip (tab focused)"
 
 [[keys]]
@@ -1059,18 +1518,8 @@ action = "Close tab"
 group = "Tab strip (tab focused)"
 
 [[keys]]
-keys = "⌘Click"
-action = "Toggle mark on row"
-group = "File tree"
-
-[[keys]]
-keys = "⇧Click"
-action = "Mark a range"
-group = "File tree"
-
-[[keys]]
 keys = "← / → / Space"
-action = "Previous / next slide"
+action = "Previous or next slide"
 group = "Slides (present)"
 
 [[keys]]
@@ -1078,38 +1527,61 @@ keys = "⎋"
 action = "Exit presentation"
 group = "Slides (present)"
 
+[[keys]]
+keys = ""
+action = "nbdev prepare"
+group = "Tools"
+command = "nbdev_prepare"
+
+[[keys]]
+keys = ""
+action = "fastship release tools"
+group = "Tools"
+command = "fastship"
+
+[[keys]]
+keys = ""
+action = "Models and updates"
+group = "Tools"
+command = "setup_models"
+
+[[keys]]
+keys = ""
+action = "Stage this folder, ignores first"
+group = "Tools"
+command = "add_folder"
+
+[[keys]]
+keys = ""
+action = "Quit"
+group = "Tools"
+command = "quit"
 [[tips]]
-title = "Hyper is ⌃⌥⇧⌘"
-snippet = "hyper+u  →  ⌃⌥⇧⌘U"
-explain = "Leela's keymap uses a Hyper modifier (all four). Map Caps Lock to Hyper with Karabiner; Leela also accepts ⌃⌥ plus either ⇧ or ⌘."
+title = "Caps Lock is Hyper"
+snippet = "hyper+u  →  Caps U  (⌃⌥⇧⌘U)"
+explain = "Hyper is ⌃⌥⇧⌘ pressed together. On this Mac, Caps Lock sends Hyper, so the panel shows it as Caps. Set hyper_label in config.toml to change this word."
 tags = ["keys", "hyper", "setup"]
 
 [[tips]]
-title = "Rebind any key"
+title = "Change any key"
 snippet = "~/.config/leela/keys.json   {\"keys\": {\"next_tab\": \"alt+]\"}}"
-explain = "Hyper+K (edit_keys) opens it. Only changed actions go in \"keys\"; an empty string unbinds. $LEELA_KEYMAP overrides the path. Conflicts are skipped and reported."
+explain = "The Edit keybindings action opens this file. Put only the actions that you change in \"keys\". An empty string removes the key. The panel reads the file again when it changes."
 tags = ["keys", "config", "keymap"]
-
-[[tips]]
-title = "Your tab keys are ⌥S / ⌥A"
-snippet = "\"next_tab\": \"alt+ß\", \"prev_tab\": \"alt+å\""
-explain = "Your keys.json binds next/prev tab to the characters ⌥S and ⌥A type on a US layout, replacing the defaults ⌥] and ⌥[."
-tags = ["keys", "tabs", "config"]
 
 [[tips]]
 title = "Keys depend on the focused pane"
 snippet = "global · files · editor · exec · vars · agent · term · vault · review"
-explain = "One router picks a scope from the focused element, so bare letters (n, r, d, j, k) only fire in the file tree, variables or vault. The 'keys' sidebar panel shows the current scope next to its title."
+explain = "Leela picks a scope from the focused pane. Single letters such as n, r, d, j and k work only in the file tree, the variables or the vault. Leela's keys panel shows the current scope."
 tags = ["keys", "scope", "panes"]
 
 [[tips]]
-title = "Unbound actions live in the palette"
+title = "Find actions that have no key"
 snippet = "⇧⌘P  →  nbdev prepare, fastship, vault review, close other tabs…"
-explain = "About 40 actions ship without a chord (nbdev_prepare, fastship, git_stage, vault_find, quit…). Find them in the command palette, or bind one in keys.json."
+explain = "About 40 actions have no key, for example nbdev_prepare, fastship, git_stage and quit. Find them in the command palette, or give one a key in keys.json."
 tags = ["palette", "commands"]
 
 [[tips]]
 title = "Launch modes"
 snippet = "leela  |  leela --shell webview  |  leela --app"
-explain = "Plain `leela` serves on 127.0.0.1:5010 for a browser tab; --shell webview opens the native window Leela.app uses; --app opens an app window in fossick's CDP Chrome (port 9223)."
+explain = "Plain leela serves the IDE on 127.0.0.1:5010 for a browser tab. Use --shell webview to open the native window that Leela.app uses. Use --app to open an app window in Chrome on port 9223."
 tags = ["cli", "launch", "desktop"]

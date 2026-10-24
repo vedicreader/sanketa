@@ -11,10 +11,15 @@ public struct Config: Codable, Equatable {
     public var pollInterval = 1.0
     public var tipRotateSeconds = 120.0
     public var translucency = Translucency.medium
+    /// How Leela's Hyper (⌃⌥⇧⌘) shows in the panel; Caps Lock sends Hyper on the author's Mac.
+    public var hyperLabel = "Caps"
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case hotkey, terminals, pollInterval, tipRotateSeconds, translucency }
+    enum CodingKeys: String, CodingKey {
+        case hotkey, terminals, pollInterval, tipRotateSeconds, translucency
+        case hyperLabel = "hyper_label"
+    }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -26,6 +31,7 @@ public struct Config: Codable, Equatable {
         terminals = try c.decodeIfPresent([String].self, forKey: .terminals) ?? terminals
         pollInterval = try num(.pollInterval, pollInterval)
         tipRotateSeconds = try num(.tipRotateSeconds, tipRotateSeconds)
+        hyperLabel = try c.decodeIfPresent(String.self, forKey: .hyperLabel) ?? hyperLabel
         translucency = (try? c.decodeIfPresent(String.self, forKey: .translucency)).flatMap { $0.flatMap(Translucency.init) } ?? .medium
     }
 

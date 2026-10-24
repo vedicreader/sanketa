@@ -11,8 +11,10 @@ func bundledPacks() -> URL {
         .deletingLastPathComponent().appendingPathComponent("Resources/Packs")
 }
 
-func loadLibrary() -> PackLibrary {
-    let lib = PackLibrary.load(bundled: bundledPacks(), user: configDir.appendingPathComponent("packs"))
+/// Bundled and user packs, with Leela's live keymap (keys.json) applied to the `leela` pack.
+func loadLibrary(config: Config = loadConfig()) -> PackLibrary {
+    var lib = PackLibrary.load(bundled: bundledPacks(), user: configDir.appendingPathComponent("packs"))
+    LeelaKeymap.apply(to: &lib, keysJSON: LeelaKeymap.defaultURL(), hyperLabel: config.hyperLabel)
     for e in lib.errors { FileHandle.standardError.write(Data("pack error \(e.file): \(e.message)\n".utf8)) }
     return lib
 }
