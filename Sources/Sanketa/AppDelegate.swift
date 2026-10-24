@@ -153,7 +153,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         let f = configDir.appendingPathComponent("config.toml")
         if !FileManager.default.fileExists(atPath: f.path) {
             try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-            let c = Config()
+            let c = Config(), k = c.coach, l = c.llm
             try? """
             # Sanketa settings. Sanketa applies them when you save this file.
             # hotkey = "\(c.hotkey)"
@@ -162,6 +162,23 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # translucency = "\(c.translucency.rawValue)"   # low, medium or high
             # hyper_label = "\(c.hyperLabel)"   # how Leela's Hyper key (⌃⌥⇧⌘) shows
             # terminals = [\(c.terminals.map { "\"\($0)\"" }.joined(separator: ", "))]
+
+            # [coach]   # tips from your shell history; Sanketa reads it on this Mac only
+            # enabled = \(k.enabled)
+            # fish_history = "\(k.fishHistory)"
+            # bash_history = "\(k.bashHistory)"
+            # max_entries = \(k.maxEntries)
+
+            # [llm]   # natural-language search; the model only picks from entries that Sanketa loaded
+            # on_device = \(l.onDevice)   # MLX model on this Mac
+            # mlx_model = "\(l.mlxModel.rawValue)"   # or "\(MLXModelChoice.qwen2b.rawValue)"
+            # apple_fm = \(l.appleFM)   # Apple Foundation Models
+            # suggest = \(l.suggest)   # model tips in the tip slot
+            # openai = \(l.openai)   # opt in: an OpenAI-compatible server
+            # openai_model = "\(l.openaiModel)"   # empty: the cheapest model
+            # base_url = "\(l.baseURL)"
+            # api_key_env = "\(l.apiKeyEnv)"
+            # timeout_seconds = \(Int(l.timeoutSeconds))
 
             """.write(to: f, atomically: true, encoding: .utf8)
         }

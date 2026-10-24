@@ -5,6 +5,68 @@ import TOMLDecoder
 /// How much of what's behind the panel shows through; `low` dims most.
 public enum Translucency: String, Codable, CaseIterable { case low, medium, high }
 
+/// The MLX model that runs on device for natural-language search.
+public enum MLXModelChoice: String, Codable, CaseIterable, Sendable { case qwen4b = "qwen3.5-4b", qwen2b = "qwen3.5-2b" }
+
+/// `[coach]`: where Sanketa reads shell history for coaching.
+public struct CoachConfig: Codable, Equatable, Sendable {
+    public var enabled = true
+    public var fishHistory = "~/.local/share/fish/fish_history"
+    public var bashHistory = "~/.bash_history"
+    public var maxEntries = 5000
+
+    public init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case enabled, fishHistory = "fish_history", bashHistory = "bash_history", maxEntries = "max_entries"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
+        fishHistory = try c.decodeIfPresent(String.self, forKey: .fishHistory) ?? fishHistory
+        bashHistory = try c.decodeIfPresent(String.self, forKey: .bashHistory) ?? bashHistory
+        maxEntries = try c.decodeIfPresent(Int.self, forKey: .maxEntries) ?? maxEntries
+    }
+
+    public var fishURL: URL { URL(fileURLWithPath: (fishHistory as NSString).expandingTildeInPath) }
+    public var bashURL: URL { URL(fileURLWithPath: (bashHistory as NSString).expandingTildeInPath) }
+}
+
+/// `[llm]`: the model tiers for natural-language search and suggestions. OpenAI stays off until the user turns it on.
+public struct LLMConfig: Codable, Equatable, Sendable {
+    public var onDevice = true
+    public var mlxModel = MLXModelChoice.qwen4b
+    public var appleFM = true
+    public var suggest = true
+    public var openai = false
+    public var openaiModel = ""
+    public var baseURL = "https://api.openai.com/v1"
+    public var apiKeyEnv = "OPENAI_API_KEY"
+    public var timeoutSeconds = 5.0
+
+    public init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case onDevice = "on_device", mlxModel = "mlx_model", appleFM = "apple_fm", suggest, openai
+        case openaiModel = "openai_model", baseURL = "base_url", apiKeyEnv = "api_key_env", timeoutSeconds = "timeout_seconds"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        onDevice = try c.decodeIfPresent(Bool.self, forKey: .onDevice) ?? onDevice
+        mlxModel = try c.decodeIfPresent(MLXModelChoice.self, forKey: .mlxModel) ?? mlxModel
+        appleFM = try c.decodeIfPresent(Bool.self, forKey: .appleFM) ?? appleFM
+        suggest = try c.decodeIfPresent(Bool.self, forKey: .suggest) ?? suggest
+        openai = try c.decodeIfPresent(Bool.self, forKey: .openai) ?? openai
+        openaiModel = try c.decodeIfPresent(String.self, forKey: .openaiModel) ?? openaiModel
+        baseURL = try c.decodeIfPresent(String.self, forKey: .baseURL) ?? baseURL
+        apiKeyEnv = try c.decodeIfPresent(String.self, forKey: .apiKeyEnv) ?? apiKeyEnv
+        if let v = try? c.decodeIfPresent(Double.self, forKey: .timeoutSeconds) { timeoutSeconds = v }
+        else { timeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .timeoutSeconds).map(Double.init) ?? timeoutSeconds }
+    }
+}
+
 public struct Config: Codable, Equatable {
     public var hotkey = "ctrl+opt+k"
     public var terminals = ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2", "fun.tw93.kaku"]
@@ -13,11 +75,13 @@ public struct Config: Codable, Equatable {
     public var translucency = Translucency.medium
     /// How Leela's Hyper (⌃⌥⇧⌘) shows in the panel; Caps Lock sends Hyper on the author's Mac.
     public var hyperLabel = "Caps"
+    public var coach = CoachConfig()
+    public var llm = LLMConfig()
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case hotkey, terminals, pollInterval, tipRotateSeconds, translucency
+        case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm
         case hyperLabel = "hyper_label"
     }
 
@@ -32,27 +96,41 @@ public struct Config: Codable, Equatable {
         pollInterval = try num(.pollInterval, pollInterval)
         tipRotateSeconds = try num(.tipRotateSeconds, tipRotateSeconds)
         hyperLabel = try c.decodeIfPresent(String.self, forKey: .hyperLabel) ?? hyperLabel
+        coach = try c.decodeIfPresent(CoachConfig.self, forKey: .coach) ?? coach
+        llm = try c.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? llm
         translucency = (try? c.decodeIfPresent(String.self, forKey: .translucency)).flatMap { $0.flatMap(Translucency.init) } ?? .medium
     }
 
-    /// `text` with top-level `key = value` replaced, or inserted before the first table; other lines kept.
-    public static func setting(_ key: String, _ value: String, in text: String) -> String {
+    /// `text` with `key = value` replaced, or inserted: before the first table, or with `table`, at the end of that
+    /// table (which is added at the end of the text when missing). Other lines are kept.
+    public static func setting(_ key: String, _ value: String, in text: String, table: String? = nil) -> String {
         var lines = text.components(separatedBy: "\n")
-        let firstTable = lines.firstIndex { $0.trimmingCharacters(in: .whitespaces).hasPrefix("[") } ?? lines.count
+        let isTable = { (l: String) in l.trimmingCharacters(in: .whitespaces).hasPrefix("[") }
         let new = "\(key) = \(value)"
-        if let i = lines[..<firstTable].firstIndex(where: {
+        var range = 0..<(lines.firstIndex(where: isTable) ?? lines.count)
+        if let table {
+            guard let h = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "[\(table)]" }) else {
+                return text + (text.isEmpty || text.hasSuffix("\n") ? "" : "\n") + "\n[\(table)]\n\(new)\n"
+            }
+            range = (h + 1)..<(lines[(h + 1)...].firstIndex(where: isTable) ?? lines.count)
+        }
+        if let i = lines[range].firstIndex(where: {
             let t = $0.trimmingCharacters(in: .whitespaces)
             return t.hasPrefix(key) && t.dropFirst(key.count).trimmingCharacters(in: .whitespaces).hasPrefix("=")
         }) { lines[i] = new }
-        else { lines.insert(new, at: firstTable) }
+        else if table == nil { lines.insert(new, at: range.upperBound) }
+        else {
+            let last = lines[range].lastIndex { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? range.lowerBound - 1
+            lines.insert(new, at: last + 1)
+        }
         return lines.joined(separator: "\n")
     }
 
-    /// Persists one top-level key into the config file, creating it if needed.
-    public static func save(_ key: String, _ value: String, to url: URL) throws {
+    /// Persists one key into the config file (top level, or inside `table`), creating the file if needed.
+    public static func save(_ key: String, _ value: String, to url: URL, table: String? = nil) throws {
         let old = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try setting(key, value, in: old).write(to: url, atomically: true, encoding: .utf8)
+        try setting(key, value, in: old, table: table).write(to: url, atomically: true, encoding: .utf8)
     }
 
     /// A missing file gives defaults and no error; bad TOML gives defaults and a short message, such as `hotkey must be a string`.

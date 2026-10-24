@@ -85,3 +85,54 @@ struct TranslucencyConfigTests {
         #expect(Config.load(missing).0.translucency == .high)
     }
 }
+
+struct CoachLLMConfigTests {
+    @Test func llmDefaultsKeepOpenAIOff() throws {
+        let (c, err) = Config.load(try writeConfig(""))
+        #expect(err == nil)
+        #expect(c.llm.openai == false && c.llm.onDevice == true && c.llm.appleFM == true)
+        #expect(c.llm.openaiModel == "" && c.llm.baseURL == "https://api.openai.com/v1" && c.coach.enabled == true)
+    }
+
+    @Test func llmTableParses() throws {
+        let (c, err) = Config.load(try writeConfig("[llm]\nopenai = true\nopenai_model = \"gpt-x\"\nbase_url = \"http://localhost:11434/v1\"\nmlx_model = \"qwen3.5-2b\""))
+        #expect(err == nil)
+        #expect(c.llm.openai && c.llm.openaiModel == "gpt-x" && c.llm.baseURL == "http://localhost:11434/v1")
+        #expect(c.llm.mlxModel == .qwen2b && c.llm.suggest == true)
+    }
+
+    @Test func integerTimeoutAccepted() throws {
+        #expect(Config.load(try writeConfig("[llm]\ntimeout_seconds = 3")).0.llm.timeoutSeconds == 3.0)
+    }
+
+    @Test func coachPathsExpandTilde() {
+        #expect(CoachConfig().fishURL.path == NSHomeDirectory() + "/.local/share/fish/fish_history")
+        #expect(CoachConfig().bashURL.path == NSHomeDirectory() + "/.bash_history")
+    }
+
+    @Test func badLLMTypeReturnsError() throws {
+        for t in ["[llm]\nopenai = \"yes\"", "[llm]\nmlx_model = \"huge\""] {
+            let (c, err) = Config.load(try writeConfig(t))
+            #expect(err != nil && c == Config(), "\(t)")
+        }
+    }
+
+    @Test func tableSettingReplacesInsideTable() throws {
+        let text = "hotkey = \"x\"\n[llm]\nopenai = true\nopenai_model = \"a\"\n[coach]\nenabled = true\n"
+        let a = Config.setting("openai_model", "\"b\"", in: text, table: "llm")
+        #expect(a == "hotkey = \"x\"\n[llm]\nopenai = true\nopenai_model = \"b\"\n[coach]\nenabled = true\n")
+        #expect(Config.load(try writeConfig(a)).0.llm.openaiModel == "b")
+        let b = Config.setting("base_url", "\"u\"", in: text, table: "llm")
+        #expect(b == "hotkey = \"x\"\n[llm]\nopenai = true\nopenai_model = \"a\"\nbase_url = \"u\"\n[coach]\nenabled = true\n")
+        #expect(Config.load(try writeConfig(b)).0.llm.baseURL == "u")
+        let c = Config.setting("openai_model", "\"b\"", in: "hotkey = \"x\"\n", table: "llm")
+        #expect(c.hasSuffix("\n[llm]\nopenai_model = \"b\"\n"))
+        #expect(Config.load(try writeConfig(c)).0.llm.openaiModel == "b")
+    }
+
+    @Test func saveWithTableWritesFile() throws {
+        let u = try tempDir().appendingPathComponent("config.toml")
+        try Config.save("openai_model", "\"m\"", to: u, table: "llm")
+        #expect(Config.load(u).0.llm.openaiModel == "m")
+    }
+}
