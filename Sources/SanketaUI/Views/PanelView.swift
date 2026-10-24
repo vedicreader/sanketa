@@ -21,11 +21,13 @@ struct PanelView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: Theme.sectionGap) {
+                        Color.clear.frame(height: 0).id("top")
                         if showsList { content } else { results }
                     }
                     .padding(.horizontal, Theme.pad - 6).padding(.bottom, Theme.pad)
                 }
                 .scrollIndicators(.never)
+                .onChange(of: model.scrollToken) { _, _ in proxy.scrollTo("top", anchor: .top) }
                 .onChange(of: model.selectedLayer) { _, id in
                     if let id { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
                 }
@@ -38,21 +40,25 @@ struct PanelView: View {
     }
 
     @ViewBuilder var content: some View {
-        if !model.tipCards.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(Array(model.tipCards.enumerated()), id: \.offset) { _, t in
-                    TipCard(item: t, prefix: model.sections.first { $0.pack.id == t.packID }?.pack.prefix) { model.mark(t, $0) }
+        ForEach(Array(model.blocks.enumerated()), id: \.element.id) { i, b in
+            if i > 0 { Rectangle().fill(Theme.hairline).frame(height: 0.5).padding(.horizontal, 6) }
+            switch b {
+            case .tips:
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(model.tipCards.enumerated()), id: \.offset) { _, t in
+                        TipCard(item: t, prefix: model.sections.first { $0.pack.id == t.packID }?.pack.prefix) { model.mark(t, $0) }
+                    }
                 }
+                .padding(.horizontal, 6)
+            case .section(let s):
+                LayerSection(data: s, collapsed: model.collapsed.contains(s.id), selected: model.selectedLayer == s.id) { model.toggle(s.id) }
+                    .id(s.id)
+            case .noPack(let l, _):
+                NoPackSection(layer: l)
             }
-            .padding(.horizontal, 6)
         }
-        ForEach(Array(model.sections.enumerated()), id: \.element.id) { i, s in
-            if i > 0 || !model.tipCards.isEmpty { Rectangle().fill(Theme.hairline).frame(height: 0.5).padding(.horizontal, 6) }
-            LayerSection(data: s, collapsed: model.collapsed.contains(s.id), selected: model.selectedLayer == s.id) { model.toggle(s.id) }
-                .id(s.id)
-        }
-        if model.sections.isEmpty && model.tipCards.isEmpty {
-            Text("No shortcuts for this app yet.").font(Theme.small).foregroundStyle(Theme.secondary).padding(.horizontal, 6)
+        if model.blocks.isEmpty {
+            Text("No keys for this app.").font(Theme.small).foregroundStyle(Theme.secondary).padding(.horizontal, 6)
         }
     }
 

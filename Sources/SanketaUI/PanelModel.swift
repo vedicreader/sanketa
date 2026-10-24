@@ -18,6 +18,22 @@ public struct LayerSectionData: Identifiable, Equatable {
     public var id: String { PanelModel.sectionID(index, layer) }
 }
 
+/// One block of the panel's list, top to bottom.
+public enum PanelBlock: Identifiable, Equatable {
+    case section(LayerSectionData)
+    case tips
+    /// a program or shell layer with no pack: one line that says how to add one
+    case noPack(Layer, index: Int)
+
+    public var id: String {
+        switch self {
+        case .section(let s): s.id
+        case .tips: "tips"
+        case .noPack(let l, let i): "nopack|" + PanelModel.sectionID(i, l)
+        }
+    }
+}
+
 /// What the panel shows for a `Context`: per-layer sections, tip cards, layer selection and footer notes.
 @MainActor public final class PanelModel: ObservableObject {
     @Published public private(set) var context = Context()
@@ -30,6 +46,10 @@ public struct LayerSectionData: Identifiable, Equatable {
     @Published public var translucency = Translucency.medium
     @Published public var packErrors: [PackLoadError] = []
     @Published public var hotkeyConflict: String?
+    /// The list top to bottom: the innermost layer's keys first, then the tip cards, then the outer layers.
+    @Published public private(set) var blocks: [PanelBlock] = []
+    /// Changes when the layer stack changes, so the view scrolls back to the top and the new tool's keys show.
+    @Published public private(set) var scrollToken = 0
     public private(set) var seed: UInt64
     let store: TipStore
     public static let tipCount = 3
@@ -69,8 +89,31 @@ public struct LayerSectionData: Identifiable, Equatable {
         context = c
         sections = Self.sections(c)
         if let s = selectedLayer, !sections.contains(where: { $0.id == s }) { selectedLayer = nil }
-        if reseed { seed &+= 1 }
+        if reseed {
+            seed &+= 1
+            scrollToken &+= 1
+            if let s = sections.first, s.index == 0 { collapsed.remove(s.id) }   // the new tool's keys open
+        }
         pickTips()
+        blocks = Self.blocks(layers: c.layers, sections: sections, tips: !tipCards.isEmpty)
+    }
+
+    /// Tool bindings beat tips: when the innermost layer has keys (or is a program with no pack), it leads and
+    /// the tip cards follow it; otherwise the tip cards lead.
+    public static func blocks(layers: [Layer], sections: [LayerSectionData], tips: Bool) -> [PanelBlock] {
+        var out = [PanelBlock]()
+        for (i, l) in layers.enumerated() {
+            if let s = sections.first(where: { $0.index == i }) { out.append(.section(s)) }
+            else if l.kind == .program || l.kind == .shell { out.append(.noPack(l, index: i)) }
+        }
+        guard tips else { return out }
+        let leads: Bool = switch out.first {
+        case .section(let s): s.index == 0 && !s.pack.keys.isEmpty
+        case .noPack(_, let i): i == 0
+        default: false
+        }
+        out.insert(.tips, at: leads ? 1 : 0)
+        return out
     }
 
     public func rotate() { seed &+= 1; pickTips() }

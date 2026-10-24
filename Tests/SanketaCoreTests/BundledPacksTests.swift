@@ -24,7 +24,7 @@ func run(_ bin: String, _ args: [String], input: String) throws -> (Int32, Strin
 }
 
 @Suite struct BundledPacksTests {
-    static let core = ["tmux", "fish", "bash", "htop", "vim", "git", "grep", "awk", "find", "sed", "pipes", "nvtop", "nvidia-smi"]
+    static let core = ["tmux", "fish", "bash", "htop", "vim", "git", "grep", "awk", "find", "sed", "pipes", "nvtop", "nvidia-smi", "yazi", "lazygit"]
     static let drafts = ["ramabana", "claude", "conterm", "leela"]
     /// as the app loads them: the leela pack gets Leela's default keymap (no keys.json)
     let lib = { var l = PackLibrary.load(bundled: bundledPacksDir, user: nil); LeelaKeymap.apply(to: &l, keysJSON: nil); return l }()
@@ -75,6 +75,8 @@ func run(_ bin: String, _ args: [String], input: String) throws -> (Int32, Strin
         let smi = try #require(lib.pack(process: "nvidia-smi", argv: ["nvidia-smi", "-l", "1"]))
         #expect(smi.id == "nvidia-smi" && smi.keys.isEmpty && smi.tips.count >= 5)
         #expect(lib.pack(process: "claude", argv: ["claude"])?.id == "claude")
+        #expect(lib.pack(process: "yazi", argv: ["yazi", "--cwd-file=/tmp/x"])?.id == "yazi")
+        #expect(lib.pack(process: "lazygit", argv: ["lazygit"])?.id == "lazygit")
         #expect(lib.pack(bundleID: "app.conterm.Conterm")?.id == "conterm")
         #expect(lib.pack(bundleID: "org.vedicreader.leela")?.id == "leela")
     }

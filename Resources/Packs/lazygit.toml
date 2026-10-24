@@ -1,0 +1,218 @@
+id = "lazygit"
+name = "lazygit"
+processes = ["lazygit"]
+
+# lazygit 0.63.1 defaults: docs/keybindings/Keybindings_en.md and docs/Config.md at tag v0.63.1.
+# The config.yml on this Mac changes no keys.
+
+[[keys]]
+keys = "1 / 2 / 3 / 4 / 5"
+action = "Go to a panel: status, files, branches, commits, stash"
+group = "Panels"
+
+[[keys]]
+keys = "h / l"
+action = "Go to the previous or next panel"
+group = "Panels"
+
+[[keys]]
+keys = "j / k"
+action = "Go to the next or previous item"
+group = "Panels"
+
+[[keys]]
+keys = "Enter"
+action = "Open the item (files, lines or commits)"
+group = "Panels"
+
+[[keys]]
+keys = "Esc"
+action = "Go back or cancel"
+group = "Panels"
+
+[[keys]]
+keys = "/"
+action = "Find text in this view"
+group = "Panels"
+
+[[keys]]
+keys = "?"
+action = "Show all keys for this panel"
+group = "Panels"
+
+[[keys]]
+keys = "Space"
+action = "Stage or unstage the file"
+group = "Files"
+
+[[keys]]
+keys = "a"
+action = "Stage or unstage all files"
+group = "Files"
+
+[[keys]]
+keys = "c"
+action = "Commit the staged changes"
+group = "Files"
+
+[[keys]]
+keys = "A"
+action = "Add the staged changes to the last commit"
+group = "Files"
+
+[[keys]]
+keys = "d"
+action = "Discard the changes to the file"
+group = "Files"
+
+[[keys]]
+keys = "e"
+action = "Edit the file"
+group = "Files"
+
+[[keys]]
+keys = "s"
+action = "Stash all changes"
+group = "Files"
+
+[[keys]]
+keys = "i"
+action = "Ignore the file"
+group = "Files"
+
+[[keys]]
+keys = "Space"
+action = "Stage or unstage the selected lines"
+group = "Lines (in the staging view)"
+
+[[keys]]
+keys = "a"
+action = "Select lines or the whole hunk"
+group = "Lines (in the staging view)"
+
+[[keys]]
+keys = "Tab"
+action = "Go between staged and unstaged changes"
+group = "Lines (in the staging view)"
+
+[[keys]]
+keys = "Space"
+action = "Check out the branch"
+group = "Branches"
+
+[[keys]]
+keys = "n"
+action = "Make a new branch"
+group = "Branches"
+
+[[keys]]
+keys = "-"
+action = "Check out the previous branch"
+group = "Branches"
+
+[[keys]]
+keys = "r"
+action = "Rebase the current branch onto this branch"
+group = "Branches"
+
+[[keys]]
+keys = "M"
+action = "Merge this branch into the current branch"
+group = "Branches"
+
+[[keys]]
+keys = "R"
+action = "Rename the branch"
+group = "Branches"
+
+[[keys]]
+keys = "d"
+action = "Delete the branch"
+group = "Branches"
+
+[[keys]]
+keys = "s"
+action = "Squash the commit into the commit below"
+group = "Commits"
+
+[[keys]]
+keys = "f"
+action = "Fixup: squash and drop this message"
+group = "Commits"
+
+[[keys]]
+keys = "r"
+action = "Change the commit message"
+group = "Commits"
+
+[[keys]]
+keys = "d"
+action = "Drop the commit"
+group = "Commits"
+
+[[keys]]
+keys = "e"
+action = "Edit the commit (interactive rebase)"
+group = "Commits"
+
+[[keys]]
+keys = "C"
+action = "Copy the commit for a cherry-pick"
+group = "Commits"
+
+[[keys]]
+keys = "V"
+action = "Paste the copied commits"
+group = "Commits"
+
+[[keys]]
+keys = "C-j / C-k"
+action = "Move the commit down or up"
+group = "Commits"
+
+[[keys]]
+keys = "g"
+action = "Show the reset options"
+group = "Commits"
+
+[[keys]]
+keys = "p"
+action = "Pull"
+group = "Remote and undo"
+
+[[keys]]
+keys = "P"
+action = "Push"
+group = "Remote and undo"
+
+[[keys]]
+keys = "f"
+action = "Fetch (in the files panel)"
+group = "Remote and undo"
+
+[[keys]]
+keys = "z"
+action = "Undo the last git action"
+group = "Remote and undo"
+
+[[keys]]
+keys = "Z"
+action = "Redo"
+group = "Remote and undo"
+
+[[keys]]
+keys = "q"
+action = "Quit"
+group = "Remote and undo"
+
+[[tips]]
+title = "Stage part of a file"
+snippet = "Enter  →  Space on each line  →  Esc"
+explain = "Open the file with Enter. Select lines with Space, or press a to stage the whole hunk. Press Esc to go back."
+tags = ["stage", "hunk"]
+
+[[tips]]
+title = "Undo a git action"
+snippet = "z"
+explain = "lazygit reads the reflog to undo the last commit, checkout or rebase. It does not undo changes in the working tree."
+tags = ["undo", "reflog"]

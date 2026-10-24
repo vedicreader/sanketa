@@ -263,6 +263,68 @@ func threadCPUSeconds() -> Double {
     }
 }
 
+/// The tool in front leads the panel: its keys, then tips, then the outer layers (user feedback on yazi in Kaku).
+@MainActor struct PanelLayoutTests {
+    static let yazi = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Resources/Packs/yazi.toml")
+
+    func yaziContext(withPack: Bool) throws -> Context {
+        let p = try packs()
+        let yazi = try PackLibrary.decode(Data(contentsOf: Self.yazi))
+        let layers = [Layer(kind: .program, name: "yazi", packID: withPack ? "yazi" : nil),
+                      Layer(kind: .shell, name: "fish", packID: "fish"), Layer(kind: .terminal, name: "Kaku", packID: terminal.id)]
+        return Context(appName: "Kaku", bundleID: "fun.tw93.kaku", layers: layers,
+                       packs: (withPack ? [yazi] : []) + [p["fish"]!, terminal], axTrusted: true)
+    }
+
+    func kinds(_ m: PanelModel) -> [String] {
+        m.blocks.map { b -> String in
+            switch b {
+            case .section(let s): s.pack.id
+            case .tips: "tips"
+            case .noPack(let l, _): "nopack:" + l.name
+            }
+        }
+    }
+
+    @Test func innermostKeysComeBeforeTips() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 3)
+        m.update(try yaziContext(withPack: true))
+        #expect(kinds(m) == ["yazi", "tips", "fish", "app:com.apple.Terminal"])
+        guard case .section(let first) = m.blocks.first else { Issue.record("first block is not a section"); return }
+        #expect(first.groups.first?.keys.contains { $0.keys == "e" } == true && !m.collapsed.contains(first.id))
+    }
+
+    @Test func programWithoutPackSaysHowToAddOne() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 3)
+        m.update(try yaziContext(withPack: false))
+        #expect(kinds(m) == ["nopack:yazi", "tips", "fish", "app:com.apple.Terminal"])
+        #expect(NoPackSection.message("yazi") == "No keys for yazi. Add a pack in ~/.config/sanketa/packs.")
+    }
+
+    /// With no keys in the innermost layer the tips lead, as before.
+    @Test func tipsLeadWhenInnermostHasNoKeys() throws {
+        let tipsOnly = Pack(id: "smi", name: "nvidia-smi", processes: ["nvidia-smi"], tips: [Tip(title: "Watch", snippet: "nvidia-smi -l 1", explain: "Show the GPUs every second.", tags: ["gpu"])])
+        let layers = [Layer(kind: .program, name: "nvidia-smi", packID: "smi"), Layer(kind: .shell, name: "fish", packID: "fish")]
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 3)
+        m.update(Context(appName: "T", bundleID: "t", layers: layers, packs: [tipsOnly, try packs()["fish"]!], axTrusted: true))
+        #expect(kinds(m) == ["tips", "smi", "fish"])
+    }
+
+    /// A new tool in front scrolls the panel to the top and opens its section; a repeat poll does neither.
+    @Test func layerChangeScrollsToTopAndExpands() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 3)
+        m.update(try context(["fish", "Terminal"]))
+        let t0 = m.scrollToken
+        m.update(try context(["fish", "Terminal"]))
+        #expect(m.scrollToken == t0)
+        let c = try yaziContext(withPack: true)
+        m.collapsed.insert(PanelModel.sectionID(0, c.layers[0]))
+        m.update(c)
+        #expect(m.scrollToken == t0 + 1 && m.collapsed.isEmpty)
+    }
+}
+
 @MainActor struct MonitorTimerTests {
     /// `pollInterval = 0` must not spin: the poll timer runs at 0.25 s at most, with 20% tolerance for coalescing.
     @Test func pollIntervalIsClampedAndTolerant() throws {

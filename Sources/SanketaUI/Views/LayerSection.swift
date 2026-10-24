@@ -48,6 +48,21 @@ struct LayerSection: View {
     }
 }
 
+/// A program or shell with no pack: its name as a header and one line that says how to add a pack.
+struct NoPackSection: View {
+    let layer: Layer
+
+    static func message(_ name: String) -> String { "No keys for \(name). Add a pack in ~/.config/sanketa/packs." }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.rowGap) {
+            Text(layer.name + (layer.host.map { " @ \($0)" } ?? "")).font(Theme.header).foregroundStyle(Theme.secondary)
+            Text(Self.message(layer.name)).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 4).padding(.horizontal, 6)
+    }
+}
+
 struct TipRow: View {
     let tip: Tip
 

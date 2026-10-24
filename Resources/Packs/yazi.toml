@@ -1,0 +1,218 @@
+id = "yazi"
+name = "yazi"
+processes = ["yazi"]
+
+# Yazi 26.9.1 defaults: yazi-config/preset/keymap-default.toml at tag v26.9.1 ([mgr] section).
+# "Your keys" are the prepend_keymap entries in ~/.config/yazi/keymap.toml on this Mac.
+
+[[keys]]
+keys = "e"
+action = "Open or edit the selected files"
+group = "Your keys"
+
+[[keys]]
+keys = "Enter"
+action = "Open the folder under the cursor"
+group = "Your keys"
+
+[[keys]]
+keys = "j"
+action = "Go to the next file"
+group = "Move"
+
+[[keys]]
+keys = "k"
+action = "Go to the previous file"
+group = "Move"
+
+[[keys]]
+keys = "h"
+action = "Go to the parent folder"
+group = "Move"
+
+[[keys]]
+keys = "l"
+action = "Open the folder under the cursor"
+group = "Move"
+
+[[keys]]
+keys = "g g"
+action = "Go to the top"
+group = "Move"
+
+[[keys]]
+keys = "G"
+action = "Go to the bottom"
+group = "Move"
+
+[[keys]]
+keys = "C-d"
+action = "Go down half a page"
+group = "Move"
+
+[[keys]]
+keys = "C-u"
+action = "Go up half a page"
+group = "Move"
+
+[[keys]]
+keys = "Space"
+action = "Select or clear the file"
+group = "Select"
+
+[[keys]]
+keys = "v"
+action = "Start visual mode"
+group = "Select"
+
+[[keys]]
+keys = "C-a"
+action = "Select all files"
+group = "Select"
+
+[[keys]]
+keys = "Esc"
+action = "Stop visual mode or clear the selection"
+group = "Select"
+
+[[keys]]
+keys = "o"
+action = "Open the selected files"
+group = "Files"
+
+[[keys]]
+keys = "O"
+action = "Open the selected files with a chosen program"
+group = "Files"
+
+[[keys]]
+keys = "y"
+action = "Copy the selected files"
+group = "Files"
+
+[[keys]]
+keys = "x"
+action = "Cut the selected files"
+group = "Files"
+
+[[keys]]
+keys = "p"
+action = "Paste the files"
+group = "Files"
+
+[[keys]]
+keys = "P"
+action = "Paste and replace files that exist"
+group = "Files"
+
+[[keys]]
+keys = "d"
+action = "Move the selected files to the trash"
+group = "Files"
+
+[[keys]]
+keys = "D"
+action = "Delete the selected files permanently"
+group = "Files"
+
+[[keys]]
+keys = "a"
+action = "Make a file (end the name with / for a folder)"
+group = "Files"
+
+[[keys]]
+keys = "r"
+action = "Rename the selected files"
+group = "Files"
+
+[[keys]]
+keys = "."
+action = "Show or hide hidden files"
+group = "Files"
+
+[[keys]]
+keys = "s"
+action = "Find files by name (fd)"
+group = "Find"
+
+[[keys]]
+keys = "S"
+action = "Find files by content (ripgrep)"
+group = "Find"
+
+[[keys]]
+keys = "f"
+action = "Filter the files"
+group = "Find"
+
+[[keys]]
+keys = "/"
+action = "Find the next file that matches"
+group = "Find"
+
+[[keys]]
+keys = "n"
+action = "Go to the next match"
+group = "Find"
+
+[[keys]]
+keys = "z"
+action = "Jump to a file with fzf"
+group = "Find"
+
+[[keys]]
+keys = "Z"
+action = "Jump to a folder with zoxide"
+group = "Find"
+
+[[keys]]
+keys = "c c"
+action = "Copy the file path"
+group = "Copy path"
+
+[[keys]]
+keys = "t t"
+action = "Open a new tab in this folder"
+group = "Tabs and tools"
+
+[[keys]]
+keys = "["
+action = "Go to the previous tab"
+group = "Tabs and tools"
+
+[[keys]]
+keys = "]"
+action = "Go to the next tab"
+group = "Tabs and tools"
+
+[[keys]]
+keys = ";"
+action = "Run a shell command"
+group = "Tabs and tools"
+
+[[keys]]
+keys = "w"
+action = "Show the tasks"
+group = "Tabs and tools"
+
+[[keys]]
+keys = "~"
+action = "Show the help"
+group = "Tabs and tools"
+
+[[keys]]
+keys = "q"
+action = "Quit"
+group = "Tabs and tools"
+
+[[tips]]
+title = "Change folder when yazi quits"
+snippet = "function y\n    set tmp (mktemp -t yazi-cwd)\n    yazi $argv --cwd-file=$tmp\n    set cwd (cat $tmp)\n    test -n \"$cwd\"; and cd $cwd\n    command rm -f $tmp\nend"
+explain = "This fish function starts yazi with a cwd file. When you quit with q, the shell goes to the last folder."
+tags = ["shell", "cwd"]
+
+[[tips]]
+title = "Sort the files"
+snippet = ", m  /  , s  /  , a"
+explain = "Press a comma, then a letter. m sorts by time, s by size and a by name. Use the capital letter for the reverse order."
+tags = ["sort"]
