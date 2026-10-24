@@ -10,6 +10,10 @@ import Testing
         let p = Process(), out = Pipe(), err = Pipe()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/make")
         p.arguments = ["-n", "-C", Self.repo.path] + args
+        // under `make test` the outer make exports its flags and values; drop them so each case sees only its own args
+        let inherited: Set = ["MAKEFLAGS", "MFLAGS", "MAKELEVEL", "FILTER", "PACKS", "SHOTS", "HOST", "INSTALL_DIR", "ZIP",
+                              "SIGN_ID", "RELEASE_ID", "VERSION"]
+        p.environment = ProcessInfo.processInfo.environment.filter { !inherited.contains($0.key) }
         p.standardOutput = out; p.standardError = err
         try p.run()
         let o = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
@@ -33,6 +37,31 @@ import Testing
             #expect(r.status == 2, "\(args)")
             #expect(r.err.contains("is not safe") || r.err.contains("must not start with -"), "\(args): \(r.err)")
             #expect(r.out.isEmpty, "\(args): \(r.out)")
+        }
+        #expect(!FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    /// make -n still runs recipe lines that hold $(MAKE), so release and publish stop while make reads the file,
+    /// before any recipe (codesign, notarize.sh, gh) can start.
+    @Test func releaseAndPublishRefuseDryRun() throws {
+        for goal in ["release", "publish"] {
+            let r = try make([goal])
+            #expect(r.status == 2, "\(goal)")
+            #expect(r.err.contains("release and publish do not run with -n"), "\(goal): \(r.err)")
+            #expect(r.out.isEmpty, "\(goal): \(r.out)")
+        }
+        let r = try make(["publish", "ZIP=dist/other.zip"])
+        #expect(r.status == 2 && r.err.contains("Do not set ZIP") && r.out.isEmpty, "\(r.err)")
+    }
+
+    /// VERSION feeds the ZIP default, so it is checked before anything expands it.
+    @Test func refusesUnsafeVersion() throws {
+        let marker = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-pwned-\(UUID().uuidString)")
+        for v in ["$(shell touch \(marker.path))", "1.0;id", "-1"] {
+            let r = try make(["zip", "VERSION=\(v)"])
+            #expect(r.status == 2, "\(v)")
+            #expect(r.err.contains("VERSION"), "\(v): \(r.err)")
+            #expect(r.out.isEmpty, "\(v): \(r.out)")
         }
         #expect(!FileManager.default.fileExists(atPath: marker.path))
     }
