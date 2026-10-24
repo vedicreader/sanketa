@@ -1,5 +1,6 @@
 SIGN_ID ?= Apple Development
 APP := build/Sanketa.app
+INSTALL_DIR ?= $(HOME)/Applications
 
 .PHONY: test app run install verify remote-setup
 
@@ -21,9 +22,12 @@ app:
 run:
 	open $(APP)
 
+# move the old bundle aside, then copy a fresh one: cp -R over a signed bundle overwrites the executable in place
+# and leaves stale Packs files that break the sealed-resource signature
 install:
-	mkdir -p ~/Applications
-	cp -R $(APP) ~/Applications/
+	mkdir -p $(INSTALL_DIR) /tmp/sanketa-trash
+	if [ -e $(INSTALL_DIR)/Sanketa.app ]; then mv $(INSTALL_DIR)/Sanketa.app /tmp/sanketa-trash/Sanketa.app-$$$$; fi
+	ditto $(APP) $(INSTALL_DIR)/Sanketa.app
 
 verify:
 	@python3 -c "import plistlib,sys,os; a=sys.argv[1]; p=plistlib.load(open(a+'/Contents/Info.plist','rb')); assert p['CFBundleIdentifier']=='dev.sanketa.Sanketa'; assert os.access(a+'/Contents/MacOS/Sanketa',os.X_OK); assert os.path.isdir(a+'/Contents/Resources/Packs'); print('bundle ok')" $(APP)
