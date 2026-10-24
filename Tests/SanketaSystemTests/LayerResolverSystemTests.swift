@@ -55,7 +55,11 @@ import Testing
         let end = Date().addingTimeInterval(5)
         while tmux(inner, ["has-session", "-t", "inner"]) == nil && Date() < end { Thread.sleep(forTimeInterval: 0.1) }
         _ = try #require(tmux(inner, ["send-keys", "-t", "inner", "/opt/homebrew/bin/htop", "Enter"]))
-        let s = snapshot { $0.procs.contains { $0.name == "htop" && $0.argv.first == "/opt/homebrew/bin/htop" } }
+        let tty = { (sock: String, t: String) in try #require(tmux(sock, ["display", "-p", "-t", t, "#{pane_tty}"]))
+            .trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "/dev/", with: "") }
+        let (outerPane, innerPane) = (try tty(outer, "outer"), try tty(inner, "inner"))
+        // a process right after exec can still be outside its tty's foreground group
+        let s = snapshot { $0.foreground(tty: outerPane)?.name == "tmux" && $0.foreground(tty: innerPane)?.name == "htop" }
         let res = LayerResolver(library: try library(), tmux: TmuxQuery(runner: r, socket: inner), remote: nil)
         let ls = res.resolve(s, terminal: term(server))
         #expect(ls.map(\.name) == ["htop", "fish", "tmux", "TestTerm"])

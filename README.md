@@ -1,6 +1,8 @@
+<img src="design/logo/sanketa-icon.png" width="128" alt="Sanketa kolam logo">
+
 # Sanketa
 
-<img src="design/logo/sanketa-icon.png" width="96" alt="Sanketa icon">
+[![build](https://github.com/vedicreader/sanketa/actions/workflows/build.yml/badge.svg)](https://github.com/vedicreader/sanketa/actions/workflows/build.yml)
 
 Sanketa is a small macOS menu-bar app. The name is Sanskrit for "hint" or "signal". It shows a floating glass panel with the keys and tips for the program that you use now.
 
@@ -10,7 +12,19 @@ The panel does not take the keyboard focus from your terminal. It takes the focu
 
 Sanketa needs macOS 26 on Apple Silicon. It needs the Accessibility permission and no other permission. It does not monitor input, it does not record keystrokes, and it does not use the network.
 
-## Install
+## Download
+
+Get the latest zip from [the releases page](https://github.com/vedicreader/sanketa/releases/latest). Then do these steps:
+
+1. Unzip `Sanketa-<version>.zip`.
+2. Move `Sanketa.app` to Applications.
+3. Open Sanketa.
+4. If macOS blocks it, right-click `Sanketa.app` and select Open. If macOS still blocks it, go to System Settings, then Privacy & Security, and click Open Anyway.
+5. Allow Accessibility. The next section gives the steps.
+
+Each release has a Developer ID signature, and Apple notarized it.
+
+## Build from source
 
 ```sh
 make app install
@@ -160,10 +174,41 @@ Some hosts have no script. If you connect to such a host through an ssh ControlM
 ## Development
 
 ```sh
-make test     # swift test
-make app      # build and sign build/Sanketa.app
-make verify   # check the bundle and its signature
+make test        # swift test
+make app         # build and sign build/Sanketa.app
+make verify      # check the bundle and its signature
+make release     # sign with Developer ID and make dist/Sanketa-<version>.zip
+make gatekeeper  # ask Gatekeeper if it accepts the bundle
 ```
+
+### Releases
+
+`make release` signs the bundle with your Developer ID Application identity and a secure timestamp. Then it makes a zip in `dist/`. If it finds notary credentials, it sends the zip to Apple and waits. When Apple accepts the zip, it staples the ticket to the bundle and makes the zip again. If Apple rejects the zip, it shows the issues from the notary log.
+
+`scripts/notarize.sh` uses the first credentials that it finds:
+
+1. The file `~/.config/sanketa/notary.json`. To use a different file, set `NOTARY_CONFIG`.
+2. The variables `NOTARY_KEY_PATH`, `NOTARY_KEY_ID` and `NOTARY_ISSUER`.
+3. The variable `NOTARY_PROFILE`, the name of a notarytool keychain profile.
+
+The file holds an App Store Connect API key:
+
+```json
+{"key_id": "ABC123DEFG", "issuer_id": "00000000-0000-0000-0000-000000000000", "key_path": "~/.config/sanketa/AuthKey.p8"}
+```
+
+The key must have the Developer role or the Admin role. Keep the .p8 file out of the repo. To use a keychain profile, store it one time:
+
+```sh
+xcrun notarytool store-credentials sanketa-notary --apple-id <id> --team-id <team id>
+make release NOTARY_PROFILE=sanketa-notary
+```
+
+Without credentials, the zip has a signature, but Gatekeeper rejects it. After notarization, `make gatekeeper` shows "accepted, source=Notarized Developer ID".
+
+Releases are signed and notarized only on the maintainer's Mac. GitHub has no signing keys or notary keys. To publish a release, run `make publish`. It runs `make release`. Then it uses `gh release create` to make the release `v<version>` with the notarized zip. This also pushes the tag.
+
+The GitHub Actions job builds and tests each push to main and each pull request. It uploads a bundle with an ad-hoc signature as `Sanketa-<sha>.zip`. The job does not make or change a release.
 
 The code has three libraries and the app:
 

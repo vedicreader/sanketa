@@ -1,0 +1,32 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # macos-26 is the arm64 macOS 26 image; Xcode 26.6 (Swift 6.2) is its default
+    runs-on: macos-26
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: brew install tmux fish htop
+      - run: swift build
+      - run: swift test
+      - name: Ad-hoc bundle
+        run: |
+          make app SIGN_ID=-
+          make zip ZIP="dist/Sanketa-${GITHUB_SHA::7}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sanketa-${{ github.sha }}
+          path: dist/*.zip
+          if-no-files-found: error
+
