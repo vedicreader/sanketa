@@ -60,7 +60,10 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Open Packs Folder
 - Open Config
 - Allow Accessibility…
+- Copy Debug Info
 - Quit Sanketa
+
+Copy Debug Info copies a short report for a bug report. It has the version, the app in front, the layers, the packs and the Accessibility state. It has no file contents.
 
 ### Search
 
@@ -76,13 +79,15 @@ The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search
 
 The breadcrumb at the top lists the layers, the innermost first, for example `htop › tmux › fish › Kaku`. Click a layer to go to its section. When you click the panel outside a search, the focus goes back to the app that you used.
 
-When the innermost layer has keys, its section comes first and is open. When you go to a different program, the panel goes back to the top. Thus the keys of the new program are always in view.
+The panel is an index of the layers. When the innermost layer has keys, its section comes first and is open. It shows the keys of its first two groups. Each other section shows the keys of its first group. The other groups show as one line with a count, such as `› View 10`. Click the line to open the group. A group with two keys or fewer is always open.
 
-If a program has no pack, its section shows one line: "No keys for yazi. Add a pack in ~/.config/sanketa/packs."
+When you go to a different program, the panel goes back to the top. If you go back to a stack of layers that you used a short time ago, the panel shows it as you left it. It keeps the groups that you opened and the scroll position. It remembers the last eight stacks.
+
+If a program has no pack, its section says "Sanketa has no keys for yazi." Click "Make a pack for yazi" to make a first pack. Sanketa writes `~/.config/sanketa/packs/yazi.toml` and opens it.
 
 ### Tip cards
 
-The panel shows three tip cards. Each card shows one key or one snippet from the current packs. The first card comes from the innermost layer that has keys or tips. The cards come after the innermost section when that layer has keys. Otherwise they are at the top. The cards change every two minutes.
+The panel shows one tip card. It shows one key or one snippet from the current packs. The card comes from the innermost layer that has keys or tips. It comes after the innermost section when that layer has keys. Otherwise it is at the top. The card changes every two minutes. It stays when you change panes, while its pack is in the stack.
 
 - "I know this" removes a card for good.
 - "Show less" makes a card come back less often.
@@ -101,7 +106,9 @@ translucency = "medium"      # low, medium or high
 hyper_label = "Caps"         # how Leela's Hyper key (⌃⌥⇧⌘) shows
 ```
 
-The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. Restart Sanketa after you change the hotkey. If another app uses the same keys, the footer tells you.
+The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. If another app uses the same keys, the footer tells you.
+
+Sanketa applies the file when you save it. You do not have to restart Sanketa. Open Config opens the file in the app that you set for `.toml` files. If you set no app, it opens in your default text editor.
 
 You can also set the translucency in the menu-bar menu. The change shows at once, and Sanketa writes only that line to the file. If the file has an error, Sanketa uses the default values.
 
@@ -123,7 +130,7 @@ A pack is a TOML file with the keys and tips for one program or app. These packs
 - Shells and tmux: bash, fish and tmux.
 - Apps and agents: Claude Code, Conterm, Leela and ramabana.
 
-Put your own packs in `~/.config/sanketa/packs/`, one pack in each file. A pack with the same `id` as a bundled pack adds to it. To replace the bundled pack, set `mode = "replace"`. After you change a pack, use Reload Packs. If a file has an error, Sanketa does not load it. The footer shows the number of these files. Point to the number to see the file names.
+Put your own packs in `~/.config/sanketa/packs/`, one pack in each file. A pack with the same `id` as a bundled pack adds to it. To replace the bundled pack, set `mode = "replace"`. Sanketa loads a pack again when you save it. If a file has an error, Sanketa does not load it. The footer then shows one line for each bad file, such as "duckdb.toml: key 2 has no action." Click the line to open the file. To check a pack before you save it, run `Sanketa --lint-pack FILE`.
 
 [docs/packs.md](docs/packs.md) gives the full format, the key notation and an example. You can give that page to a language model, and it can write a valid pack.
 
@@ -173,8 +180,12 @@ Some hosts have no script. If you connect to such a host through an ssh ControlM
 
 ## Development
 
+To help, read [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ```sh
-make test        # swift test
+make test        # swift test; FILTER=<regex> runs some of the tests
+make lint        # check the bundled packs; PACKS=<file or folder> checks yours
+make shots       # draw the panel to PNG files; SHOTS=<folder> keeps them
 make app         # build and sign build/Sanketa.app
 make verify      # check the bundle and its signature
 make release     # sign with Developer ID and make dist/Sanketa-<version>.zip

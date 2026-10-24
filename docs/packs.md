@@ -3,10 +3,24 @@
 A pack is one TOML file. It tells Sanketa which keys and tips to show for one program or app. The bundled packs are in `Sanketa.app/Contents/Resources/Packs/`. Put your packs in `~/.config/sanketa/packs/`, one pack in each `.toml` file.
 
 - To open that folder, use Open Packs Folder in the menu-bar menu.
-- After you change a file, use Reload Packs.
+- Sanketa loads a pack again when you save it. Reload Packs in the menu does the same.
 - The file name has no effect. Give the file the same name as the `id`, so that you can find it easily.
 
-If a file has an error, Sanketa does not load that file. It writes the cause to stderr (`pack error <file>: <message>`) and loads the other files.
+If a file has an error, Sanketa does not load that file. It loads the other files. The footer of the panel shows one line for each bad file, such as "duckdb.toml: key 2 has no action." Click the line to open the file.
+
+## Your first pack
+
+Do these steps to make a pack for a program, for example `duckdb`:
+
+1. Make the file. Start the program in a terminal. The panel says "Sanketa has no keys for duckdb." Click "Make a pack for duckdb". Sanketa writes `~/.config/sanketa/packs/duckdb.toml` and opens it.
+2. Add keys. Remove the `#` signs from the example key. Then add one `[[keys]]` table for each key.
+3. Save the file. Sanketa loads it at once.
+4. Look at the panel. Your keys show when the program is in front.
+5. Check the file. Run `Sanketa --lint-pack ~/.config/sanketa/packs/duckdb.toml`. It shows one line for each problem. If it finds an error, it exits with code 1.
+
+If the pack does not show, run `Sanketa --dump-context` with the program in front. It shows each layer and the rule that gave it a pack, such as `via process duckdb`. To try a pack before you put it in the folder, add `--pack FILE`. To see the layers change as you work, add `--watch`.
+
+The `Sanketa` command is in `Sanketa.app/Contents/MacOS/`.
 
 You can use this page to write a valid pack. You can also give it to a language model. The test suite loads the example at the end of this page, so the example is correct.
 
@@ -60,7 +74,19 @@ Each `[[contexts]]` table:
 | `scopes` | array of strings | no, default `[]` | The scope tokens that select this context. |
 | `groups` | array of strings | no, default `[]` | The key groups in this context. A group can be in more than one context. |
 
-Sanketa ignores other fields. A file does not load if it has no `id` or `name`. It also does not load if a key has no `keys` or `action`, or a tip has no `title` or `snippet`.
+Sanketa ignores other fields when it loads a pack, but the lint does not. For a field that it does not know, such as `proccesses`, the lint gives an error and the name that you possibly meant. A file does not load if it has no `id` or `name`. It also does not load if a key has no `keys` or `action`, or a tip has no `title` or `snippet`.
+
+## What the lint checks
+
+`Sanketa --lint-pack` gives an error for:
+
+- A missing field, such as "key 2 has no action".
+- A field that it does not know, or a field with the wrong type.
+- A key that is not in the key style, such as `Enter` or `C-d`. It tells you what to write: `↩` or `⌃D`. tmux packs (with a `prefix`) and keys with a `command` can use their own notation.
+- Two keys with the same `keys` text in one group.
+- A `title_scope` or `titles` regex that is not valid. A `title_scope` also needs a group.
+
+It gives a warning for an action of more than six words, two tips with the same title, a short `match` string, and a pack with no way to show. A warning does not change the exit code.
 
 ## How Sanketa picks a pack
 
@@ -125,7 +151,7 @@ Write keys in Mac symbols. Put the modifiers in the order of the macOS menus: �
 | Space bar | `space` |
 | A letter | as you type it: `a` is a, `A` is shift-a |
 
-The panel shows Escape, Tab and the paging keys as short words, because many people do not know their symbols. It also changes `⎋`, `Esc`, `⇥` and `PgUp` in a pack to these words.
+The panel shows Escape, Tab and the paging keys as short words, because many people do not know their symbols. It also changes `⎋`, `Esc`, `⇥` and `PgUp` in a pack to these words. But the lint asks for the words.
 
 Put a space between the steps of a sequence: `⌃X ⌃E` means control-x, then control-e. Put ` / ` between alternatives: `⌃P / ⌃N`. Write slash commands and typed text as you type them: `/model NAME`, `:wq`.
 
@@ -254,8 +280,7 @@ tags = ["headless"]
 
 To use the example, do these steps:
 
-1. Save it as `~/.config/sanketa/packs/ramabana.toml`.
-2. Use Reload Packs.
-3. Start ramabana in a terminal.
+1. Save it as `~/.config/sanketa/packs/ramabana.toml`. Sanketa loads it at once.
+2. Start ramabana in a terminal.
 
 The bundled pack has the same `id`, and this file does not set `mode = "replace"`. Thus Sanketa adds these entries to the bundled entries. To see only your entries, add `mode = "replace"`.

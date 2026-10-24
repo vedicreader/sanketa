@@ -58,7 +58,7 @@ enum Readability {
         #expect(Readability.prose(md) == "Title. Short words here. Use  now.")
     }
 
-    @Test(arguments: ["README.md", "docs/packs.md"])
+    @Test(arguments: ["README.md", "docs/packs.md", "CONTRIBUTING.md"])
     func docIsGradeNineOrBelow(_ file: String) throws {
         let md = try String(contentsOf: repoRoot.appendingPathComponent(file), encoding: .utf8)
         let r = Readability.grade(md)
