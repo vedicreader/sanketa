@@ -71,8 +71,8 @@ jobs:
       - name: Sign, notarize and staple
         if: steps.secrets.outputs.signed == 'true'
         run: >
+          NOTARY_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" NOTARY_ISSUER="$NOTARY_ISSUER_ID"
           make release ZIP="${{ steps.secrets.outputs.zip }}"
-          NOTARY_KEY="$RUNNER_TEMP/AuthKey.p8" NOTARY_KEY_ID="$NOTARY_KEY_ID" NOTARY_ISSUER_ID="$NOTARY_ISSUER_ID"
       - name: Ad-hoc bundle
         if: steps.secrets.outputs.signed != 'true'
         run: |

@@ -4,12 +4,6 @@ APP := build/Sanketa.app
 INSTALL_DIR ?= $(HOME)/Applications
 VERSION := $(shell /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
 ZIP ?= dist/Sanketa-$(VERSION).zip
-# notarytool credentials: a keychain profile on a Mac, or an App Store Connect API key in CI
-ifneq ($(NOTARY_PROFILE),)
-NOTARY_AUTH := --keychain-profile "$(NOTARY_PROFILE)"
-else ifneq ($(NOTARY_KEY),)
-NOTARY_AUTH := --key "$(NOTARY_KEY)" --key-id "$(NOTARY_KEY_ID)" --issuer "$(NOTARY_ISSUER_ID)"
-endif
 
 .PHONY: test bundle app release zip run install verify gatekeeper remote-setup
 
@@ -31,18 +25,15 @@ bundle:
 app: bundle
 	codesign --force --options runtime --timestamp=none --sign "$(SIGN_ID)" $(APP)
 
-# Developer ID signature with a secure timestamp; notarized and stapled when NOTARY_PROFILE or NOTARY_KEY is set
+# Developer ID signature with a secure timestamp; notarized and stapled when scripts/notarize.sh finds credentials
 release: bundle
 	codesign --force --options runtime --timestamp --sign "$(RELEASE_ID)" $(APP)
 	codesign --verify --strict --verbose=2 $(APP)
 	$(MAKE) zip
-ifneq ($(NOTARY_AUTH),)
-	xcrun notarytool submit "$(ZIP)" $(NOTARY_AUTH) --wait
-	xcrun stapler staple $(APP)
-	$(MAKE) zip
-else
-	@echo "$(ZIP) has a Developer ID signature but no notarization. To notarize, run 'xcrun notarytool store-credentials sanketa-notary --apple-id <id> --team-id 7632NRC559' one time, then run 'make release NOTARY_PROFILE=sanketa-notary'."
-endif
+	@scripts/notarize.sh "$(ZIP)"; s=$$?; \
+	if [ $$s -eq 3 ]; then echo "$(ZIP) has a Developer ID signature but no notarization. To notarize, write ~/.config/sanketa/notary.json with key_id, issuer_id and key_path, or run 'xcrun notarytool store-credentials sanketa-notary --apple-id <id> --team-id 7632NRC559' and then 'make release NOTARY_PROFILE=sanketa-notary'."; \
+	elif [ $$s -ne 0 ]; then exit $$s; \
+	else xcrun stapler staple $(APP) && $(MAKE) zip; fi
 
 # an old zip goes to /tmp/sanketa-trash, because rm is not allowed here
 zip:
