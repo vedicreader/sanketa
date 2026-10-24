@@ -15,7 +15,8 @@ let package = Package(
                 swiftSettings: v5),
         .target(name: "SanketaSystem", dependencies: ["SanketaCore"], swiftSettings: v5),
         .target(name: "SanketaUI", dependencies: ["SanketaCore", "SanketaSystem"], swiftSettings: v5),
-        .executableTarget(name: "Sanketa", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI"], swiftSettings: v5),
+        .target(name: "SanketaAI", dependencies: ["SanketaCore"], swiftSettings: v5),
+        .executableTarget(name: "Sanketa", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI", "SanketaAI"], swiftSettings: v5),
         .testTarget(name: "SanketaCoreTests", dependencies: ["SanketaCore"],
                     resources: [.copy("Fixtures")], swiftSettings: v5),
         // test helper: an AppKit window whose title tests set through stdin
@@ -23,5 +24,6 @@ let package = Package(
         .testTarget(name: "SanketaSystemTests", dependencies: ["SanketaCore", "SanketaSystem", "SanketaTitleHost", "Sanketa"], swiftSettings: v5),
         .testTarget(name: "SanketaUITests", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI", "SanketaTitleHost"],
                     swiftSettings: v5),
+        .testTarget(name: "SanketaAITests", dependencies: ["SanketaAI", "SanketaCore"], swiftSettings: v5),
     ]
 )
