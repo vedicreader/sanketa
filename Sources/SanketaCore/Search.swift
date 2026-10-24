@@ -70,14 +70,19 @@ public enum Search {
         return total
     }
 
+    /// A result must score at least this share of the top score; weaker matches only add noise.
+    public static let floor = 0.5
+
     /// `context` is pack ids, innermost first; context packs sort ahead of the rest, then by score.
     public static func rank(_ query: String, _ items: [SearchItem], context: [String], limit: Int = 50) -> [SearchItem] {
         let rankOf = { (i: SearchItem) in context.firstIndex(of: i.packID) ?? Int.max }
-        let scored: [(i: Int, item: SearchItem, score: Int)]
+        var scored: [(i: Int, item: SearchItem, score: Int)]
         if tokens(query).isEmpty {
             scored = items.enumerated().filter { rankOf($0.element) != .max }.map { ($0.offset, $0.element, $0.element.active ? activeBonus : 0) }
         } else {
             scored = items.enumerated().compactMap { o in score(query, o.element).map { (o.offset, o.element, $0) } }
+            let top = Double(scored.map(\.score).max() ?? 0)
+            scored.removeAll { Double($0.score) < top * floor }
         }
         return scored.sorted { a, b in
             let (ra, rb) = (rankOf(a.item), rankOf(b.item))

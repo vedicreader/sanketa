@@ -100,4 +100,17 @@ struct SearchTests {
         let p: SearchProviding = LocalSearch()
         #expect(p.results("zoom", items, context: []) == Search.rank("zoom", items, context: []))
     }
+
+    /// Weak matches go: "split pane" no longer brings up sed's "Strip trailing whitespace" (s…p…l…i…t in order).
+    @Test func weakMatchesFallBelowTheFloor() {
+        let items = [
+            SearchItem(packID: "tmux", packName: "tmux", kind: .key, title: "Split pane left/right", detail: "prefix %"),
+            SearchItem(packID: "kaku", packName: "Kaku", kind: .key, title: "Split Pane › Right", detail: "⌘D"),
+            SearchItem(packID: "sed", packName: "sed", kind: .tip, title: "Strip trailing whitespace", detail: "sed 's/ *$//'"),
+            SearchItem(packID: "yazi", packName: "yazi", kind: .key, title: "Paste and replace files that exist", detail: "P"),
+        ]
+        #expect(Search.score("split pane", items[2]) != nil)
+        #expect(Search.rank("split pane", items, context: []).map(\.packID) == ["tmux", "kaku"])
+        #expect(Search.rank("strip", items, context: []).map(\.packID) == ["sed"])
+    }
 }

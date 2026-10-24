@@ -112,3 +112,26 @@ func bundledContext(_ names: [String]) throws -> Context {
         #expect(m.scrollTarget == 5)
     }
 }
+
+/// Search results read like the list: one heading per pack, one row per key (design review P3).
+@MainActor struct SearchResultsTests {
+    @Test func resultsOfAPackStayTogether() throws {
+        let s = SearchModel(pasteboard: NSPasteboard(name: .init("sanketa-test-\(UUID().uuidString)")))
+        s.setSource(library: PackLibrary.load(bundled: bundledPacks, user: nil), context: try bundledContext(["htop", "tmux", "fish", "Terminal"]))
+        for q in ["pane", "e", "file", "split"] {
+            s.query = q
+            try #require(!s.results.isEmpty, "\(q)")
+            var runs = [String]()
+            for r in s.results where runs.last != r.packID { runs.append(r.packID) }
+            #expect(Set(runs).count == runs.count, "\(q): a pack heading shows twice: \(runs)")
+            #expect(s.selection == 0 && s.selected == s.results.first)
+        }
+        s.query = "split pane"
+        #expect(s.results.first?.title == "Split pane left/right" && !s.results.contains { $0.packID == "sed" })
+    }
+
+    @Test func noResultTextIsPlainAndSaysWhatToDo() {
+        #expect(ResultsList.noResult("zzq ") == "No result for \u{201C}zzq\u{201D}.")
+        #expect(ResultsList.noResultHelp == "Search finds keys and tips in all packs. Press esc to close.")
+    }
+}

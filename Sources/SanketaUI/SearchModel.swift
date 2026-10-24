@@ -39,8 +39,18 @@ import SanketaSystem
 
     func refresh() {
         results = query.trimmingCharacters(in: .whitespaces).isEmpty ? []
-            : provider.results(query, items, context: context.layers.compactMap(\.packID))
+            : Self.byPack(provider.results(query, items, context: context.layers.compactMap(\.packID)))
         selection = 0
+    }
+
+    /// Results of one pack together, under one heading; packs in the order of their best result.
+    static func byPack(_ r: [SearchItem]) -> [SearchItem] {
+        var order = [String](), groups = [String: [SearchItem]]()
+        for i in r {
+            if groups[i.packID] == nil { order.append(i.packID) }
+            groups[i.packID, default: []].append(i)
+        }
+        return order.flatMap { groups[$0]! }
     }
 
     public var selected: SearchItem? { results.indices.contains(selection) ? results[selection] : nil }

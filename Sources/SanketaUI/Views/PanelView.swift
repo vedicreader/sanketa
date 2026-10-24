@@ -77,11 +77,9 @@ struct PanelView: View {
         }
     }
 
-    /// Results always sit on their own dimmed backing so they read over terminal text.
+    /// Results use the list's grammar, on the panel's own tint: no box.
     var results: some View {
-        ResultsList(results: search.results, selection: search.selection, prefix: search.prefix(for:), pick: pick)
-            .padding(6)
-            .background(Theme.tint(scheme == .dark).opacity(Theme.resultsBackingOpacity), in: RoundedRectangle(cornerRadius: 10))
+        ResultsList(results: search.results, selection: search.selection, prefix: search.prefix(for:), pick: pick, query: search.query)
     }
 }
 
@@ -90,36 +88,54 @@ struct ResultsList: View {
     let selection: Int
     let prefix: (String) -> String?
     let pick: (Int) -> Void
+    var query = ""
+
+    static func noResult(_ q: String) -> String { "No result for \u{201C}\(q.trimmingCharacters(in: .whitespaces))\u{201D}." }
+    static let noResultHelp = "Search finds keys and tips in all packs. Press esc to close."
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Theme.rowGap) {
             ForEach(Array(results.enumerated()), id: \.offset) { i, r in
+                if i == 0 || results[i - 1].packID != r.packID {
+                    Text(r.packName).font(Theme.header).foregroundStyle(Theme.secondary)
+                        .padding(.top, i == 0 ? 0 : 8).padding(.leading, 6)
+                }
                 ResultRow(item: r, prefix: prefix(r.packID), selected: i == selection).onTapGesture { pick(i) }
             }
-            if results.isEmpty { Text("No results.").font(Theme.small).foregroundStyle(Theme.secondary).padding(6) }
+            if results.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(Self.noResult(query)).font(Theme.text).foregroundStyle(.primary)
+                    Text(Self.noResultHelp).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 6)
+            }
         }
     }
 }
 
+/// One row, like the list: the action on the left and the keys on the right. A tip shows its snippet on a second
+/// line, cut to one line. The selection is a saffron bar, with no fill.
 struct ResultRow: View {
     let item: SearchItem
     var prefix: String?
     let selected: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            RoundedRectangle(cornerRadius: 1).fill(selected ? Theme.accent : .clear).frame(width: 2.5)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(item.title).font(Theme.text).foregroundStyle(.primary).lineLimit(2)
-                    Spacer(minLength: 8)
-                    Text(item.packName).font(Theme.header).foregroundStyle(Theme.secondary)
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            RoundedRectangle(cornerRadius: 1).fill(selected ? Theme.accent : .clear).frame(width: 2.5, height: 14).padding(.trailing, 3.5)
+            if item.kind == .key {
+                Text(item.title).font(Theme.text).foregroundStyle(.primary).lineLimit(2)
+                Spacer(minLength: 10)
+                KeyChip(keys: item.detail, prefix: prefix).frame(minWidth: Theme.keyColumn, alignment: .trailing).layoutPriority(1)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title).font(Theme.text).foregroundStyle(.primary).lineLimit(1)
+                    Text(item.detail).font(Theme.snippet).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.tail)
                 }
-                if item.kind == .key { KeyChip(keys: item.detail, prefix: prefix) }
-                else { Text(item.detail).font(Theme.snippet).foregroundStyle(.primary).lineLimit(3) }
+                Spacer(minLength: 0)
             }
         }
-        .padding(.vertical, 5 + Theme.rowPad).padding(.trailing, 6)
+        .padding(.vertical, Theme.rowPad).padding(.trailing, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }

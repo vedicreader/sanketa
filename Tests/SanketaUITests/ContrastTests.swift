@@ -121,7 +121,7 @@ import Testing
         m.update(try context(["htop", "tmux", "fish", "Terminal"]))
         let s = SearchModel(pasteboard: NSPasteboard(name: .init("sanketa-test-\(UUID().uuidString)")))
         s.setSource(library: PackLibrary(packs: try packs()))
-        s.query = "pane"
+        s.query = "e"   // many results: keys and tips with their snippets
         let sections = VStack(alignment: .leading, spacing: 14) {
             ForEach(m.sections) { LayerSection(data: $0, collapsed: false) {} }
         }
@@ -136,7 +136,6 @@ import Testing
                 for level in Translucency.allCases {
                     var back = Self.pixels(Self.blur(raw, sigma: Theme.blurRadius(level) * Self.scale))
                     Self.tint(&back, dark ? 0 : 255, Theme.tintOpacity(level))
-                    if vname == "results" { Self.tint(&back, dark ? 0 : 255, Theme.resultsBackingOpacity) }
                     let r = Self.measure(text: text, over: back)
                     let scheme = dark ? "dark" : "light"
                     table.append("\(vname)\t\(bg)\t\(scheme)\t\(level.rawValue)\t" + [r.p10, r.median, r.min].map { String(format: "%.2f", $0) }.joined(separator: "\t"))

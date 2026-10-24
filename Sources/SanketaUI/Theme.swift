@@ -2,7 +2,7 @@ import SwiftUI
 import SanketaCore
 
 /// Muted, box-free visual language: SF Pro text, SF Mono keys, whitespace and hairlines.
-/// Saffron appears only as thin bars (tip cards, selected search row), never as text.
+/// Saffron appears only as thin bars and ticks (tip card, selected result, focused section), never as text.
 public enum Theme {
     public static let accent = Color(red: 0xE8 / 255, green: 0xA3 / 255, blue: 0x3D / 255)
     static let text = Font.system(size: 14, weight: .medium)
@@ -35,8 +35,6 @@ public enum Theme {
     public static func tintOpacity(_ t: Translucency) -> Double {
         switch t { case .low: 0.82; case .medium: 0.72; case .high: 0.3 }
     }
-    /// Extra backing behind search results, on top of the panel tint, at every level.
-    public static let resultsBackingOpacity = 0.6
     /// Approximate blur radius (points) of the glass style each level uses; the contrast harness models it.
     public static func blurRadius(_ t: Translucency) -> Double { t == .high ? 4 : 15 }
 
