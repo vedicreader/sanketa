@@ -75,6 +75,7 @@ final class MLXRunner: PickRunner, @unchecked Sendable {
 
     static func load(_ dir: URL) async throws -> MLXRunner {
         try ModelFolder.check(dir)
+        guard MLXRuntime.prepare() else { throw ChoiceError.badResponse }
         let c = try await loadModelContainer(from: dir, using: LocalTokenizerLoader())
         let (g, ws) = try await c.perform { ctx in
             let v = TokenizerVocabExtractor.extractForGrammar(from: ctx.tokenizer)

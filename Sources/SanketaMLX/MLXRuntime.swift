@@ -3,9 +3,12 @@ import MLX
 
 /// Finds the MLX Metal shader library. Only `make bundle` (xcodebuild) compiles it; `swift build` gives none.
 public enum MLXRuntime {
-    /// A `.metallib` next to the executable, in `Contents/Resources`, or in a `*Cmlx*.bundle` in either place.
-    public static func metallibURL(bundle: Bundle = .main, executable: URL? = Bundle.main.executableURL) -> URL? {
-        let dirs = [executable?.deletingLastPathComponent(), bundle.resourceURL].compactMap { $0 }
+    /// A `.metallib` next to the executable, in `Contents/Resources`, or in a `*Cmlx*.bundle` in either place. In a
+    /// test bundle (`.xctest`), also the folder that holds it, where xcodebuild puts the package resource bundles.
+    public static func metallibURL(bundle: Bundle = .main, executable: URL? = Bundle.main.executableURL,
+                                   code: Bundle = Bundle(for: Marker.self)) -> URL? {
+        let tests = code.bundleURL.pathExtension == "xctest" ? code.bundleURL.deletingLastPathComponent() : nil
+        let dirs = [executable?.deletingLastPathComponent(), bundle.resourceURL, tests].compactMap { $0 }
         for dir in dirs { if let lib = metallib(in: dir) { return lib } }
         for dir in dirs {
             for cmlx in contents(of: dir) where cmlx.pathExtension == "bundle" && cmlx.lastPathComponent.contains("Cmlx") {
@@ -13,6 +16,17 @@ public enum MLXRuntime {
             }
         }
         return nil
+    }
+
+    public final class Marker {}
+
+    /// Tells MLX where the shaders are, for a test bundle where MLX does not find them; true when there are shaders.
+    /// GPU code calls this first.
+    @discardableResult
+    public static func prepare() -> Bool {
+        guard isReady, let lib = metallibURL() else { return false }
+        if GPU.metallib == nil { GPU.metallib = lib }
+        return true
     }
 
     /// True on Apple Silicon when the shaders are present; GPU code checks this first.
@@ -26,7 +40,7 @@ public enum MLXRuntime {
 
     /// Adds two small arrays on the GPU; nil when the shaders are missing, so a `swift build` binary does not crash.
     public static func gpuCheck(ready: Bool = isReady) -> Float? {
-        guard ready else { return nil }
+        guard ready, prepare() else { return nil }
         return Device.withDefaultDevice(.gpu) { (MLXArray([1, 2] as [Float]) + MLXArray([3, 4] as [Float])).sum().item(Float.self) }
     }
 

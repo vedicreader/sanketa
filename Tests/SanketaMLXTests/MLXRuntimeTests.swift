@@ -20,9 +20,9 @@ private func touch(_ url: URL) throws {
     let lib = app.appendingPathComponent("Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib")
     try touch(exe); try touch(lib)
     let bundle = try #require(Bundle(url: app))
-    #expect(MLXRuntime.metallibURL(bundle: bundle, executable: exe)?.resolvingSymlinksInPath() == lib.resolvingSymlinksInPath())
+    #expect(MLXRuntime.metallibURL(bundle: bundle, executable: exe, code: bundle)?.resolvingSymlinksInPath() == lib.resolvingSymlinksInPath())
     try FileManager.default.moveItem(at: lib, to: app.deletingLastPathComponent().appendingPathComponent("default.metallib"))
-    #expect(MLXRuntime.metallibURL(bundle: bundle, executable: exe) == nil)
+    #expect(MLXRuntime.metallibURL(bundle: bundle, executable: exe, code: bundle) == nil)
 }
 
 @Test func metallibFoundNextToExecutable() throws {
@@ -30,9 +30,23 @@ private func touch(_ url: URL) throws {
     let exe = dir.appendingPathComponent("Sanketa"), lib = dir.appendingPathComponent("mlx.metallib")
     try touch(exe)
     let bundle = try #require(Bundle(url: dir))
-    #expect(MLXRuntime.metallibURL(bundle: bundle, executable: exe) == nil)
+    #expect(MLXRuntime.metallibURL(bundle: bundle, executable: exe, code: bundle) == nil)
     try touch(lib)
-    #expect(MLXRuntime.metallibURL(bundle: bundle, executable: exe)?.resolvingSymlinksInPath() == lib.resolvingSymlinksInPath())
+    #expect(MLXRuntime.metallibURL(bundle: bundle, executable: exe, code: bundle)?.resolvingSymlinksInPath() == lib.resolvingSymlinksInPath())
+}
+
+@Test func metallibFoundBesideTestBundle() throws {
+    let dir = try mlxTempDir()
+    let tests = dir.appendingPathComponent("Fake.xctest"), lib = dir.appendingPathComponent("mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib")
+    try touch(tests.appendingPathComponent("Contents/MacOS/Fake"))
+    let code = try #require(Bundle(url: tests)), other = try #require(Bundle(url: try mlxTempDir()))
+    #expect(MLXRuntime.metallibURL(bundle: other, executable: nil, code: code) == nil)
+    try touch(lib)
+    #expect(MLXRuntime.metallibURL(bundle: other, executable: nil, code: code)?.resolvingSymlinksInPath() == lib.resolvingSymlinksInPath())
+    // only a test bundle's folder counts: the folder of an app is not searched
+    let app = dir.appendingPathComponent("Fake.app")
+    try touch(app.appendingPathComponent("Contents/MacOS/Fake"))
+    #expect(MLXRuntime.metallibURL(bundle: other, executable: nil, code: try #require(Bundle(url: app))) == nil)
 }
 
 @Test func gpuCheckDegradesWithoutMetallib() {
