@@ -10,6 +10,8 @@ endif
 ifeq ($(origin ZIP),undefined)
 ZIP := dist/Sanketa-$(VERSION).zip
 endif
+# the same zip with a name that does not change, so releases/latest/download/Sanketa.zip always works
+STABLE_ZIP := dist/Sanketa.zip
 
 .PHONY: test test-mlx build lint shots bundle app release zip publish run relaunch install verify gatekeeper remote-setup
 
@@ -32,7 +34,7 @@ check_var = $(if $(call strip_chars,$(call blanks_marked,$(value $1)),$2),$(erro
 check_dash = $(if $(filter -%,$(value $1)),$(error $1 must not start with -))
 # identity names such as "Apple Development: Name (TEAM)": spaces are safe in them, tabs and new lines are not
 check_identity = $(if $(call strip_chars,$(subst $(space),,$(subst $(tab),!,$(subst $(newline),!,$(value $1)))),$(SAFE_CHARS) ( ) :),$(error $1 has a character that is not safe. Use only letters, digits, spaces and _ . / - ( ) :))
-$(foreach v,FILTER PACKS SHOTS INSTALL_DIR ZIP APP XCODE_DATA,$(call check_var,$v,$(SAFE_CHARS))$(call check_dash,$v))
+$(foreach v,FILTER PACKS SHOTS INSTALL_DIR ZIP APP XCODE_DATA STABLE_ZIP,$(call check_var,$v,$(SAFE_CHARS))$(call check_dash,$v))
 $(call check_var,HOST,$(SAFE_CHARS) @ :)$(call check_dash,HOST)
 $(foreach v,SIGN_ID RELEASE_ID,$(call check_identity,$v))
 export FILTER PACKS SHOTS HOST INSTALL_DIR ZIP SIGN_ID RELEASE_ID
@@ -98,7 +100,10 @@ publish: release
 	printf '%s\n\n%s\n\n%s\n' "Sanketa $(VERSION) for macOS 26 on Apple Silicon. The app has a Developer ID signature, and Apple notarized it." \
 		"To install it, unzip the file and move Sanketa.app to Applications. Then open it and allow Accessibility." \
 		"Sanketa needs only the Accessibility permission. It does not monitor input. It uses the network only if you turn on OpenAI search or download the on-device model." > $(NOTES)
-	gh release create v$(VERSION) "$$ZIP" --title "Sanketa $(VERSION)" --notes-file $(NOTES)
+	mkdir -p /tmp/sanketa-trash
+	if [ -e $(STABLE_ZIP) ]; then mv $(STABLE_ZIP) /tmp/sanketa-trash/Sanketa.zip-$$$$; fi
+	cp "$$ZIP" $(STABLE_ZIP)
+	gh release create v$(VERSION) "$$ZIP" $(STABLE_ZIP) --title "Sanketa $(VERSION)" --notes-file $(NOTES)
 
 # an old zip goes to /tmp/sanketa-trash, because rm is not allowed here
 zip:

@@ -2,6 +2,8 @@
 
 # Sanketa
 
+[![Download for macOS](https://img.shields.io/badge/Download_for_macOS-Sanketa.zip-0A84FF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/vedicreader/sanketa/releases/latest/download/Sanketa.zip) [All releases](https://github.com/vedicreader/sanketa/releases)
+
 [![build](https://github.com/vedicreader/sanketa/actions/workflows/build.yml/badge.svg)](https://github.com/vedicreader/sanketa/actions/workflows/build.yml)
 
 Sanketa is a small macOS menu-bar app. The name is Sanskrit for "hint" or "signal". It shows a floating glass panel with the keys and tips for the program that you use now.
@@ -14,9 +16,9 @@ Sanketa needs macOS 26 on Apple Silicon. It needs the Accessibility permission a
 
 ## Download
 
-Get the latest zip from [the releases page](https://github.com/vedicreader/sanketa/releases/latest). Then do these steps:
+Click the Download for macOS button at the top, or get [the latest zip](https://github.com/vedicreader/sanketa/releases/latest/download/Sanketa.zip). Then do these steps:
 
-1. Unzip `Sanketa-<version>.zip`.
+1. Unzip `Sanketa.zip`.
 2. Move `Sanketa.app` to Applications.
 3. Open Sanketa.
 4. If macOS blocks it, right-click `Sanketa.app` and select Open. If macOS still blocks it, go to System Settings, then Privacy & Security, and click Open Anyway.

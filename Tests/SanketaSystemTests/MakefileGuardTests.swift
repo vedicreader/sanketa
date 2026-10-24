@@ -28,7 +28,7 @@ import Testing
                      ["zip", "ZIP=x;touch \(marker.path)"],
                      // the xcodebuild paths go into recipes as text, so they are checked too
                      ["bundle", "XCODE_DATA=x;touch \(marker.path)"], ["test-mlx", "XCODE_DATA=$(shell touch \(marker.path))"],
-                     ["bundle", "XCODE_DATA=`id`"], ["verify", "APP=x;id"], ["bundle", "XCODE_DATA=-x"]] {
+                     ["bundle", "XCODE_DATA=`id`"], ["verify", "APP=x;id"], ["bundle", "XCODE_DATA=-x"], ["publish", "STABLE_ZIP=x;touch \(marker.path)"]] {
             let r = try make(args)
             #expect(r.status == 2, "\(args)")
             #expect(r.err.contains("is not safe") || r.err.contains("must not start with -"), "\(args): \(r.err)")
