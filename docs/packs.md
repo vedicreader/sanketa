@@ -1,10 +1,14 @@
 # Writing a Sanketa pack
 
-A pack is one TOML file that tells Sanketa which keys and tips to show for one program or app. Sanketa ships packs in `Sanketa.app/Contents/Resources/Packs/`. Yours go in `~/.config/sanketa/packs/`, one pack per `.toml` file. Use "Open Packs Folder" in the menu bar to get there, and "Reload Packs" after you edit a file. The file name doesn't matter, but naming it after the `id` keeps things findable.
+A pack is one TOML file. It tells Sanketa which keys and tips to show for one program or app. The bundled packs are in `Sanketa.app/Contents/Resources/Packs/`. Put your packs in `~/.config/sanketa/packs/`, one pack in each `.toml` file.
 
-If a file doesn't parse, Sanketa skips that one file, logs the reason to stderr (`pack error <file>: <message>`), and loads the rest.
+- To open that folder, use Open Packs Folder in the menu-bar menu.
+- After you change a file, use Reload Packs.
+- The file name has no effect. Give the file the same name as the `id`, so that you can find it easily.
 
-This page is written so that you, or a language model you hand it to, can produce a valid pack in one go. The worked example at the end is decoded by Sanketa's test suite, so it is known to load.
+If a file has an error, Sanketa does not load that file. It writes the cause to stderr (`pack error <file>: <message>`) and loads the other files.
+
+You can use this page to write a valid pack. You can also give it to a language model. The test suite loads the example at the end of this page, so the example is correct.
 
 ## Schema
 
@@ -12,82 +16,89 @@ Top-level fields:
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `id` | string | yes | Unique name. A user pack with the same `id` as a bundled one modifies it (see "Extend or replace"). |
-| `name` | string | yes | Shown as the layer's title. |
+| `id` | string | yes | A unique name. A user pack with the same `id` as a bundled pack changes it (see "Extend or replace"). |
+| `name` | string | yes | The title of the layer. |
 | `processes` | array of strings | no, default `[]` | Exact process names that activate the pack, such as `"htop"` or `"nvim"`. |
-| `match` | array of strings | no, default `[]` | Substrings searched for in the process's full command line. Checked before `processes`. |
+| `match` | array of strings | no, default `[]` | Text to find in the full command line of the process. Sanketa checks it before `processes`. |
 | `apps` | array of strings | no, default `[]` | macOS bundle ids of GUI apps, such as `"com.apple.Safari"`. |
-| `prefix` | string | no | A prefix key in tmux notation, such as `"C-b"`. Keys written as `prefix x` show this key in place of the word. |
-| `mode` | `"extend"` or `"replace"` | no, default `"extend"` | Only matters when a user pack shares an `id` with a bundled one. |
+| `prefix` | string | no | A prefix key in tmux notation, such as `"C-b"`. In keys such as `prefix x`, the panel shows this key in place of the word. |
+| `mode` | `"extend"` or `"replace"` | no, default `"extend"` | Has an effect only when a user pack has the same `id` as a bundled pack. |
 | `keys` | array of tables `[[keys]]` | no | Shortcuts. |
-| `tips` | array of tables `[[tips]]` | no | Snippets with a one-line explanation. |
+| `tips` | array of tables `[[tips]]` | no | Snippets with a short explanation. |
 
-A pack with none of `processes`, `match` or `apps` never shows up next to a program, though its entries can still be found in search.
+A pack without `processes`, `match` and `apps` never shows next to a program. But search can still find its entries.
 
 Each `[[keys]]` table:
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `keys` | string | yes | The key or key sequence, written as described under "Key style". |
-| `action` | string | yes | What it does, in a few words. Aim for six words or fewer; the panel is narrow. |
-| `group` | string | no | Heading the key is listed under, such as `"Panes"`. Keys without a group are listed together. |
-| `command` | string | no | tmux only: the exact command the key is bound to, used to match your live bindings. |
+| `action` | string | yes | What the key does, in six words or fewer. The panel is narrow. |
+| `group` | string | no | The heading of the key, such as `"Panes"`. Keys without a group show together. |
+| `command` | string | no | tmux: the command that the key runs, to match your live keys. Leela: the action id, to read your keymap. Other packs do not use it. |
 
 Each `[[tips]]` table:
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `title` | string | yes | Short heading. Must be unique within the pack. |
-| `snippet` | string | yes | The command or text to type. Keep it runnable as written. |
-| `explain` | string | no, default `""` | One line on why it works or when to use it. |
-| `tags` | array of strings | no, default `[]` | Extra words for search. |
+| `title` | string | yes | A short heading. It must be unique in the pack. |
+| `snippet` | string | yes | The command or text to type. It must run as written. |
+| `explain` | string | no, default `""` | One or two short sentences: what the snippet does, or when to use it. |
+| `tags` | array of strings | no, default `[]` | More words for search. |
 
-Any other field is ignored. A missing `id`, `name`, `keys`/`action` in a key, or `title`/`snippet` in a tip makes the whole file fail to load.
+Sanketa ignores other fields. A file does not load if it has no `id` or `name`. It also does not load if a key has no `keys` or `action`, or a tip has no `title` or `snippet`.
 
 ## How Sanketa picks a pack
 
-Sanketa watches the program in front in your terminal, and every program between it and the terminal: the shell, tmux, ssh, and whatever runs inside them. Each one is a layer, and each layer gets at most one pack. For a layer's process it tries, in this order:
+Sanketa looks at the program in front in your terminal. It also looks at each program between that program and the terminal: the shell, tmux, ssh and the programs in them. Each program is a layer, and each layer gets one pack or none. For the process of a layer, Sanketa tries these steps in this order:
 
-1. `match`: every pack's `match` strings, searched as plain substrings in the command line (argv joined with spaces). The first hit wins.
-2. `processes`: the process name, compared exactly. This is the name of the executable file, such as `nvim` or `python3.12`.
-3. `processes` again, against the base name of argv[0], which is what you typed. Claude Code's executable is a file named after its version (`~/.local/share/claude/versions/2.1.304`), but argv[0] is `claude`, so `processes = ["claude"]` still works. A leading `-` from a login shell is dropped.
+1. `match`: Sanketa looks for the `match` strings of each pack in the command line (argv with spaces between). The first match wins.
+2. `processes`: Sanketa compares the process name exactly. This is the name of the program file, such as `nvim` or `python3.12`.
+3. `processes` again: Sanketa compares the last part of argv[0], which is the name that you typed. Sanketa removes a `-` at the start, which a login shell adds.
 
-When two packs could match, the one whose `id` sorts first wins, so keep match strings narrow. `match` exists for programs that run under an interpreter: a Python tool shows up as `python3.12` with a command line like `python3 /Users/you/.local/bin/ramabana --resume`. A match string like `"ramabana"` would also catch `nvim ~/code/ramabana/cli.py`, while `"bin/ramabana"` catches only the installed script.
+An example for step 3: the Claude Code program file has its version as its name (`~/.local/share/claude/versions/2.1.304`). But argv[0] is `claude`, so `processes = ["claude"]` works.
 
-`apps` is for GUI apps. When a non-terminal app is in front, Sanketa reads its menu shortcuts and merges a pack whose `apps` lists the app's bundle id on top of them. With `mode = "extend"` your keys sit alongside the menu's, and a key written exactly as the menu writes it (such as `⇧⌘N`) replaces the menu's label. To find an app's bundle id, run `mdls -name kMDItemCFBundleIdentifier /Applications/Safari.app`.
+If two packs match, the pack whose `id` comes first in alphabetical order wins. Thus keep match strings narrow. Use `match` for programs that run in an interpreter. A Python tool shows as `python3.12`, with a command line such as `python3 /Users/you/.local/bin/ramabana --resume`. The match string `"ramabana"` also finds `nvim ~/code/ramabana/cli.py`. The match string `"bin/ramabana"` finds only the installed script.
+
+Use `apps` for GUI apps. When an app other than a terminal is in front, Sanketa reads its menu keys. Then it adds the pack whose `apps` has the bundle id of the app. With `mode = "extend"`, your keys show with the menu keys. A key that you write in the same way as the menu (such as `⇧⌘N`) replaces the menu label. To find the bundle id of an app, use `mdls -name kMDItemCFBundleIdentifier /Applications/Safari.app`.
 
 ## Key style
 
-Write keys in Mac symbols, with modifiers in the order macOS menus use: ⌃ (control), ⌥ (option), ⇧ (shift), ⌘ (command). So `⇧⌘P`, not `⌘⇧P`.
+Write keys in Mac symbols. Put the modifiers in the order of the macOS menus: ⌃ (control), ⌥ (option), ⇧ (shift), ⌘ (command). Thus write `⇧⌘P`, not `⌘⇧P`.
 
 | Key | Write |
 | --- | --- |
-| Return, Escape, Tab, Delete | `↩` `⎋` `⇥` `⌫` |
+| Return, Delete | `↩` `⌫` |
+| Escape, Tab, forward delete | `esc` `tab` `del` |
 | Arrows | `↑` `↓` `←` `→` |
-| Function keys, paging | `F5` `PgUp` `PgDn` `Home` `End` |
-| Space bar | `Space` |
+| Function keys, paging | `F5` `pgup` `pgdn` `home` `end` |
+| Space bar | `space` |
 | A letter | as you type it: `a` is a, `A` is shift-a |
 
-Steps of a sequence are separated by a space: `⌃X ⌃E` means control-x, then control-e. For alternatives, put ` / ` between them: `⌃P / ⌃N`. Slash commands and typed text go in as they are typed: `/model NAME`, `:wq`.
+The panel shows Escape, Tab and the paging keys as short words, because many people do not know their symbols. It also changes `⎋`, `Esc`, `⇥` and `PgUp` in a pack to these words.
 
-tmux is the exception. Write its keys in tmux's own notation (`prefix %`, `prefix M-Up`, `prefix C-o`) and give each one a `command` equal to what `tmux list-keys` prints for it. Sanketa reads your live bindings and attaches your labels to whatever key is bound to that command now, so a rebind keeps its label. A key whose command isn't bound anymore is hidden. Copy-mode keys aren't read from tmux, so put those in tips.
+Put a space between the steps of a sequence: `⌃X ⌃E` means control-x, then control-e. Put ` / ` between alternatives: `⌃P / ⌃N`. Write slash commands and typed text as you type them: `/model NAME`, `:wq`.
 
-Sanketa also understands `C-x`, `M-x`, `S-x` and `ctrl+x`, `opt+x`, `cmd+x`, `shift+x` and shows them as symbols, but the bundled packs use the forms above.
+tmux is different. Write tmux keys in the tmux notation (`prefix %`, `prefix M-Up`, `prefix C-o`). Give each key a `command`, which is the text that `tmux list-keys` shows for it. Sanketa reads your live tmux keys. It puts your label on the key that runs that command now, so a changed key keeps its label. If no key runs the command, Sanketa hides the entry. Sanketa does not read copy-mode keys from tmux, so put those in tips.
+
+Leela is also different. The bundled Leela pack writes keys in the Leela notation (`mod+shift+p`, `hyper+left`) and puts the action id in `command`. Sanketa reads your Leela keymap and shows your keys.
+
+Sanketa also reads `C-x`, `M-x`, `S-x`, `ctrl+x`, `opt+x`, `cmd+x` and `shift+x`, and shows them as symbols. But the bundled packs use the Mac symbols.
 
 ## Extend or replace
 
-A user pack whose `id` matches a bundled pack modifies it.
+A user pack with the same `id` as a bundled pack changes the bundled pack.
 
 With `mode = "extend"`, the default:
 
-- `name` replaces the bundled name, and `prefix` replaces it if you set one.
-- `processes`, `match` and `apps` are added to the bundled lists.
-- A key with the same `keys` string as a bundled key replaces it; other keys are added at the end.
-- A tip with the same `title` as a bundled tip replaces it; others are added.
+- Your `name` replaces the bundled name. Your `prefix`, if you set one, replaces the bundled prefix.
+- Sanketa adds your `processes`, `match` and `apps` to the bundled lists.
+- A key with the same `keys` text as a bundled key replaces it. Sanketa adds other keys at the end.
+- A tip with the same `title` as a bundled tip replaces it. Sanketa adds other tips.
 
-With `mode = "replace"`, your pack is used as written and the bundled one is ignored.
+With `mode = "replace"`, Sanketa uses only your pack and ignores the bundled pack.
 
-To relabel one tmux key and add a binding of your own, this is a complete file:
+This complete file gives one tmux key a new label and adds one key of your own:
 
 ```toml
 id = "tmux"
@@ -106,15 +117,15 @@ group = "Panes"
 command = "split-window -h -c \"#{pane_current_path}\""
 ```
 
-The second key only appears if your tmux config binds `|` to that exact command.
+The second key shows only if your tmux config binds `|` to that exact command.
 
 ## TOML reminders
 
-Strings in double quotes treat backslash as an escape, so a regex `\d` is written `"\\d"`, and a double quote inside is `\"`. Single-quoted strings are literal: `'grep -E "a|b"'` needs no escaping, but can't contain a single quote. Use `"""` for a snippet spanning lines. Every `[[keys]]` or `[[tips]]` header starts a new entry, and top-level fields must come before the first one.
+In a string in double quotes, a backslash starts an escape. Thus write the regex `\d` as `"\\d"`, and a double quote in the string as `\"`. A string in single quotes is literal: `'grep -E "a|b"'` needs no escapes. But it cannot contain a single quote. Use `"""` for a snippet with more than one line. Each `[[keys]]` or `[[tips]]` header starts a new entry. Put the top-level fields before the first entry.
 
 ## Worked example: ramabana
 
-ramabana is a terminal coding agent written in Python, installed as a script at `~/.local/bin/ramabana`. Its process is the Python interpreter (`python3.13` or similar), so the pack activates through `match`. The bundled pack has the full list; this one is shorter.
+ramabana is a coding agent for the terminal. It is a Python script in `~/.local/bin/ramabana`. Its process is the Python interpreter (such as `python3.13`), so the pack uses `match`. The bundled pack has the full list. This example is shorter.
 
 ```toml
 id = "ramabana"
@@ -175,20 +186,26 @@ group = "Commands"
 [[tips]]
 title = "Resume the last session"
 snippet = "ramabana --resume latest"
-explain = "A bare --resume lists this folder's sessions to pick from"
+explain = "Without a name, --resume lists the sessions of this folder."
 tags = ["sessions"]
 
 [[tips]]
 title = "One-shot run"
 snippet = "ramabana --approve auto 'fix the failing test'"
-explain = "Runs one turn and exits; in ask mode it would refuse every write"
+explain = "Runs one turn and stops. In ask mode, it refuses each write."
 tags = ["headless"]
 
 [[tips]]
 title = "Pipe a prompt"
 snippet = "cat task.md | ramabana - --json"
-explain = "Reads the prompt from stdin; --json prints the full result"
+explain = "Reads the prompt from stdin. --json prints the full result."
 tags = ["headless"]
 ```
 
-Save it as `~/.config/sanketa/packs/ramabana.toml`, choose "Reload Packs", and start ramabana in a terminal. Because the bundled pack has the same `id` and this file doesn't say `mode = "replace"`, these entries are merged into the bundled ones; add `mode = "replace"` to see only yours.
+To use the example, do these steps:
+
+1. Save it as `~/.config/sanketa/packs/ramabana.toml`.
+2. Use Reload Packs.
+3. Start ramabana in a terminal.
+
+The bundled pack has the same `id`, and this file does not set `mode = "replace"`. Thus Sanketa adds these entries to the bundled entries. To see only your entries, add `mode = "replace"`.

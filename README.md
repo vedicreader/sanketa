@@ -2,11 +2,13 @@
 
 <img src="design/logo/sanketa-icon.png" width="96" alt="Sanketa icon">
 
-Sanketa (Sanskrit for hint, or signal) is a small macOS menu-bar app that keeps a floating glass panel of keyboard shortcuts and tips for whatever you are working in right now. It reads the stack of programs in your terminal, from the terminal app through the shell and tmux down to the program in front, and shows one section per layer. Run htop inside tmux inside fish and you get htop's keys, your live tmux bindings and fish's tips, innermost first. It follows you over ssh too, if the remote host is set up for it. Outside a terminal it shows the front app's menu shortcuts. The panel never takes focus from your terminal unless you ask it to search.
+Sanketa is a small macOS menu-bar app. The name is Sanskrit for "hint" or "signal". It shows a floating glass panel with the keys and tips for the program that you use now.
 
-![Sanketa panel](design/screenshot.png)
+In a terminal, Sanketa finds each program in the stack. The stack starts at the terminal app and goes through the shell and tmux to the program in front. Each program is a layer, and each layer gets its own section in the panel. For example, if you run htop in tmux in fish, the panel shows the htop keys first. Then it shows your live tmux keys and the fish tips. Sanketa also follows you over ssh when you set up the remote host. Outside a terminal, the panel shows the menu keys of the app in front.
 
-It needs macOS 26 on Apple Silicon and the Accessibility permission. Nothing else: no input monitoring, no network, no keystroke logging.
+The panel does not take the keyboard focus from your terminal. It takes the focus only when you start a search.
+
+Sanketa needs macOS 26 on Apple Silicon. It needs the Accessibility permission and no other permission. It does not monitor input, it does not record keystrokes, and it does not use the network.
 
 ## Install
 
@@ -14,82 +16,146 @@ It needs macOS 26 on Apple Silicon and the Accessibility permission. Nothing els
 make app install
 ```
 
-`make app` builds a release binary, assembles `build/Sanketa.app` and signs that bundle with your Apple Development identity. `make install` copies it to `~/Applications`. To sign with a different identity, pass `SIGN_ID="Apple Development: Your Name (TEAMID)"`. Open it from `~/Applications` or with `make run`.
+- `make app` builds the app in `build/Sanketa.app`. It signs only that bundle with your Apple Development identity.
+- `make install` moves an old copy in `~/Applications` to `/tmp/sanketa-trash`. Then it copies the new bundle to `~/Applications`.
+- To use a different identity, add `SIGN_ID="Apple Development: Your Name (TEAMID)"`.
+- To start the app, open it from `~/Applications`, or use `make run`.
 
-## First run
+## First start
 
-Sanketa asks for Accessibility at launch. Grant it in System Settings > Privacy & Security > Accessibility. Without it the panel still works in terminals, but it can't read window titles or other apps' menus, and the footer shows "Grant Accessibility..." until you do. The same item is in the menu-bar menu.
+Sanketa asks for Accessibility when it starts. Follow these steps:
 
-Because the bundle is signed with a stable Apple Development identity, macOS keeps the grant when you rebuild. An ad-hoc signed build would lose it every time.
+1. Open System Settings.
+2. Go to Privacy & Security, then Accessibility.
+3. Turn on Sanketa.
 
-## Using it
+Without Accessibility, the panel still works in terminals. But it cannot read window titles or the menus of other apps. Until you allow it, the footer shows "Allow Accessibility to show menu keys". The menu-bar menu has the same item, "Allow Accessibility…".
 
-The panel floats above other windows. Drag it where you like; it remembers its position and size. The menu-bar icon (a command-key symbol) shows or hides it, and also has Reload Packs, Open Packs Folder, Open Config and Quit.
+The bundle has a stable Apple Development signature. Thus macOS keeps the permission when you build the app again.
 
-The hotkey is Control-Option-K (⌃⌥K). It brings the panel forward in search mode, so you can type to find any key or tip across all packs, with the current layers ranked first. Arrows move the selection, Return copies the selected entry to the clipboard, and Escape hands focus back to your terminal. Tab in the search field moves to the layer list and keeps your query; Tab and Shift-Tab cycle through the sections.
+## Use the panel
 
-The breadcrumb at the top lists the layers, such as `htop > tmux > fish > Kaku`. Click one to jump to its section. A click on the panel outside search gives focus straight back to the app you were in.
+The panel floats above other windows. You can move it and change its size. It keeps its position and size.
 
-A tip card at the bottom shows one key or snippet from the current packs and changes every two minutes. "I know this" retires it, and "Show less" makes it come up less often.
+The menu-bar icon is a command-key symbol. Its menu has these items:
 
-Settings live in `~/.config/sanketa/config.toml`. Open Config creates the file with commented defaults. The keys are:
+- Show or Hide Panel
+- Search (with the hotkey)
+- Translucency: Low, Medium or High
+- Reload Packs
+- Open Packs Folder
+- Open Config
+- Allow Accessibility…
+- Quit Sanketa
+
+### Search
+
+The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search. Type a word to find a key or tip in all packs. Results from the current layers come first.
+
+- Press ↑ or ↓ to move the selection.
+- Press Return to copy the selected key or snippet.
+- Press Esc to give the focus back to your terminal.
+- Press Tab to go to the layer list. The search text stays.
+- In the layer list, press Tab, Shift-Tab, ↑ or ↓ to go to the next or previous section.
+
+### Layers and sections
+
+The breadcrumb at the top lists the layers, the innermost first, for example `htop › tmux › fish › Kaku`. Click a layer to go to its section. When you click the panel outside a search, the focus goes back to the app that you used.
+
+When the innermost layer has keys, its section comes first and is open. When you go to a different program, the panel goes back to the top. Thus the keys of the new program are always in view.
+
+If a program has no pack, its section shows one line: "No keys for yazi. Add a pack in ~/.config/sanketa/packs."
+
+### Tip cards
+
+The panel shows three tip cards. Each card shows one key or one snippet from the current packs. The first card comes from the innermost layer that has keys or tips. The cards come after the innermost section when that layer has keys. Otherwise they are at the top. The cards change every two minutes.
+
+- "I know this" removes a card for good.
+- "Show less" makes a card come back less often.
+
+## Settings
+
+The settings file is `~/.config/sanketa/config.toml`. Open Config makes the file with the default values in comments. These are the settings:
 
 ```toml
 hotkey = "ctrl+opt+k"        # modifiers: ctrl, opt (or alt), shift, cmd; then one key
 terminals = ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal",
-             "com.googlecode.iterm2", "fun.tw93.kaku"]   # bundle ids treated as terminals
-pollInterval = 1.0           # seconds between checks while a terminal is in front
-tipRotateSeconds = 120       # how often the tip card changes
+             "com.googlecode.iterm2", "fun.tw93.kaku"]   # bundle ids that are terminals
+pollInterval = 1.0           # seconds between checks while a terminal is in front (0.25 or more)
+tipRotateSeconds = 120       # how often the tip cards change
 translucency = "medium"      # low, medium or high
+hyper_label = "Caps"         # how Leela's Hyper key (⌃⌥⇧⌘) shows
 ```
 
-The hotkey can be any letter, digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers, for example `hotkey = "cmd+shift+space"`. Restart Sanketa after changing it. If another app already owns the combination, the footer says so. Translucency is also in the menu-bar menu, where it switches live and writes only that one line back to the file. A file that doesn't parse falls back to defaults.
+The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. Restart Sanketa after you change the hotkey. If another app uses the same keys, the footer tells you.
+
+You can also set the translucency in the menu-bar menu. The change shows at once, and Sanketa writes only that line to the file. If the file has an error, Sanketa uses the default values.
 
 ## Terminals
 
-Kaku and Ghostty are the ones to use. A terminal window can hold many tabs, each with its own shell, and Sanketa has to work out which tab is in front. Kaku and Ghostty put the focused tab's program in the window title (Kaku also adds a `[2/3]` tab index), so Sanketa can pick the right tab and show the full stack.
+Use Kaku or Ghostty. A terminal window can have many tabs, and each tab has its own shell. Sanketa must find the tab in front. Kaku and Ghostty put the program of the front tab in the window title. Thus Sanketa can find the correct tab and show the full stack.
 
-Terminal.app and iTerm2 work too, with one tab per window or when the title names the running program. Conterm and other multi-tab terminals that give no focused-tab signal show only the shell and the terminal, because Sanketa won't guess which tab you're looking at. A wrong guess would show keys for a program you aren't running.
+Kaku also adds a tab number such as `[2/3]` to the title. Sanketa counts the tabs in the order that you opened them. If you move a tab to a different position, Sanketa can show the wrong tab. This is the one case where Sanketa guesses.
 
-To add another terminal, put its bundle id in `terminals`. Find it with `mdls -name kMDItemCFBundleIdentifier /Applications/Foo.app`.
+Terminal.app and iTerm2 also work. They work with one tab for each window, or when the title shows the program. Conterm and other terminals with many tabs give no signal for the front tab. For these, Sanketa shows only the shell and the terminal. It does not guess the tab, because a wrong guess shows keys for a program that you do not use.
+
+To add a terminal, put its bundle id in `terminals`. To find the bundle id, use `mdls -name kMDItemCFBundleIdentifier /Applications/Foo.app`.
 
 ## Packs
 
-A pack is a TOML file with the keys and tips for one program or app. These ship with the app: awk, bash, Claude Code, Conterm, find, fish, git, grep, htop, leela, nvidia-smi, nvtop, shell pipes, ramabana, sed, tmux and vim.
+A pack is a TOML file with the keys and tips for one program or app. These packs come with the app:
 
-Your own packs go in `~/.config/sanketa/packs/`, one per file. A pack with the same `id` as a bundled one extends it, or replaces it with `mode = "replace"`. Use Reload Packs after editing. A file that fails to parse is skipped and counted in the footer; hover the count to see which file.
+- Tools: awk, find, git, grep, htop, lazygit, nvidia-smi, nvtop, sed, shell pipes, vim and yazi.
+- Shells and tmux: bash, fish and tmux.
+- Apps and agents: Claude Code, Conterm, Leela and ramabana.
 
-[docs/packs.md](docs/packs.md) has the full format, the key notation and a worked example. It is written so you can hand it to a language model and get a valid pack back.
+Put your own packs in `~/.config/sanketa/packs/`, one pack in each file. A pack with the same `id` as a bundled pack adds to it. To replace the bundled pack, set `mode = "replace"`. After you change a pack, use Reload Packs. If a file has an error, Sanketa does not load it. The footer shows the number of these files. Point to the number to see the file names.
+
+[docs/packs.md](docs/packs.md) gives the full format, the key notation and an example. You can give that page to a language model, and it can write a valid pack.
+
+### Leela
+
+The Leela pack holds the default keys of Leela. Sanketa reads your Leela keymap, `~/.config/leela/keys.json`, when it loads the packs. If you set `$LEELA_KEYMAP`, Sanketa reads that file.
+
+- A key in `keys` replaces the default.
+- An empty key hides the action.
+- Two or more keys with spaces between them show as alternatives.
+- Hyper (⌃⌥⇧⌘) shows as "Caps" and the key, for example `Caps E`. Caps Lock sends Hyper on the author's Mac. To change the word, set `hyper_label`.
+
+When Leela changes `keys.json`, the panel reads the file again.
 
 ## Remote hosts
 
-When you ssh somewhere, Sanketa sees `ssh` locally and nothing beyond it. To see the remote layers, run once per host:
+When you use ssh, Sanketa sees only the local `ssh` process. To see the layers on the remote host, run this command one time for each host:
 
 ```sh
 make remote-setup HOST=me@gpubox
 ```
 
-This copies three small scripts to `~/.config/sanketa/remote/` on the host and hooks them up:
+The command copies three small scripts to `~/.config/sanketa/remote/` on the host. Then it connects them:
 
 - fish: `~/.config/fish/conf.d/sanketa.fish`
-- bash: a line in `~/.bashrc` that sources `sanketa.bash`
-- tmux: a line in `~/.tmux.conf` that sources `tmux.conf`
+- bash: a line in `~/.bashrc` that loads `sanketa.bash`
+- tmux: a line in `~/.tmux.conf` that loads `tmux.conf`
 
-Each one puts a short tag in the terminal title, naming the host and the programs running there. The tmux part passes that title through to your terminal. Sanketa reads the tag and shows something like `htop@gpubox > tmux@gpubox > fish@gpubox > gpubox > fish > Kaku`. Running the setup again changes nothing that's already in place. Afterwards open a new shell, and in a tmux that's already running, run `tmux source-file ~/.tmux.conf`.
+Each script puts a short tag in the terminal title. The tag gives the host and the programs that run there. The tmux script sends the title through to your terminal. Sanketa reads the tag and shows the remote layers. The breadcrumb then looks like `htop@gpubox › tmux@gpubox › fish@gpubox › ssh gpubox › fish › Kaku`.
 
-The fish snippet wraps whatever `fish_title` exists when it loads. fish reads `conf.d` before `config.fish`, so a `fish_title` defined in `config.fish` replaces the snippet's and the tag disappears. Move your `fish_title` into `~/.config/fish/functions/fish_title.fish` and the snippet will wrap it.
+If you run the setup again, it does not change the parts that are already there. After the setup, open a new shell. In a tmux that runs already, run `tmux source-file ~/.tmux.conf`.
 
-The bash snippet keeps an existing DEBUG trap and runs it first, and it joins bash-preexec if you use that.
+The fish script wraps the `fish_title` function that exists when it loads. fish reads `conf.d` before `config.fish`. Thus a `fish_title` in `config.fish` replaces the script's function, and the tag goes away. To prevent this, move your `fish_title` to `~/.config/fish/functions/fish_title.fish`.
 
-If a host has no snippet but you connect through an ssh ControlMaster, Sanketa falls back to asking that host's tmux for the current program over the existing connection, in batch mode, so it never prompts for a password. It does nothing if no master connection is open. This needs `ControlMaster` and `ControlPath` set for the host in `~/.ssh/config`.
+The bash script keeps a DEBUG trap that exists and runs it first. If you use bash-preexec, the script uses it too.
+
+Some hosts have no script. If you connect to such a host through an ssh ControlMaster, Sanketa asks the tmux on the host for the current program. It uses the open connection in batch mode, so it never asks for a password. If no master connection is open, it does nothing. For this, set `ControlMaster` and `ControlPath` for the host in `~/.ssh/config`.
 
 ## Limits
 
-- Only the default tmux server is read. Sessions on a socket chosen with `-L` or `-S`, and tmux running inside tmux, show as a plain tmux layer with nothing inside it.
-- In multi-tab terminals with no focused-tab signal in the title, only the shell and terminal layers are shown (see Terminals).
-- iTerm2 sessions that live under a re-parented `iTermServer` process may not resolve beyond the app layer.
-- Remote layers need the title snippet on the host, or a ControlMaster connection.
-- Idle CPU is low but not yet zero while a terminal is in front, since the process table is read once per poll.
+- Sanketa reads only the default tmux server. A session on a socket from `-L` or `-S` shows as an empty tmux layer. tmux in tmux shows the same way.
+- In a terminal with many tabs and no signal for the front tab, Sanketa shows only the shell and the terminal.
+- Kaku tab numbers assume that you did not move the tabs.
+- Some iTerm2 sessions run under a separate `iTermServer` process. For these, Sanketa can show only the app layer.
+- Remote layers need the title script on the host, or a ControlMaster connection.
+- Idle CPU is low but not zero while a terminal is in front, because Sanketa reads the process table at each check.
 
 ## Development
 
@@ -99,11 +165,16 @@ make app      # build and sign build/Sanketa.app
 make verify   # check the bundle and its signature
 ```
 
-The code is split into `SanketaCore` (pure logic: packs, config, layer resolution), `SanketaSystem` (processes, tmux, Accessibility, ssh) and `SanketaUI` (the panel), with the app in `Sources/Sanketa`.
+The code has three libraries and the app:
 
-Tests run real things: real files, real child processes, real fish and bash, real tmux. A few rules keep that safe:
+- `SanketaCore` has the logic: packs, settings and layers.
+- `SanketaSystem` reads processes, tmux, Accessibility and ssh.
+- `SanketaUI` draws the panel.
+- `Sources/Sanketa` is the app.
 
-- Every tmux test uses its own server on a private socket, `tmux -L sanketa-test-<pid>-<n>`, and kills that server when it finishes. Tests never touch your default tmux server or any session they didn't create.
-- Tests only spawn real, unmodified programs. Never copy or rename a binary so it looks like another program, never fake argv[0], and never re-sign a binary. When a test needs a process tree that can't be made honestly, such as ssh to a host that doesn't exist, build it as synthetic `ProcInfo` data.
-- Every external command goes through `CommandRunning` with a timeout.
-- No tests that only check the shape of the code. If a test passes when the feature is broken, it isn't a test.
+The tests use real files, real child processes, real fish and bash, and real tmux. These rules keep the tests safe:
+
+- Each tmux test starts its own server on a private socket, `tmux -L sanketa-test-<pid>-<n>`. The test stops that server at the end. Tests never use your default tmux server or a session that they did not make.
+- Tests start only real programs that nobody changed. Do not copy or rename a program so that it looks like a different program. Do not change argv[0]. Do not sign a program again. If a test needs a process tree that it cannot make honestly, describe the tree as `ProcInfo` data.
+- Each external command goes through `CommandRunning` with a timeout.
+- Do not write tests that only check the shape of the code. A test that passes when the feature is broken is not a test.

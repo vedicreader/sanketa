@@ -52,7 +52,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         s.button?.image = NSImage(systemSymbolName: "command", accessibilityDescription: "Sanketa")
         let m = NSMenu()
         func add(_ title: String, _ sel: Selector) { m.addItem(withTitle: title, action: sel, keyEquivalent: "").target = self }
-        add("Show/Hide Panel", #selector(togglePanel))
+        add("Show or Hide Panel", #selector(togglePanel))
         add("Search  \(Theme.display(hotkey: config.hotkey))", #selector(startSearch))
         let tr = NSMenu()
         for t in Translucency.allCases {
@@ -66,7 +66,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         add("Reload Packs", #selector(reloadPacks))
         add("Open Packs Folder", #selector(openPacks))
         add("Open Config", #selector(openConfig))
-        add("Grant Accessibility…", #selector(grantAccessibility))
+        add("Allow Accessibility…", #selector(grantAccessibility))
         m.addItem(.separator())
         add("Quit Sanketa", #selector(quit))
         s.menu = m
@@ -105,7 +105,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
             let c = Config()
             try? """
-            # Sanketa settings; restart Sanketa after editing.
+            # Sanketa settings. Restart Sanketa after you change this file.
             # hotkey = "\(c.hotkey)"
             # pollInterval = \(c.pollInterval)
             # tipRotateSeconds = \(c.tipRotateSeconds)

@@ -81,7 +81,7 @@ struct ResultsList: View {
             ForEach(Array(results.enumerated()), id: \.offset) { i, r in
                 ResultRow(item: r, prefix: prefix(r.packID), selected: i == selection).onTapGesture { pick(i) }
             }
-            if results.isEmpty { Text("No matches").font(Theme.small).foregroundStyle(Theme.secondary).padding(6) }
+            if results.isEmpty { Text("No results.").font(Theme.small).foregroundStyle(Theme.secondary).padding(6) }
         }
     }
 }
@@ -140,15 +140,15 @@ struct Footer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if model.needsAccessibility {
-                Button(action: grant) { Text("Grant Accessibility to read menu shortcuts").underline() }
+                Button(action: grant) { Text("Allow Accessibility to show menu keys").underline() }
                     .buttonStyle(.plain).foregroundStyle(.primary)
             }
             if !model.packErrors.isEmpty {
-                Text("\(model.packErrors.count) pack file\(model.packErrors.count == 1 ? "" : "s") failed to load")
+                Text("\(model.packErrors.count) pack file\(model.packErrors.count == 1 ? "" : "s") did not load. Point to this line to see why.")
                     .help(model.packErrors.map { "\(($0.file as NSString).lastPathComponent): \($0.message)" }.joined(separator: "\n"))
             }
             if let h = model.hotkeyConflict {
-                Text("\(Theme.display(hotkey: h)) isn't available. Set `hotkey` in ~/.config/sanketa/config.toml.")
+                Text("Sanketa cannot use \(Theme.display(hotkey: h)). Set hotkey in ~/.config/sanketa/config.toml.")
             }
         }
         .font(Theme.small).foregroundStyle(Theme.secondary)
