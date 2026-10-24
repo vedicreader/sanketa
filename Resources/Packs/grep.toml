@@ -1,0 +1,125 @@
+# Flags checked against man grep on macOS 26 (ugrep-based grep 7.8; the same flags work in GNU and BSD grep).
+# Every snippet runs unchanged in fish and bash.
+id = "grep"
+name = "grep"
+processes = ["grep", "rg", "ugrep", "zgrep"]
+
+[[tips]]
+title = "Search a tree with line numbers"
+snippet = "grep -rn 'TODO' ."
+explain = "-r walks directories, -n shows file:line so you can jump straight there"
+tags = ["search", "files"]
+
+[[tips]]
+title = "Only some file types"
+snippet = "grep -rn --include='*.py' 'def main' ."
+explain = "--include takes a glob; repeat it for several types"
+tags = ["search", "files"]
+
+[[tips]]
+title = "Skip junk directories"
+snippet = "grep -rn --exclude-dir=node_modules --exclude-dir=.git 'fetch(' ."
+explain = "Keeps vendored and generated code out of the results"
+tags = ["search", "files"]
+
+[[tips]]
+title = "Just the file names"
+snippet = "grep -rl 'oldName' src"
+explain = "-l lists matching files once each, ready for xargs or sed -i"
+tags = ["search", "files"]
+
+[[tips]]
+title = "Files that lack something"
+snippet = "grep -L 'Copyright' *.swift"
+explain = "-L is the inverse of -l: files with no match"
+tags = ["search", "files"]
+
+[[tips]]
+title = "Count matching lines"
+snippet = "grep -c 'ERROR' app.log"
+explain = "-c prints a count instead of the lines; with several files, one count each"
+tags = ["count", "logs"]
+
+[[tips]]
+title = "Which log has the most errors"
+snippet = "grep -c 'ERROR' *.log | sort -t: -k2 -rn | head"
+explain = "-c gives file:count; sort on the count after the colon"
+tags = ["count", "logs"]
+
+[[tips]]
+title = "Drop comments and blank lines"
+snippet = "grep -v '^#' app.conf | grep -v '^$'"
+explain = "-v keeps the lines that do not match"
+tags = ["filter"]
+
+[[tips]]
+title = "Print only the matched part"
+snippet = "grep -o 'user=[a-z]*' access.log | sort | uniq -c | sort -rn"
+explain = "-o prints each match on its own line, which makes counting easy"
+tags = ["extract", "count"]
+
+[[tips]]
+title = "Pull version numbers out"
+snippet = "grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' CHANGELOG.md | head -1"
+explain = "-E for extended regex: + and | without backslashes"
+tags = ["extract", "regex"]
+
+[[tips]]
+title = "Whole words, any case"
+snippet = "grep -iw 'error' app.log"
+explain = "-w stops 'error' matching 'errors'; -i ignores case"
+tags = ["filter"]
+
+[[tips]]
+title = "Either of two patterns"
+snippet = "grep -E 'WARN|ERROR' app.log"
+explain = "Alternation needs -E (or \\| in basic grep)"
+tags = ["regex", "logs"]
+
+[[tips]]
+title = "Search for literal text"
+snippet = "grep -F '[1.2.3]' notes.txt"
+explain = "-F treats the pattern as plain text, so [ ] and . are not special"
+tags = ["search"]
+
+[[tips]]
+title = "Lines around each match"
+snippet = "grep -n -C 3 'panic' app.log"
+explain = "-C n shows n lines either side; -A after only, -B before only"
+tags = ["context", "logs"]
+
+[[tips]]
+title = "Stop at the first match"
+snippet = "grep -m 1 '\"version\"' package.json"
+explain = "-m n quits after n matching lines; quick on big files"
+tags = ["search"]
+
+[[tips]]
+title = "Use grep as a test"
+snippet = "grep -q 'needle' file.txt && echo found"
+explain = "-q prints nothing; the exit status says whether it matched"
+tags = ["scripting"]
+
+[[tips]]
+title = "Find a process without matching grep"
+snippet = "ps aux | grep '[p]ython'"
+explain = "The [p] pattern doesn't match its own command line, so grep drops out"
+tags = ["processes"]
+
+[[tips]]
+title = "Follow a log for one thing"
+snippet = "tail -f app.log | grep --line-buffered 'ERROR'"
+explain = "--line-buffered prints each hit at once instead of in blocks"
+tags = ["logs", "pipes"]
+
+[[tips]]
+title = "Search compressed logs"
+snippet = "zgrep 'ERROR' app.log.1.gz"
+explain = "zgrep reads .gz files directly, no gunzip needed"
+tags = ["logs"]
+
+[[tips]]
+title = "ripgrep, if installed"
+snippet = "rg -n 'TODO' -t py"
+explain = "Recursive by default, skips .gitignore'd files, -t picks a language"
+tags = ["search", "files"]

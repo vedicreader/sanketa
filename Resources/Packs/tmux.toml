@@ -1,16 +1,324 @@
-# Placeholder until the full bundled packs land (Task 10); this is the spec's example pack.
+# Keys are tmux's default prefix-table bindings (tmux 3.7b `list-keys -T prefix` with `-f /dev/null`).
+# `command` must equal the bound command, so Sanketa can relabel your live bindings, including rebinds.
 id = "tmux"
 name = "tmux"
-processes = ["tmux"]          # process names that activate this pack
-prefix = "C-b"                # optional, shown as a chip
+processes = ["tmux"]
+prefix = "C-b"
 
 [[keys]]
 keys = "prefix %"
 action = "Split pane left/right"
 group = "Panes"
+command = "split-window -h"
+
+[[keys]]
+keys = 'prefix "'
+action = "Split pane top/bottom"
+group = "Panes"
+command = "split-window"
+
+[[keys]]
+keys = "prefix o"
+action = "Next pane"
+group = "Panes"
+command = "select-pane -t :.+"
+
+[[keys]]
+keys = "prefix ;"
+action = "Last active pane"
+group = "Panes"
+command = "last-pane"
+
+[[keys]]
+keys = "prefix Up"
+action = "Pane above"
+group = "Panes"
+command = "select-pane -U"
+
+[[keys]]
+keys = "prefix Down"
+action = "Pane below"
+group = "Panes"
+command = "select-pane -D"
+
+[[keys]]
+keys = "prefix Left"
+action = "Pane to the left"
+group = "Panes"
+command = "select-pane -L"
+
+[[keys]]
+keys = "prefix Right"
+action = "Pane to the right"
+group = "Panes"
+command = "select-pane -R"
+
+[[keys]]
+keys = "prefix z"
+action = "Zoom pane (toggle)"
+group = "Panes"
+command = "resize-pane -Z"
+
+[[keys]]
+keys = "prefix x"
+action = "Kill pane"
+group = "Panes"
+command = 'confirm-before -p "kill-pane #P? (y/n)" kill-pane'
+
+[[keys]]
+keys = "prefix q"
+action = "Show pane numbers"
+group = "Panes"
+command = "display-panes"
+
+[[keys]]
+keys = "prefix !"
+action = "Break pane into a window"
+group = "Panes"
+command = "break-pane"
+
+[[keys]]
+keys = "prefix {"
+action = "Swap with previous pane"
+group = "Panes"
+command = "swap-pane -U"
+
+[[keys]]
+keys = "prefix }"
+action = "Swap with next pane"
+group = "Panes"
+command = "swap-pane -D"
+
+[[keys]]
+keys = "prefix M-Up"
+action = "Grow pane upward by 5"
+group = "Panes"
+command = "resize-pane -U 5"
+
+[[keys]]
+keys = "prefix Space"
+action = "Cycle pane layouts"
+group = "Panes"
+command = "next-layout"
+
+[[keys]]
+keys = "prefix c"
+action = "New window"
+group = "Windows"
+command = "new-window"
+
+[[keys]]
+keys = "prefix n"
+action = "Next window"
+group = "Windows"
+command = "next-window"
+
+[[keys]]
+keys = "prefix p"
+action = "Previous window"
+group = "Windows"
+command = "previous-window"
+
+[[keys]]
+keys = "prefix l"
+action = "Last window"
+group = "Windows"
+command = "last-window"
+
+[[keys]]
+keys = "prefix 0"
+action = "Window 0 (1–9 likewise)"
+group = "Windows"
+command = "select-window -t :=0"
+
+[[keys]]
+keys = "prefix '"
+action = "Go to window by number"
+group = "Windows"
+command = 'command-prompt -T window-target -p index { select-window -t ":%%" }'
+
+[[keys]]
+keys = "prefix w"
+action = "Pick a window from a tree"
+group = "Windows"
+command = "choose-tree -Zw"
+
+[[keys]]
+keys = "prefix f"
+action = "Find window by text"
+group = "Windows"
+command = 'command-prompt { find-window -Z "%%" }'
+
+[[keys]]
+keys = "prefix ,"
+action = "Rename window"
+group = "Windows"
+command = 'command-prompt -I "#W" { rename-window "%%" }'
+
+[[keys]]
+keys = "prefix &"
+action = "Kill window"
+group = "Windows"
+command = 'confirm-before -p "kill-window #W? (y/n)" kill-window'
+
+[[keys]]
+keys = "prefix d"
+action = "Detach (session keeps running)"
+group = "Sessions"
+command = "detach-client"
+
+[[keys]]
+keys = "prefix s"
+action = "Pick a session from a tree"
+group = "Sessions"
+command = "choose-tree -Zs"
+
+[[keys]]
+keys = "prefix $"
+action = "Rename session"
+group = "Sessions"
+command = 'command-prompt -I "#S" { rename-session "%%" }'
+
+[[keys]]
+keys = "prefix ("
+action = "Previous session"
+group = "Sessions"
+command = "switch-client -p"
+
+[[keys]]
+keys = "prefix )"
+action = "Next session"
+group = "Sessions"
+command = "switch-client -n"
+
+[[keys]]
+keys = "prefix L"
+action = "Last session"
+group = "Sessions"
+command = "switch-client -l"
+
+[[keys]]
+keys = "prefix ["
+action = "Copy mode (scroll, select)"
+group = "Copy & paste"
+command = "copy-mode"
+
+[[keys]]
+keys = "prefix PPage"
+action = "Copy mode, one page up"
+group = "Copy & paste"
+command = "copy-mode -u"
+
+[[keys]]
+keys = "prefix ]"
+action = "Paste latest buffer"
+group = "Copy & paste"
+command = "paste-buffer -p"
+
+[[keys]]
+keys = "prefix ="
+action = "Pick a buffer to paste"
+group = "Copy & paste"
+command = "choose-buffer -Z"
+
+[[keys]]
+keys = "prefix :"
+action = "tmux command prompt"
+group = "Help & misc"
+command = "command-prompt"
+
+[[keys]]
+keys = "prefix ?"
+action = "List all key bindings"
+group = "Help & misc"
+command = "list-keys -N"
+
+[[keys]]
+keys = "prefix /"
+action = "Describe one key"
+group = "Help & misc"
+command = 'command-prompt -k -p key { list-keys -1N "%%" }'
+
+[[keys]]
+keys = "prefix ~"
+action = "Show tmux messages"
+group = "Help & misc"
+command = "show-messages"
 
 [[tips]]
-title = "Loop over files"
-snippet = "for f in *.log; echo $f; end"
-explain = "fish for-loop; no do/done needed"
-tags = ["loops", "files"]
+title = "Named sessions"
+snippet = "tmux new -s work    # later: tmux attach -t work"
+explain = "A name makes it easy to come back after prefix d or a dropped ssh"
+tags = ["sessions"]
+
+[[tips]]
+title = "List and kill sessions"
+snippet = "tmux ls; tmux kill-session -t work"
+explain = "See what is still running, then end one session without touching others"
+tags = ["sessions"]
+
+[[tips]]
+title = "Run a job that outlives the terminal"
+snippet = "tmux new -d -s train 'python train.py 2>&1 | tee train.log'"
+explain = "-d starts it detached; attach later with tmux a -t train"
+tags = ["sessions", "jobs"]
+
+[[tips]]
+title = "Copy mode, emacs keys (default)"
+snippet = "prefix [   ⌃Space mark   ⌥W copy   ⌃S / ⌃R search   q quit"
+explain = "Default mode-keys is emacs; prefix ] pastes what you copied"
+tags = ["copy"]
+
+[[tips]]
+title = "Copy mode, vi keys"
+snippet = "tmux set -g mode-keys vi    # then: Space select, Enter copy, / search, v block, q quit"
+explain = "Put set -g mode-keys vi in ~/.tmux.conf to keep it"
+tags = ["copy", "config"]
+
+[[tips]]
+title = "Save a pane's scrollback to a file"
+snippet = "tmux capture-pane -p -S - > pane.txt"
+explain = "-S - starts at the oldest history line; -p prints instead of buffering"
+tags = ["copy", "files"]
+
+[[tips]]
+title = "Type into another pane"
+snippet = "tmux send-keys -t work:1.0 'make test' Enter"
+explain = "Target is session:window.pane; Enter is the key name, not text"
+tags = ["scripting"]
+
+[[tips]]
+title = "Type in every pane at once"
+snippet = "tmux setw synchronize-panes on   # off to stop"
+explain = "Handy for running the same command on several ssh hosts"
+tags = ["panes"]
+
+[[tips]]
+title = "Split in the current directory"
+snippet = "bind '\"' split-window -c '#{pane_current_path}'"
+explain = "In ~/.tmux.conf; new panes start where you are instead of where tmux started"
+tags = ["config", "panes"]
+
+[[tips]]
+title = "Turn on the mouse"
+snippet = "tmux set -g mouse on"
+explain = "Click panes, drag borders, wheel-scroll into copy mode"
+tags = ["config"]
+
+[[tips]]
+title = "Reload your config"
+snippet = "tmux source-file ~/.tmux.conf"
+explain = "Applies edits without restarting the server"
+tags = ["config"]
+
+[[tips]]
+title = "Move a pane between windows"
+snippet = "tmux join-pane -s :2    # bring window 2's pane here"
+explain = "The opposite of prefix !, which breaks a pane out"
+tags = ["panes", "windows"]
+
+[[tips]]
+title = "Ask tmux about the current pane"
+snippet = "tmux display -p '#{pane_current_path} #{pane_current_command}'"
+explain = "Formats expose pane, window and session state for scripts"
+tags = ["scripting"]

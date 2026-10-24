@@ -1,0 +1,189 @@
+# Keys: the hunk prompt of git add -p, reset -p and restore -p (man git-add, INTERACTIVE MODE, git 2.55).
+id = "git"
+name = "git"
+processes = ["git"]
+
+[[keys]]
+keys = "y"
+action = "Stage this hunk"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "n"
+action = "Skip this hunk"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "q"
+action = "Quit, skip the rest"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "a"
+action = "Stage this and rest of file"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "d"
+action = "Skip this and rest of file"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "s"
+action = "Split into smaller hunks"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "e"
+action = "Edit the hunk by hand"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "j / k"
+action = "Next / previous undecided hunk"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "J / K"
+action = "Next / previous hunk"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "g"
+action = "Go to a hunk by number"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "/"
+action = "Find a hunk by regex"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "p / P"
+action = "Print hunk / in the pager"
+group = "Hunk prompt (add -p)"
+
+[[keys]]
+keys = "?"
+action = "Help"
+group = "Hunk prompt (add -p)"
+
+[[tips]]
+title = "History as a graph"
+snippet = "git log --oneline --graph --decorate --all"
+explain = "Every branch at once, one line per commit"
+tags = ["history"]
+
+[[tips]]
+title = "Find the commit that added a string"
+snippet = "git log -S 'parseConfig' --oneline"
+explain = "Pickaxe: commits where the number of occurrences changed"
+tags = ["history", "search"]
+
+[[tips]]
+title = "A file's full history with diffs"
+snippet = "git log -p --follow -- src/app.py"
+explain = "--follow keeps going across renames"
+tags = ["history", "files"]
+
+[[tips]]
+title = "Who changed these lines"
+snippet = "git blame -L 10,30 src/app.py"
+explain = "Blame just a range instead of the whole file"
+tags = ["history"]
+
+[[tips]]
+title = "Search tracked files only"
+snippet = "git grep -n 'TODO' -- '*.py'"
+explain = "Skips build output and untracked files; faster than grep -r"
+tags = ["search"]
+
+[[tips]]
+title = "See what you staged"
+snippet = "git diff --staged"
+explain = "Plain git diff shows only unstaged changes"
+tags = ["diff"]
+
+[[tips]]
+title = "What a branch changes"
+snippet = "git diff --stat main...HEAD"
+explain = "Three dots diff against the merge base, so main's newer commits don't show"
+tags = ["diff", "branches"]
+
+[[tips]]
+title = "Fix the last commit"
+snippet = "git commit --amend --no-edit"
+explain = "Folds staged changes in and keeps the message; only before pushing"
+tags = ["commits"]
+
+[[tips]]
+title = "Unstage or discard"
+snippet = "git restore --staged notes.md; git restore notes.md"
+explain = "The first unstages; the second throws away working-tree edits"
+tags = ["undo"]
+
+[[tips]]
+title = "New branch, and back again"
+snippet = "git switch -c feature/login; git switch -"
+explain = "- returns to the previous branch, like cd -"
+tags = ["branches"]
+
+[[tips]]
+title = "Park work in progress"
+snippet = "git stash push -m 'half done'; git stash list; git stash pop"
+explain = "-m names the stash so stash list stays readable"
+tags = ["stash"]
+
+[[tips]]
+title = "Recover a lost commit"
+snippet = "git reflog; git reset --hard 'HEAD@{2}'"
+explain = "reflog records where HEAD has been, even after a bad reset or rebase"
+tags = ["undo"]
+
+[[tips]]
+title = "Squash or reword recent commits"
+snippet = "git rebase -i HEAD~3"
+explain = "Change pick to squash, fixup or reword in the editor"
+tags = ["commits", "history"]
+
+[[tips]]
+title = "Find the commit that broke a test"
+snippet = "git bisect start; git bisect bad; git bisect good v1.0; git bisect run make test"
+explain = "Binary search; bisect run judges each step by the command's exit code"
+tags = ["debugging"]
+
+[[tips]]
+title = "Second checkout without stashing"
+snippet = "git worktree add ../hotfix main"
+explain = "Another branch in another folder, sharing one repository"
+tags = ["branches"]
+
+[[tips]]
+title = "Delete untracked files, carefully"
+snippet = "git clean -nd; git clean -fd"
+explain = "-n shows what would go; -f does it, -d includes folders"
+tags = ["undo", "files"]
+
+[[tips]]
+title = "A file as it was"
+snippet = "git show HEAD~5:src/app.py > old_app.py"
+explain = "rev:path prints any file at any commit"
+tags = ["files", "history"]
+
+[[tips]]
+title = "Branches by last activity"
+snippet = "git branch --sort=-committerdate"
+explain = "Most recently used branches first"
+tags = ["branches"]
+
+[[tips]]
+title = "Who commits most"
+snippet = "git shortlog -sn --no-merges HEAD"
+explain = "Commit counts per author, highest first"
+tags = ["history"]
+
+[[tips]]
+title = "Copy one commit to this branch"
+snippet = "git cherry-pick a1b2c3d"
+explain = "Applies that commit's change as a new commit here"
+tags = ["commits", "branches"]

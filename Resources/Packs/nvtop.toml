@@ -1,0 +1,66 @@
+# nvtop isn't installed here; only the long-standing keys from its README and man page.
+id = "nvtop"
+name = "nvtop"
+processes = ["nvtop"]
+
+[[keys]]
+keys = "↑"
+action = "Select previous process"
+group = "Move"
+
+[[keys]]
+keys = "↓"
+action = "Select next process"
+group = "Move"
+
+[[keys]]
+keys = "← / →"
+action = "Scroll the process row"
+group = "Move"
+
+[[keys]]
+keys = "F6"
+action = "Choose the sort column"
+group = "Sort"
+
+[[keys]]
+keys = "+"
+action = "Sort increasing"
+group = "Sort"
+
+[[keys]]
+keys = "-"
+action = "Sort decreasing"
+group = "Sort"
+
+[[keys]]
+keys = "F9"
+action = "Send a signal (kill)"
+group = "Processes"
+
+[[keys]]
+keys = "F2"
+action = "Setup: meters and charts"
+group = "Setup"
+
+[[keys]]
+keys = "F12"
+action = "Save the current layout"
+group = "Setup"
+
+[[keys]]
+keys = "F10 / q / ⎋"
+action = "Quit"
+group = "Setup"
+
+[[tips]]
+title = "Watch a remote GPU box"
+snippet = "ssh -t gpu-box nvtop"
+explain = "-t gives nvtop the terminal it needs to draw"
+tags = ["remote"]
+
+[[tips]]
+title = "For scripts, use nvidia-smi"
+snippet = "nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv"
+explain = "nvtop is for watching; nvidia-smi queries print plain CSV"
+tags = ["scripting"]

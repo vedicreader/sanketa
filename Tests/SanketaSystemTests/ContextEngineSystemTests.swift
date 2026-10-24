@@ -46,7 +46,7 @@ import Testing
         let c = ContextEngine(config: config, library: lib, tmuxSocket: inner)
             .compute(pid: server, bundleID: "test.terminal", appName: "TestTerm")
         #expect(c.layers.map(\.name) == ["htop", "fish", "tmux", "TestTerm"])
-        #expect(c.packs.map(\.id) == ["tmux", "app:test.terminal"])
+        #expect(c.packs.map(\.id) == ["htop", "fish", "tmux", "app:test.terminal"])
         let t = try #require(c.packs.first { $0.id == "tmux" })
         #expect(t.keys.contains { $0.keys.hasPrefix("prefix ") })
         #expect(t.keys.contains { $0.keys == "prefix |" && $0.command == "split-window -h" })

@@ -60,11 +60,15 @@ public struct PackLibrary {
         return kept + over.filter { !have.contains($0[keyPath: key]) && seen.insert($0[keyPath: key]).inserted }
     }
 
+    /// argv `match` first, then the process name, then argv[0]'s basename (what the user typed;
+    /// Claude Code's executable is `…/versions/2.1.304` but argv[0] is `claude`).
     public func pack(process name: String, argv: [String]) -> Pack? {
         let sorted = packs.values.sorted { $0.id < $1.id }
         let cmd = argv.joined(separator: " ")
+        let typed = argv.first.map { ($0.drop { $0 == "-" } as Substring as NSString).lastPathComponent }
         return sorted.first { $0.match.contains { cmd.contains($0) } }
             ?? sorted.first { $0.processes.contains(name) }
+            ?? typed.flatMap { t in sorted.first { $0.processes.contains(t) } }
     }
 
     public func pack(bundleID: String) -> Pack? {

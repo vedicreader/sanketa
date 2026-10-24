@@ -1,0 +1,119 @@
+id = "conterm"
+name = "Conterm"
+processes = []
+match = []
+apps = ["app.conterm.Conterm"]
+
+[[keys]]
+keys = "⌘T / ⌘N"
+action = "New tab / new window"
+group = "Tabs & panes"
+
+[[keys]]
+keys = "⌘W"
+action = "Close pane (or tab)"
+group = "Tabs & panes"
+
+[[keys]]
+keys = "⌘D"
+action = "Split right"
+group = "Tabs & panes"
+
+[[keys]]
+keys = "⇧⌘D"
+action = "Split down"
+group = "Tabs & panes"
+
+[[keys]]
+keys = "⌥1–⌥9"
+action = "Focus pane N"
+group = "Tabs & panes"
+
+[[keys]]
+keys = "⌘1–⌘9"
+action = "Jump to tab N"
+group = "Tabs & panes"
+
+[[keys]]
+keys = "⌘↑ / ⌘↓"
+action = "Previous / next prompt"
+group = "Navigation"
+
+[[keys]]
+keys = "⌘K"
+action = "Command palette"
+group = "Navigation"
+
+[[keys]]
+keys = "Esc"
+action = "Dismiss palette, settings, search"
+group = "Navigation"
+
+[[keys]]
+keys = "⌘F"
+action = "Find in scrollback / conversation"
+group = "Find"
+
+[[keys]]
+keys = "⌘G / ⇧⌘G"
+action = "Next / previous match"
+group = "Find"
+
+[[keys]]
+keys = "⌘E"
+action = "Use selection for find"
+group = "Find"
+
+[[keys]]
+keys = "⇧⌘A"
+action = "Agent command center"
+group = "Agents"
+
+[[keys]]
+keys = "⇧⌘M"
+action = "Orbit fleet map"
+group = "Orbit"
+
+[[keys]]
+keys = "⇧⌘F"
+action = "Orbit: terminal fills canvas"
+group = "Orbit"
+
+[[keys]]
+keys = "hold ⌥"
+action = "Orbit: letter on each card"
+group = "Orbit"
+
+[[keys]]
+keys = "?"
+action = "Orbit: list action keys"
+group = "Orbit"
+
+[[keys]]
+keys = "⌘,"
+action = "Settings"
+group = "App"
+
+[[tips]]
+title = "Paste an image for an agent"
+snippet = "⌘V with an image on the clipboard"
+explain = "Pastes its file path, so agents like Claude Code can read it"
+tags = ["agents", "images"]
+
+[[tips]]
+title = "Search a fullscreen Claude session"
+snippet = "⌘F → Conversation scope"
+explain = "Searches the session transcript, which never reaches scrollback"
+tags = ["agents", "find"]
+
+[[tips]]
+title = "Review what an agent changed"
+snippet = "⌘K → Review Changes"
+explain = "Commits, uncommitted files and diffs since the agent started"
+tags = ["agents", "git"]
+
+[[tips]]
+title = "Share Ghostty's config"
+snippet = "config-file = ~/.config/ghostty/config"
+explain = "Add to ~/.config/conterm/config; lines below it override for Conterm"
+tags = ["config"]

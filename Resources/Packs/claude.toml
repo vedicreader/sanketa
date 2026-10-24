@@ -1,0 +1,375 @@
+id = "claude"
+name = "Claude Code"
+processes = ["claude"]
+match = ["claude-code", "/.local/share/claude/versions/"]
+apps = []
+
+# General
+[[keys]]
+keys = "Esc"
+action = "Interrupt Claude, close dialog"
+group = "General"
+
+[[keys]]
+keys = "Esc Esc"
+action = "Clear draft, or rewind"
+group = "General"
+
+[[keys]]
+keys = "⌃C"
+action = "Interrupt, or clear input"
+group = "General"
+
+[[keys]]
+keys = "⌃D"
+action = "Exit (press twice)"
+group = "General"
+
+[[keys]]
+keys = "⇧⇥"
+action = "Cycle permission modes"
+group = "General"
+
+[[keys]]
+keys = "⌥P"
+action = "Switch model"
+group = "General"
+
+[[keys]]
+keys = "⌥T"
+action = "Toggle extended thinking"
+group = "General"
+
+[[keys]]
+keys = "⌥O"
+action = "Toggle fast mode"
+group = "General"
+
+[[keys]]
+keys = "⌃O"
+action = "Toggle transcript viewer"
+group = "General"
+
+[[keys]]
+keys = "⌃T"
+action = "Toggle task checklist"
+group = "General"
+
+[[keys]]
+keys = "⌃B"
+action = "Background running tasks"
+group = "General"
+
+[[keys]]
+keys = "⌃X ⌃K"
+action = "Stop background subagents"
+group = "General"
+
+[[keys]]
+keys = "⌃L"
+action = "Redraw the screen"
+group = "General"
+
+[[keys]]
+keys = "⌃Z"
+action = "Suspend (fg resumes)"
+group = "General"
+
+# Input
+[[keys]]
+keys = "⌃R"
+action = "Reverse-search history"
+group = "Input"
+
+[[keys]]
+keys = "↑ / ↓  or  ⌃P / ⌃N"
+action = "Navigate command history"
+group = "Input"
+
+[[keys]]
+keys = "⌃G"
+action = "Edit prompt in $EDITOR"
+group = "Input"
+
+[[keys]]
+keys = "⌃S"
+action = "Stash or restore prompt"
+group = "Input"
+
+[[keys]]
+keys = "⌃V"
+action = "Paste clipboard image"
+group = "Input"
+
+[[keys]]
+keys = "⌃↩"
+action = "Send queued messages now"
+group = "Input"
+
+[[keys]]
+keys = "↩ (while working)"
+action = "Queue a message"
+group = "Input"
+
+[[keys]]
+keys = "⇥"
+action = "Accept autocomplete suggestion"
+group = "Input"
+
+[[keys]]
+keys = "?"
+action = "Shortcut help (empty input)"
+group = "Input"
+
+# Multiline
+[[keys]]
+keys = "\\↩"
+action = "Newline (any terminal)"
+group = "Multiline"
+
+[[keys]]
+keys = "⇧↩"
+action = "Newline (supported terminals)"
+group = "Multiline"
+
+[[keys]]
+keys = "⌥↩"
+action = "Newline (Option as Meta)"
+group = "Multiline"
+
+[[keys]]
+keys = "⌃J"
+action = "Newline (no config needed)"
+group = "Multiline"
+
+# Text editing
+[[keys]]
+keys = "⌃A / ⌃E"
+action = "Line start / end"
+group = "Editing"
+
+[[keys]]
+keys = "⌃K"
+action = "Delete to end of line"
+group = "Editing"
+
+[[keys]]
+keys = "⌃U"
+action = "Delete to line start"
+group = "Editing"
+
+[[keys]]
+keys = "⌃W"
+action = "Delete back to whitespace"
+group = "Editing"
+
+[[keys]]
+keys = "⌃Y"
+action = "Paste deleted text"
+group = "Editing"
+
+[[keys]]
+keys = "⌃_"
+action = "Undo last input edit"
+group = "Editing"
+
+[[keys]]
+keys = "⌥B / ⌥F"
+action = "Word back / forward"
+group = "Editing"
+
+# Prefixes
+[[keys]]
+keys = "!"
+action = "Shell mode"
+group = "Prefixes"
+
+[[keys]]
+keys = "@"
+action = "File path mention"
+group = "Prefixes"
+
+[[keys]]
+keys = "/"
+action = "Command or skill"
+group = "Prefixes"
+
+# Transcript viewer
+[[keys]]
+keys = "{ / }"
+action = "Previous / next prompt"
+group = "Transcript viewer"
+
+[[keys]]
+keys = "["
+action = "Dump to native scrollback"
+group = "Transcript viewer"
+
+[[keys]]
+keys = "v"
+action = "Open in $EDITOR"
+group = "Transcript viewer"
+
+[[keys]]
+keys = "q"
+action = "Exit transcript"
+group = "Transcript viewer"
+
+# Slash commands
+[[keys]]
+keys = "/help"
+action = "Help and commands"
+group = "Commands"
+
+[[keys]]
+keys = "/clear"
+action = "Start a fresh conversation"
+group = "Commands"
+
+[[keys]]
+keys = "/compact"
+action = "Summarize to free context"
+group = "Commands"
+
+[[keys]]
+keys = "/context"
+action = "Visualize context usage"
+group = "Commands"
+
+[[keys]]
+keys = "/resume"
+action = "Resume a conversation"
+group = "Commands"
+
+[[keys]]
+keys = "/rewind"
+action = "Rewind conversation or code"
+group = "Commands"
+
+[[keys]]
+keys = "/model"
+action = "Switch model"
+group = "Commands"
+
+[[keys]]
+keys = "/effort"
+action = "Set effort level"
+group = "Commands"
+
+[[keys]]
+keys = "/plan"
+action = "Enter plan mode"
+group = "Commands"
+
+[[keys]]
+keys = "/btw"
+action = "Side question, no history"
+group = "Commands"
+
+[[keys]]
+keys = "/diff"
+action = "Review working-tree changes"
+group = "Commands"
+
+[[keys]]
+keys = "/copy"
+action = "Copy last response"
+group = "Commands"
+
+[[keys]]
+keys = "/usage"
+action = "Cost and plan limits"
+group = "Commands"
+
+[[keys]]
+keys = "/tasks"
+action = "Manage background work"
+group = "Commands"
+
+[[keys]]
+keys = "/memory"
+action = "Edit CLAUDE.md files"
+group = "Commands"
+
+[[keys]]
+keys = "/init"
+action = "Create a CLAUDE.md"
+group = "Commands"
+
+[[keys]]
+keys = "/permissions"
+action = "Manage tool permissions"
+group = "Commands"
+
+[[keys]]
+keys = "/mcp"
+action = "Manage MCP servers"
+group = "Commands"
+
+[[keys]]
+keys = "/config"
+action = "Open settings"
+group = "Commands"
+
+[[keys]]
+keys = "/keybindings"
+action = "Edit keyboard shortcuts"
+group = "Commands"
+
+[[keys]]
+keys = "/terminal-setup"
+action = "Install ⇧↩ newline binding"
+group = "Commands"
+
+[[keys]]
+keys = "/doctor"
+action = "Diagnose your setup"
+group = "Commands"
+
+[[tips]]
+title = "Continue where you left off"
+snippet = "claude -c"
+explain = "Loads the most recent conversation in this directory"
+tags = ["sessions"]
+
+[[tips]]
+title = "Resume a named session"
+snippet = "claude -r \"auth-refactor\" \"Finish this PR\""
+explain = "Resume by ID or name; bare -r opens a picker"
+tags = ["sessions"]
+
+[[tips]]
+title = "One-shot, non-interactive"
+snippet = "claude -p \"explain this function\""
+explain = "Prints the response and exits"
+tags = ["headless"]
+
+[[tips]]
+title = "Start in plan mode"
+snippet = "claude --permission-mode plan"
+explain = "Also accepts default, acceptEdits, auto, dontAsk, bypassPermissions"
+tags = ["permissions"]
+
+[[tips]]
+title = "Work in an isolated worktree"
+snippet = "claude -w my-feature"
+explain = "Starts in <repo>/.claude/worktrees/<name>"
+tags = ["git"]
+
+[[tips]]
+title = "Give access to another folder"
+snippet = "claude --add-dir ../shared"
+explain = "Adds a working directory Claude may read and edit"
+tags = ["folders"]
+
+[[tips]]
+title = "Pick a model at launch"
+snippet = "claude --model sonnet"
+explain = "Alias such as sonnet, opus, haiku, fable, or a full model name"
+tags = ["models"]
+
+[[tips]]
+title = "Ask without derailing"
+snippet = "/btw what was that config file called?"
+explain = "Side question that isn't added to conversation history"
+tags = ["sessions"]

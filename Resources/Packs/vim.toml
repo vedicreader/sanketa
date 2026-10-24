@@ -1,0 +1,241 @@
+# Normal-mode defaults, checked against Vim 9.2 help tags; Neovim shares them.
+id = "vim"
+name = "Vim"
+processes = ["nvim", "vim", "vi", "view", "vimdiff"]
+
+[[keys]]
+keys = "w / b / e"
+action = "Next word / back / word end"
+group = "Move"
+
+[[keys]]
+keys = "0 / ^ / $"
+action = "Line start / first char / end"
+group = "Move"
+
+[[keys]]
+keys = "gg / G"
+action = "First / last line"
+group = "Move"
+
+[[keys]]
+keys = "42G"
+action = "Go to line 42"
+group = "Move"
+
+[[keys]]
+keys = "{ / }"
+action = "Previous / next paragraph"
+group = "Move"
+
+[[keys]]
+keys = "%"
+action = "Matching bracket"
+group = "Move"
+
+[[keys]]
+keys = "f x / t x"
+action = "To / just before next x"
+group = "Move"
+
+[[keys]]
+keys = "; / ,"
+action = "Repeat f or t / backward"
+group = "Move"
+
+[[keys]]
+keys = "⌃D / ⌃U"
+action = "Half page down / up"
+group = "Move"
+
+[[keys]]
+keys = "zz"
+action = "Center the cursor line"
+group = "Move"
+
+[[keys]]
+keys = "⌃O / ⌃I"
+action = "Jump back / forward"
+group = "Move"
+
+[[keys]]
+keys = "i / a"
+action = "Insert before / after cursor"
+group = "Edit"
+
+[[keys]]
+keys = "o / O"
+action = "Open line below / above"
+group = "Edit"
+
+[[keys]]
+keys = "⎋"
+action = "Back to normal mode"
+group = "Edit"
+
+[[keys]]
+keys = "ciw"
+action = "Change the word"
+group = "Edit"
+
+[[keys]]
+keys = 'ci"'
+action = "Change inside quotes"
+group = "Edit"
+
+[[keys]]
+keys = "dd / yy / p"
+action = "Cut line / copy line / paste"
+group = "Edit"
+
+[[keys]]
+keys = "x"
+action = "Delete character"
+group = "Edit"
+
+[[keys]]
+keys = "u / ⌃R"
+action = "Undo / redo"
+group = "Edit"
+
+[[keys]]
+keys = "."
+action = "Repeat last change"
+group = "Edit"
+
+[[keys]]
+keys = ">> / <<"
+action = "Indent / unindent line"
+group = "Edit"
+
+[[keys]]
+keys = "J"
+action = "Join with next line"
+group = "Edit"
+
+[[keys]]
+keys = "~"
+action = "Toggle case"
+group = "Edit"
+
+[[keys]]
+keys = "v / V / ⌃V"
+action = "Select chars / lines / block"
+group = "Visual"
+
+[[keys]]
+keys = "gv"
+action = "Reselect last selection"
+group = "Visual"
+
+[[keys]]
+keys = "/text ↩"
+action = "Search forward"
+group = "Search"
+
+[[keys]]
+keys = "n / N"
+action = "Next / previous match"
+group = "Search"
+
+[[keys]]
+keys = "*"
+action = "Search word under cursor"
+group = "Search"
+
+[[keys]]
+keys = ":%s/old/new/gc"
+action = "Replace all, confirm each"
+group = "Search"
+
+[[keys]]
+keys = "cgn"
+action = "Change next match (. repeats)"
+group = "Search"
+
+[[keys]]
+keys = ":w / :q / :wq"
+action = "Write / quit / both"
+group = "Files & windows"
+
+[[keys]]
+keys = ":q!"
+action = "Quit without saving"
+group = "Files & windows"
+
+[[keys]]
+keys = ":e file"
+action = "Open a file"
+group = "Files & windows"
+
+[[keys]]
+keys = "gf"
+action = "Open file name under cursor"
+group = "Files & windows"
+
+[[keys]]
+keys = "⌃W s / ⌃W v"
+action = "Split horizontal / vertical"
+group = "Files & windows"
+
+[[keys]]
+keys = "⌃W w"
+action = "Next window"
+group = "Files & windows"
+
+[[keys]]
+keys = "q a … q"
+action = "Record macro into a"
+group = "Macros & marks"
+
+[[keys]]
+keys = "@a / @@"
+action = "Play macro a / again"
+group = "Macros & marks"
+
+[[keys]]
+keys = "m a / ` a"
+action = "Set mark a / jump to it"
+group = "Macros & marks"
+
+[[tips]]
+title = "Run a command on matching lines"
+snippet = ":g/TODO/d"
+explain = ":g/pattern/cmd runs cmd on every match; :v does the non-matching lines"
+tags = ["search", "editing"]
+
+[[tips]]
+title = "Filter lines through a shell command"
+snippet = ":%!sort -u"
+explain = "Replaces the buffer with the command's output; works on a visual range too"
+tags = ["shell"]
+
+[[tips]]
+title = "Insert a command's output"
+snippet = ":r !date"
+explain = "Reads the output in below the cursor"
+tags = ["shell"]
+
+[[tips]]
+title = "Type on many lines at once"
+snippet = "⌃V, move down, I, type, ⎋"
+explain = "Block insert: the text appears on every selected line after ⎋"
+tags = ["visual", "editing"]
+
+[[tips]]
+title = "Replace only inside a selection"
+snippet = ":'<,'>s/foo/bar/g"
+explain = "Press : after selecting and Vim fills in the '<,'> range"
+tags = ["search", "visual"]
+
+[[tips]]
+title = "Open two files as a diff"
+snippet = "vim -d old.txt new.txt"
+explain = "]c and [c jump between changes; do and dp pull or push one"
+tags = ["files", "diff"]
+
+[[tips]]
+title = "Start without your config"
+snippet = "vim --clean file.txt"
+explain = "Rules out your vimrc and plugins when something misbehaves"
+tags = ["config"]

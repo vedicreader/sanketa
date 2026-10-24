@@ -20,6 +20,17 @@ public struct Tip: Codable, Hashable {
     public init(title: String, snippet: String, explain: String, tags: [String] = []) {
         self.title = title; self.snippet = snippet; self.explain = explain; self.tags = tags
     }
+
+    enum CodingKeys: String, CodingKey { case title, snippet, explain, tags }
+
+    /// `explain` and `tags` may be left out; a hand- or LLM-written tip shouldn't sink its pack.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decode(String.self, forKey: .title)
+        snippet = try c.decode(String.self, forKey: .snippet)
+        explain = try c.decodeIfPresent(String.self, forKey: .explain) ?? ""
+        tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
+    }
 }
 
 public enum PackMode: String, Codable { case extend, replace }

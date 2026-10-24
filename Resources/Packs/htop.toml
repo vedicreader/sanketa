@@ -1,0 +1,231 @@
+# Keys from `man htop` (htop 3.5.2), INTERACTIVE COMMANDS. The man page drops the backslash after F4.
+id = "htop"
+name = "htop"
+processes = ["htop"]
+
+[[keys]]
+keys = "↑ / ↓"
+action = "Select process"
+group = "Move"
+
+[[keys]]
+keys = "PgUp / PgDn"
+action = "Scroll one page"
+group = "Move"
+
+[[keys]]
+keys = "Home / End"
+action = "First / last process"
+group = "Move"
+
+[[keys]]
+keys = "⇥ / ⇧⇥"
+action = "Next / previous screen tab"
+group = "Move"
+
+[[keys]]
+keys = "0–9"
+action = "Jump to a PID as you type"
+group = "Move"
+
+[[keys]]
+keys = "F3 / /"
+action = "Search command lines"
+group = "Find"
+
+[[keys]]
+keys = "⇧F3"
+action = "Previous search match"
+group = "Find"
+
+[[keys]]
+keys = "F4 / \\"
+action = "Filter: show only matches"
+group = "Find"
+
+[[keys]]
+keys = "u"
+action = "Show one user's processes"
+group = "Find"
+
+[[keys]]
+keys = "F"
+action = "Follow the selected process"
+group = "Find"
+
+[[keys]]
+keys = "F5 / t"
+action = "Tree view (toggle)"
+group = "View"
+
+[[keys]]
+keys = "+ / -"
+action = "Expand / collapse subtree"
+group = "View"
+
+[[keys]]
+keys = "*"
+action = "Expand / collapse all"
+group = "View"
+
+[[keys]]
+keys = "H"
+action = "Hide user threads"
+group = "View"
+
+[[keys]]
+keys = "K"
+action = "Hide kernel threads"
+group = "View"
+
+[[keys]]
+keys = "p"
+action = "Show full program paths"
+group = "View"
+
+[[keys]]
+keys = "m"
+action = "Merge exe, comm and cmdline"
+group = "View"
+
+[[keys]]
+keys = "w"
+action = "Full command line of process"
+group = "View"
+
+[[keys]]
+keys = "Z"
+action = "Pause / resume updates"
+group = "View"
+
+[[keys]]
+keys = "⌃L"
+action = "Redraw and refresh"
+group = "View"
+
+[[keys]]
+keys = "F6 / < / >"
+action = "Choose the sort column"
+group = "Sort"
+
+[[keys]]
+keys = "P"
+action = "Sort by CPU"
+group = "Sort"
+
+[[keys]]
+keys = "M"
+action = "Sort by memory"
+group = "Sort"
+
+[[keys]]
+keys = "T"
+action = "Sort by time"
+group = "Sort"
+
+[[keys]]
+keys = "N"
+action = "Sort by PID"
+group = "Sort"
+
+[[keys]]
+keys = "I"
+action = "Invert sort order"
+group = "Sort"
+
+[[keys]]
+keys = "Space"
+action = "Tag / untag process"
+group = "Act on processes"
+
+[[keys]]
+keys = "c"
+action = "Tag process and children"
+group = "Act on processes"
+
+[[keys]]
+keys = "U"
+action = "Untag all"
+group = "Act on processes"
+
+[[keys]]
+keys = "F9 / k"
+action = "Send a signal (kill)"
+group = "Act on processes"
+
+[[keys]]
+keys = "F7 / ]"
+action = "Raise priority (root)"
+group = "Act on processes"
+
+[[keys]]
+keys = "F8 / ["
+action = "Lower priority (nice up)"
+group = "Act on processes"
+
+[[keys]]
+keys = "l"
+action = "Open files (lsof)"
+group = "Act on processes"
+
+[[keys]]
+keys = "s"
+action = "Trace syscalls (strace, Linux)"
+group = "Act on processes"
+
+[[keys]]
+keys = "F1 / h / ?"
+action = "Help"
+group = "Setup"
+
+[[keys]]
+keys = "F2 / S"
+action = "Setup: meters, columns, colors"
+group = "Setup"
+
+[[keys]]
+keys = "F10 / q"
+action = "Quit"
+group = "Setup"
+
+[[tips]]
+title = "Watch only some processes"
+snippet = "htop -p 1234,5678"
+explain = "-p limits the list to these PIDs"
+tags = ["filter"]
+
+[[tips]]
+title = "Start filtered to one user"
+snippet = "htop -u"
+explain = "No name means you; htop -u root for another user"
+tags = ["filter"]
+
+[[tips]]
+title = "Start in tree view"
+snippet = "htop -t"
+explain = "See who started what without pressing F5"
+tags = ["view"]
+
+[[tips]]
+title = "Start sorted by memory"
+snippet = "htop -s PERCENT_MEM"
+explain = "Any column name works; htop --sort-key help lists them"
+tags = ["sort"]
+
+[[tips]]
+title = "Start filtered by several names"
+snippet = "htop -F 'python|node'"
+explain = "Like F4: fixed strings, case-insensitive, separated by |"
+tags = ["filter"]
+
+[[tips]]
+title = "Slower updates"
+snippet = "htop -d 20"
+explain = "Delay is in tenths of a second: 20 is every 2 s"
+tags = ["view"]
+
+[[tips]]
+title = "Look without touching"
+snippet = "htop --readonly"
+explain = "Disables kill and renice, safe on a shared or production box"
+tags = ["safety"]

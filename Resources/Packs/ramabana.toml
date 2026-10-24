@@ -1,0 +1,425 @@
+id = "ramabana"
+name = "ramabana"
+processes = ["ramabana", "ramabana-pane"]
+# argv match: the uv/pip shim runs as `python3 …/bin/ramabana`, and ramabana's private tmux
+# server and client carry the same path. A bare "ramabana" would also claim `nvim ~/code/ramabana/…`.
+match = ["bin/ramabana"]
+apps = []
+
+# Composer
+[[keys]]
+keys = "↩"
+action = "Send, or steer mid-turn"
+group = "Composer"
+
+[[keys]]
+keys = "⇧↩"
+action = "Queue after this turn"
+group = "Composer"
+
+[[keys]]
+keys = "⌥↑"
+action = "Take queued text back"
+group = "Composer"
+
+[[keys]]
+keys = "⇥"
+action = "Complete /commands and @paths"
+group = "Composer"
+
+[[keys]]
+keys = "⌃P / ⌃N"
+action = "Previous / next prompt"
+group = "Composer"
+
+[[keys]]
+keys = "⌃V"
+action = "Attach clipboard image"
+group = "Composer"
+
+[[keys]]
+keys = "⌃C"
+action = "Stop turn, keep composer"
+group = "Composer"
+
+[[keys]]
+keys = "⌃D"
+action = "Quit (empty line)"
+group = "Composer"
+
+[[keys]]
+keys = "⌃Z"
+action = "Suspend to shell"
+group = "Composer"
+
+# Approvals
+[[keys]]
+keys = "⇧⇥"
+action = "Cycle ask, edits, auto, plan"
+group = "Approvals"
+
+[[keys]]
+keys = "⌃G"
+action = "One step stricter"
+group = "Approvals"
+
+[[keys]]
+keys = "y"
+action = "Approve"
+group = "Approvals"
+
+[[keys]]
+keys = "n ↩"
+action = "Refuse"
+group = "Approvals"
+
+[[keys]]
+keys = "n: REASON ↩"
+action = "Refuse with a reason"
+group = "Approvals"
+
+[[keys]]
+keys = "a"
+action = "Approve all this session"
+group = "Approvals"
+
+[[keys]]
+keys = "A"
+action = "Always allow this pattern"
+group = "Approvals"
+
+[[keys]]
+keys = "⌃Y"
+action = "Approve with a note"
+group = "Approvals"
+
+# Timeline
+[[keys]]
+keys = "⌃O"
+action = "Fold the working"
+group = "Timeline"
+
+[[keys]]
+keys = "⌥O"
+action = "Fold all turns"
+group = "Timeline"
+
+[[keys]]
+keys = "⌥1…⌥9"
+action = "Drill into entry N"
+group = "Timeline"
+
+[[keys]]
+keys = "⌃T"
+action = "Show/hide the plan"
+group = "Timeline"
+
+# Transcript browser
+[[keys]]
+keys = "⌃R"
+action = "Browse transcript blocks"
+group = "Transcript"
+
+[[keys]]
+keys = "↑ / ↓"
+action = "Browse (empty composer)"
+group = "Transcript"
+
+[[keys]]
+keys = "PgUp / PgDn"
+action = "Page"
+group = "Transcript"
+
+[[keys]]
+keys = "/ or ?"
+action = "Search forward / back"
+group = "Transcript"
+
+[[keys]]
+keys = "n / N"
+action = "Next / previous match"
+group = "Transcript"
+
+[[keys]]
+keys = "g / G"
+action = "First / last block"
+group = "Transcript"
+
+[[keys]]
+keys = "y"
+action = "Copy block (OSC 52)"
+group = "Transcript"
+
+[[keys]]
+keys = "i"
+action = "Compose from transcript"
+group = "Transcript"
+
+[[keys]]
+keys = "Esc"
+action = "Leave transcript"
+group = "Transcript"
+
+# Line editing
+[[keys]]
+keys = "⌃A / ⌃E"
+action = "Line start / end"
+group = "Editing"
+
+[[keys]]
+keys = "⌃U / ⌃K"
+action = "Cut to start / end"
+group = "Editing"
+
+[[keys]]
+keys = "⌃W"
+action = "Cut word"
+group = "Editing"
+
+[[keys]]
+keys = "⌃Y"
+action = "Yank"
+group = "Editing"
+
+# Python mode
+[[keys]]
+keys = "⇧↩"
+action = "New line (python mode)"
+group = "Python"
+
+[[keys]]
+keys = "⌃C"
+action = "Interrupt the cell"
+group = "Python"
+
+# Now pane (ramabana-pane)
+[[keys]]
+keys = "j / k"
+action = "Move down / up"
+group = "Now pane"
+
+[[keys]]
+keys = "↩"
+action = "Open row"
+group = "Now pane"
+
+[[keys]]
+keys = "Space"
+action = "Toggle row"
+group = "Now pane"
+
+[[keys]]
+keys = "p"
+action = "Follow row"
+group = "Now pane"
+
+[[keys]]
+keys = "q"
+action = "Quit pane"
+group = "Now pane"
+
+# Slash commands and prefixes
+[[keys]]
+keys = "/help"
+action = "Key list"
+group = "Commands"
+
+[[keys]]
+keys = "/guide"
+action = "Getting-started guide"
+group = "Commands"
+
+[[keys]]
+keys = "/resume"
+action = "Resume a session"
+group = "Commands"
+
+[[keys]]
+keys = "/sessions"
+action = "List saved sessions"
+group = "Commands"
+
+[[keys]]
+keys = "/model NAME"
+action = "Switch model"
+group = "Commands"
+
+[[keys]]
+keys = "/models"
+action = "List reachable models"
+group = "Commands"
+
+[[keys]]
+keys = "/approve"
+action = "Set approval mode"
+group = "Commands"
+
+[[keys]]
+keys = "/planmode on"
+action = "Plan before acting"
+group = "Commands"
+
+[[keys]]
+keys = "/todo TEXT"
+action = "Add a plan item"
+group = "Commands"
+
+[[keys]]
+keys = "/compact"
+action = "Compact the context"
+group = "Commands"
+
+[[keys]]
+keys = "/cost"
+action = "Show usage"
+group = "Commands"
+
+[[keys]]
+keys = "/copy"
+action = "Copy last reply"
+group = "Commands"
+
+[[keys]]
+keys = "/rewind"
+action = "Rewind files or chat"
+group = "Commands"
+
+[[keys]]
+keys = "/pane"
+action = "Toggle the now pane"
+group = "Commands"
+
+[[keys]]
+keys = "/python"
+action = "Python prompt"
+group = "Commands"
+
+[[keys]]
+keys = "/login"
+action = "Sign in to a provider"
+group = "Commands"
+
+[[keys]]
+keys = "/config"
+action = "Settings and sources"
+group = "Commands"
+
+[[keys]]
+keys = "/root add PATH"
+action = "Open another folder"
+group = "Commands"
+
+[[keys]]
+keys = "/mouse"
+action = "Click blocks to fold"
+group = "Commands"
+
+[[keys]]
+keys = "/quit"
+action = "Leave"
+group = "Commands"
+
+[[keys]]
+keys = "!COMMAND"
+action = "Run a shell command"
+group = "Prefixes"
+
+[[keys]]
+keys = "@path"
+action = "Attach a file or folder"
+group = "Prefixes"
+
+[[keys]]
+keys = "#note TEXT"
+action = "Remember for later sessions"
+group = "Prefixes"
+
+[[tips]]
+title = "Resume the last session"
+snippet = "ramabana --resume latest"
+explain = "Reopens the newest session; bare --resume lists this folder's sessions"
+tags = ["sessions"]
+
+[[tips]]
+title = "Pick from every folder's sessions"
+snippet = "ramabana --resume --all-folders"
+explain = "Session picker across all folders, not just this one"
+tags = ["sessions"]
+
+[[tips]]
+title = "Check tmux setup"
+snippet = "ramabana --doctor"
+explain = "Checks tmux, extended keys, config and ramabana-pane"
+tags = ["tmux", "setup"]
+
+[[tips]]
+title = "Stay out of tmux"
+snippet = "ramabana --tmux off   # or RAMABANA_TMUX=off"
+explain = "Keeps the session in this terminal, without its own tmux or the now pane"
+tags = ["tmux"]
+
+[[tips]]
+title = "Work on several folders"
+snippet = "ramabana --root .,~/notes"
+explain = "Writes and reads stay inside the folders --root names"
+tags = ["folders"]
+
+[[tips]]
+title = "Pick the turn model"
+snippet = "ramabana --model sonnet   # or export RAMABANA_MODEL=sonnet"
+explain = "Flag beats env var, env var beats config.toml"
+tags = ["models"]
+
+[[tips]]
+title = "Override one job's model"
+snippet = "export RAMABANA_MODEL_SUBAGENT=claude-sonnet-5-5"
+explain = "Jobs: ONESHOT, INLINE, COMPLETION, CLASSIFY, SUMMARY, SUBAGENT"
+tags = ["models", "env"]
+
+[[tips]]
+title = "One-shot run"
+snippet = "ramabana --approve auto 'PROMPT'"
+explain = "Runs one turn and exits; ask mode would refuse every write"
+tags = ["headless"]
+
+[[tips]]
+title = "Pipe a prompt"
+snippet = "cat task.md | ramabana - --json"
+explain = "Reads the prompt from stdin; --json prints the full result"
+tags = ["headless"]
+
+[[tips]]
+title = "Start in Python mode"
+snippet = "ramabana --python"
+explain = "Protected Python prompt; /agent hands the line back"
+tags = ["python"]
+
+[[tips]]
+title = "Write the config template"
+snippet = "ramabana config init && ramabana config show"
+explain = "Every key commented beside its default, then each value's source"
+tags = ["config"]
+
+[[tips]]
+title = "Set up a provider endpoint"
+snippet = "ramabana setup"
+explain = "Asks the endpoint questions and writes a [model] table"
+tags = ["config", "models"]
+
+[[tips]]
+title = "Read outside the roots"
+snippet = "ramabana --read-outside"
+explain = "Reads reach any path; writes still need --root"
+tags = ["folders", "safety"]
+
+[[tips]]
+title = "Go offline"
+snippet = "ramabana --no-web"
+explain = "Takes the web tools away from the model"
+tags = ["safety"]
+
+[[tips]]
+title = "Quiet the bell"
+snippet = "ramabana --no-bell"
+explain = "Silences turn-end and approval bells"
+tags = ["ui"]

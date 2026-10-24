@@ -1,0 +1,125 @@
+# Small tools that do data work in pipelines. Shows while one of them is in front; otherwise find it in search.
+# Snippets run in fish and bash.
+id = "pipes"
+name = "Pipes & text tools"
+processes = ["xargs", "tee", "sort", "uniq", "cut", "tr", "column", "jq", "paste"]
+
+[[tips]]
+title = "Top values by count"
+snippet = "cut -d' ' -f1 access.log | sort | uniq -c | sort -rn | head"
+explain = "uniq -c only merges neighbours, so sort first; sort -rn ranks the counts"
+tags = ["count", "sort"]
+
+[[tips]]
+title = "Run a command per input line"
+snippet = "cat urls.txt | xargs -n 1 curl -sO"
+explain = "xargs turns lines into arguments; -n 1 gives one per run"
+tags = ["xargs"]
+
+[[tips]]
+title = "In parallel"
+snippet = "cat urls.txt | xargs -n 1 -P 4 curl -sO"
+explain = "-P 4 runs four at a time"
+tags = ["xargs", "parallel"]
+
+[[tips]]
+title = "Put the argument in the middle"
+snippet = "ls *.md | xargs -I {} cp {} backup/"
+explain = "-I {} replaces {} with each line, wherever it appears"
+tags = ["xargs", "files"]
+
+[[tips]]
+title = "Names with spaces"
+snippet = "find . -name '*.tmp' -print0 | xargs -0 rm -f"
+explain = "-print0 and -0 pass NUL-separated names, so spaces are safe"
+tags = ["xargs", "files"]
+
+[[tips]]
+title = "See output and keep a copy"
+snippet = "make 2>&1 | tee build.log"
+explain = "tee writes to the file and passes everything on; -a appends"
+tags = ["tee", "logs"]
+
+[[tips]]
+title = "Write a root-owned file"
+snippet = "echo '127.0.0.1 dev.local' | sudo tee -a /etc/hosts"
+explain = "sudo echo >> fails because the redirect isn't run as root; tee is"
+tags = ["tee", "files"]
+
+[[tips]]
+title = "Cut columns"
+snippet = "cut -d, -f2,4 data.csv"
+explain = "-d sets the separator, -f picks fields; no quoted-comma support"
+tags = ["columns", "csv"]
+
+[[tips]]
+title = "Translate or delete characters"
+snippet = "tr -d '\\r' < windows.txt > unix.txt"
+explain = "Removes CR line endings; tr ',' '\\t' would swap commas for tabs"
+tags = ["cleanup"]
+
+[[tips]]
+title = "Lowercase everything"
+snippet = "tr '[:upper:]' '[:lower:]' < names.txt"
+explain = "Character classes keep it locale-safe"
+tags = ["cleanup"]
+
+[[tips]]
+title = "Sort by a column, numerically"
+snippet = "sort -t, -k3,3 -n data.csv"
+explain = "-t separator, -k3,3 just column 3, -n numbers not text"
+tags = ["sort", "csv"]
+
+[[tips]]
+title = "Biggest folders here"
+snippet = "du -sh * | sort -h"
+explain = "-h understands K, M and G suffixes"
+tags = ["sort", "files"]
+
+[[tips]]
+title = "Unique lines and duplicates"
+snippet = "sort -u emails.txt; sort emails.txt | uniq -d"
+explain = "sort -u dedupes; uniq -d shows only lines that repeat"
+tags = ["dedupe", "sort"]
+
+[[tips]]
+title = "Lines in both files"
+snippet = "sort a.txt > a.s; sort b.txt > b.s; comm -12 a.s b.s"
+explain = "comm needs sorted input; -12 keeps only lines common to both"
+tags = ["compare"]
+
+[[tips]]
+title = "Sum a column of numbers"
+snippet = "paste -sd+ numbers.txt | bc"
+explain = "paste joins the lines with +, bc does the arithmetic"
+tags = ["math"]
+
+[[tips]]
+title = "Line counts, smallest first"
+snippet = "wc -l *.py | sort -n"
+explain = "Spot the biggest file at the bottom, next to the total"
+tags = ["count", "files"]
+
+[[tips]]
+title = "Pretty-print a table"
+snippet = "column -t -s, data.csv | less -S"
+explain = "column aligns fields; less -S scrolls sideways instead of wrapping"
+tags = ["format", "csv"]
+
+[[tips]]
+title = "Fields out of JSON"
+snippet = "curl -s https://api.github.com/repos/fish-shell/fish-shell | jq -r '.stargazers_count'"
+explain = "jq -r prints raw strings; .items[].name walks arrays"
+tags = ["json"]
+
+[[tips]]
+title = "Clipboard in and out (macOS)"
+snippet = "git diff | pbcopy; pbpaste | wc -l"
+explain = "pbcopy reads stdin into the clipboard, pbpaste writes it out"
+tags = ["macos"]
+
+[[tips]]
+title = "Watch a log for one thing"
+snippet = "tail -f app.log | grep --line-buffered ERROR | tee errors.log"
+explain = "Live filter, saved as it goes"
+tags = ["logs", "tee"]

@@ -30,6 +30,41 @@ func tempDir(_ files: [String: String]) throws -> URL {
         #expect(fish.tips[0].tags == ["loops", "files"])
     }
 
+    /// LLM-written packs often leave out tags, explain, group or command; that must not drop the pack.
+    @Test func userPackWithSparseEntriesLoads() throws {
+        let d = try tempDir(["mine.toml": """
+            id = "mine"
+            name = "Mine"
+            processes = ["mine"]
+
+            [[keys]]
+            keys = "⌃R"
+            action = "Search history"
+
+            [[tips]]
+            title = "No tags"
+            snippet = "mine --help"
+            explain = "Shows the flags"
+
+            [[tips]]
+            title = "Bare"
+            snippet = "mine run"
+            """])
+        let lib = PackLibrary.load(bundled: fixtures("bundled"), user: d)
+        #expect(lib.errors.isEmpty, "\(lib.errors)")
+        let p = try #require(lib.packs["mine"])
+        #expect(p.keys == [KeyEntry(keys: "⌃R", action: "Search history")])
+        #expect(p.tips.map(\.tags) == [[], []])
+        #expect(p.tips[1].explain == "")
+        #expect(lib.pack(process: "mine", argv: ["mine"])?.id == "mine")
+    }
+
+    @Test func tipStillNeedsTitleAndSnippet() {
+        #expect(throws: (any Error).self) {
+            try PackLibrary.decode(Data("id = \"x\"\nname = \"X\"\n[[tips]]\ntitle = \"t\"\n".utf8))
+        }
+    }
+
     @Test func decodeRejectsMissingID() {
         #expect(throws: (any Error).self) { try PackLibrary.decode(Data("name = \"X\"\n".utf8)) }
     }
@@ -60,6 +95,20 @@ func tempDir(_ files: [String: String]) throws -> URL {
         #expect(lib.pack(process: "python3", argv: ["python3", "/Users/x/.local/bin/ramabana"])?.id == "ramabana")
         #expect(lib.pack(process: "python3", argv: ["python3"])?.id == "python")
         #expect(lib.pack(process: "ruby", argv: ["ruby"]) == nil)
+    }
+
+    /// A versioned executable (`…/claude/versions/2.1.304`) is known by the name the user typed, argv[0].
+    @Test func lookupFallsBackToArgv0() throws {
+        let d = try tempDir([
+            "claude.toml": "id = \"claude\"\nname = \"Claude\"\nprocesses = [\"claude\"]\n",
+            "fish.toml": "id = \"fish\"\nname = \"fish\"\nprocesses = [\"fish\"]\n",
+        ])
+        let lib = PackLibrary.load(bundled: d, user: nil)
+        #expect(lib.pack(process: "2.1.304", argv: ["claude"])?.id == "claude")
+        #expect(lib.pack(process: "2.1.304", argv: ["/Users/x/.local/bin/claude", "-c"])?.id == "claude")
+        #expect(lib.pack(process: "fish", argv: ["-fish"])?.id == "fish")
+        #expect(lib.pack(process: "zsh", argv: ["-zsh"]) == nil)
+        #expect(lib.pack(process: "2.1.304", argv: []) == nil)
     }
 
     @Test func lookupByBundleID() throws {

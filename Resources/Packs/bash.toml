@@ -1,0 +1,235 @@
+# Keys: GNU readline defaults (`bind -P` in /bin/bash 3.2). ⌥ keys need Option as Meta in your terminal.
+# Tips run in bash 3.2 (macOS /bin/bash) unless noted.
+id = "bash"
+name = "bash"
+processes = ["bash"]
+
+[[keys]]
+keys = "⌃R"
+action = "Search history backward"
+group = "History"
+
+[[keys]]
+keys = "⌃S"
+action = "Search history forward"
+group = "History"
+
+[[keys]]
+keys = "⌃G"
+action = "Cancel the search"
+group = "History"
+
+[[keys]]
+keys = "⌥."
+action = "Insert last argument again"
+group = "History"
+
+[[keys]]
+keys = "⌃O"
+action = "Run line, then load the next"
+group = "History"
+
+[[keys]]
+keys = "⇥ ⇥"
+action = "List completions"
+group = "Completion"
+
+[[keys]]
+keys = "⌥*"
+action = "Insert every completion"
+group = "Completion"
+
+[[keys]]
+keys = "⌃X *"
+action = "Expand the glob in place"
+group = "Completion"
+
+[[keys]]
+keys = "⌃A / ⌃E"
+action = "Start / end of line"
+group = "Editing"
+
+[[keys]]
+keys = "⌥B / ⌥F"
+action = "Word back / forward"
+group = "Editing"
+
+[[keys]]
+keys = "⌃U / ⌃K"
+action = "Cut to start / to end"
+group = "Editing"
+
+[[keys]]
+keys = "⌃W"
+action = "Cut word before cursor"
+group = "Editing"
+
+[[keys]]
+keys = "⌥D"
+action = "Cut word after cursor"
+group = "Editing"
+
+[[keys]]
+keys = "⌃Y / ⌥Y"
+action = "Paste cut text / cycle older"
+group = "Editing"
+
+[[keys]]
+keys = "⌃_"
+action = "Undo"
+group = "Editing"
+
+[[keys]]
+keys = "⌃T / ⌥T"
+action = "Swap chars / swap words"
+group = "Editing"
+
+[[keys]]
+keys = "⌥U / ⌥L / ⌥C"
+action = "Upper / lower / capitalize word"
+group = "Editing"
+
+[[keys]]
+keys = "⌃X ⌃E"
+action = "Edit the line in $EDITOR"
+group = "Command line"
+
+[[keys]]
+keys = "⌥#"
+action = "Comment out and keep in history"
+group = "Command line"
+
+[[keys]]
+keys = "⌃L"
+action = "Clear the screen"
+group = "Command line"
+
+[[keys]]
+keys = "⌃C"
+action = "Abandon the line"
+group = "Command line"
+
+[[keys]]
+keys = "⌃Z"
+action = "Suspend the job (fg resumes)"
+group = "Command line"
+
+[[tips]]
+title = "Strict mode for scripts"
+snippet = "#!/usr/bin/env bash\nset -euo pipefail"
+explain = "-e stops on errors, -u on unset variables, pipefail if any pipe stage fails"
+tags = ["scripting", "safety"]
+
+[[tips]]
+title = "Loop over files"
+snippet = "for f in *.log; do gzip \"$f\"; done"
+explain = "Quote \"$f\" so names with spaces stay one argument"
+tags = ["loops", "files"]
+
+[[tips]]
+title = "Loop over a range"
+snippet = "for i in {1..5}; do echo \"run $i\"; done; for ((i = 0; i < 3; i++)); do echo $i; done"
+explain = "Brace ranges for fixed counts, C-style for computed ones"
+tags = ["loops"]
+
+[[tips]]
+title = "Read a file line by line"
+snippet = "while IFS= read -r line; do echo \"[$line]\"; done < input.txt"
+explain = "IFS= keeps leading spaces, -r keeps backslashes"
+tags = ["loops", "files"]
+
+[[tips]]
+title = "Loop over find results safely"
+snippet = "find . -name '*.tmp' -print0 | while IFS= read -r -d '' f; do echo \"$f\"; done"
+explain = "NUL separators survive spaces and newlines in file names"
+tags = ["loops", "files"]
+
+[[tips]]
+title = "Tests with [[ ]]"
+snippet = "if [[ -f \"$f\" && $f == *.csv ]]; then echo csv; elif [[ -d $f ]]; then echo dir; fi"
+explain = "[[ ]] allows && and globs on the right of ==; no word splitting inside"
+tags = ["conditions"]
+
+[[tips]]
+title = "Regex match and capture"
+snippet = "v=v4.8; if [[ $v =~ ^v([0-9]+)\\.([0-9]+)$ ]]; then echo \"${BASH_REMATCH[1]}\"; fi"
+explain = "Leave the regex unquoted; groups land in BASH_REMATCH"
+tags = ["conditions", "regex"]
+
+[[tips]]
+title = "Default and required values"
+snippet = "name=${1:-world}; out=${OUT:?set OUT first}; echo \"$name $out\""
+explain = ":- substitutes a default, :? aborts with a message when unset or empty"
+tags = ["variables", "expansion"]
+
+[[tips]]
+title = "Trim prefixes and suffixes"
+snippet = "f=photo.tar.gz; echo \"${f%.gz}\" \"${f%%.*}\" \"${f#*.}\" \"${f##*.}\""
+explain = "photo.tar, photo, tar.gz, gz: % cuts the end, # the start, doubled is greedy"
+tags = ["expansion", "strings"]
+
+[[tips]]
+title = "Replace inside a variable"
+snippet = "p=/usr/local/bin; echo \"${p//\\//:}\" \"${#p}\""
+explain = "${var//old/new} replaces every match, ${#var} is the length"
+tags = ["expansion", "strings"]
+
+[[tips]]
+title = "Command substitution"
+snippet = "today=$(date +%F); mkdir -p \"backup-$today\""
+explain = "$(cmd) nests cleanly, unlike backticks"
+tags = ["substitution"]
+
+[[tips]]
+title = "Integer arithmetic"
+snippet = "n=0; n=$((n + 1)); echo $((17 / 4)) $((17 % 4))"
+explain = "Integers only: 4 and 1; use bc or awk for decimals"
+tags = ["math"]
+
+[[tips]]
+title = "Arrays"
+snippet = "files=(*.txt); echo \"${#files[@]} files, first ${files[0]}\"; for f in \"${files[@]}\"; do wc -l \"$f\"; done"
+explain = "Quote \"${arr[@]}\" to keep each element whole"
+tags = ["arrays"]
+
+[[tips]]
+title = "Pass arguments through intact"
+snippet = "for arg in \"$@\"; do echo \"[$arg]\"; done"
+explain = "\"$@\" keeps each argument separate; $* glues them together"
+tags = ["scripting"]
+
+[[tips]]
+title = "Functions with local variables"
+snippet = "greet() { local who=${1:-you}; echo \"hi $who\"; }; greet Ann"
+explain = "local keeps the variable from leaking into the caller"
+tags = ["functions"]
+
+[[tips]]
+title = "Clean up on exit"
+snippet = "tmp=$(mktemp -d); trap 'rm -rf \"$tmp\"' EXIT"
+explain = "The trap runs however the script ends, errors included"
+tags = ["scripting", "safety"]
+
+[[tips]]
+title = "case for subcommands"
+snippet = "case \"$1\" in start) echo go ;; stop) echo halt ;; *) echo \"usage: $0 start|stop\" ;; esac"
+explain = "Patterns are globs; *) catches the rest"
+tags = ["conditions", "scripting"]
+
+[[tips]]
+title = "Write a file with a heredoc"
+snippet = "cat > app.ini <<'EOF'\n[server]\nport = $PORT stays literal\nEOF"
+explain = "Quoting 'EOF' stops expansion; drop the quotes to expand variables"
+tags = ["files"]
+
+[[tips]]
+title = "Send output and errors to a file"
+snippet = "make > build.log 2>&1"
+explain = "Order matters: 2>&1 after the file sends stderr there too"
+tags = ["redirection"]
+
+[[tips]]
+title = "Rerun with sudo, reuse the last argument"
+snippet = "sudo !!\ncd !$"
+explain = "!! is the last command, !$ its last argument (interactive history expansion)"
+tags = ["history"]
