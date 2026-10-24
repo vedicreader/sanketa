@@ -48,12 +48,8 @@ ifneq (file,$(origin ZIP))
 $(error publish uses its own zip name. Do not set ZIP)
 endif
 endif
-# make -n still runs recipe lines that hold $(MAKE); release and publish notarize and upload, so they refuse -n
-ifneq (,$(filter release publish,$(MAKECMDGOALS)))
-ifneq (,$(findstring n,$(firstword -$(MAKEFLAGS))))
-$(error release and publish do not run with -n)
-endif
-endif
+# release and publish notarize and upload, so they refuse make -n and its other forms
+include $(dir $(lastword $(MAKEFILE_LIST)))mk/no-dry-run.mk
 
 # FILTER=<name> runs only the tests whose names match (letters, digits and _ . / - only)
 test:

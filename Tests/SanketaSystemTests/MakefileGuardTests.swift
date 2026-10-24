@@ -32,7 +32,7 @@ import Testing
                      ["zip", "ZIP=x;touch \(marker.path)"],
                      // the xcodebuild paths go into recipes as text, so they are checked too
                      ["bundle", "XCODE_DATA=x;touch \(marker.path)"], ["test-mlx", "XCODE_DATA=$(shell touch \(marker.path))"],
-                     ["bundle", "XCODE_DATA=`id`"], ["verify", "APP=x;id"], ["bundle", "XCODE_DATA=-x"], ["publish", "STABLE_ZIP=x;touch \(marker.path)"]] {
+                     ["bundle", "XCODE_DATA=`id`"], ["verify", "APP=x;id"], ["bundle", "XCODE_DATA=-x"], ["zip", "STABLE_ZIP=x;touch \(marker.path)"]] {
             let r = try make(args)
             #expect(r.status == 2, "\(args)")
             #expect(r.err.contains("is not safe") || r.err.contains("must not start with -"), "\(args): \(r.err)")
@@ -41,17 +41,49 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: marker.path))
     }
 
-    /// make -n still runs recipe lines that hold $(MAKE), so release and publish stop while make reads the file,
-    /// before any recipe (codesign, notarize.sh, gh) can start.
-    @Test func releaseAndPublishRefuseDryRun() throws {
-        for goal in ["release", "publish"] {
-            let r = try make([goal])
-            #expect(r.status == 2, "\(goal)")
-            #expect(r.err.contains("release and publish do not run with -n"), "\(goal): \(r.err)")
-            #expect(r.out.isEmpty, "\(goal): \(r.out)")
+    /// Runs /usr/bin/make on a temp makefile that includes mk/no-dry-run.mk and has a harmless `release` target, so
+    /// no case can reach the real release recipe (codesign, notarize.sh, gh).
+    func guardMake(_ args: [String], makeflags: String? = nil) throws -> (status: Int32, out: String, err: String) {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-ndr-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let guardFile = Self.repo.appendingPathComponent("mk/no-dry-run.mk").path
+        try "include \(guardFile)\n$(info MAKEFLAGS=[$(MAKEFLAGS)])\nrelease:\n\t@echo ran\n".write(
+            to: dir.appendingPathComponent("Makefile"), atomically: true, encoding: .utf8)
+        let p = Process(), out = Pipe(), err = Pipe()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/make")
+        p.arguments = ["-C", dir.path] + args + ["release"]
+        var env = ProcessInfo.processInfo.environment.filter { !["MAKEFLAGS", "MFLAGS", "MAKELEVEL"].contains($0.key) }
+        env["MAKEFLAGS"] = makeflags
+        p.environment = env
+        p.standardOutput = out; p.standardError = err
+        try p.run()
+        let o = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        let e = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        p.waitUntilExit()
+        return (p.terminationStatus, o, e)
+    }
+
+    @Test func dryRunGuardRefusesEveryForm() throws {
+        let cases: [[String]] = [["-n"], ["--dry-run"], ["--just-print"], ["--recon"], ["-nB"], ["-k", "-n"], ["-kn"],
+                                 ["-n", "-j4"], ["-j4", "-n"], ["-n", "--no-print-directory"], ["--dry-run", "--no-print-directory"],
+                                 ["--warn-undefined-variables", "-n"]]
+        for args in cases {
+            let r = try guardMake(args)
+            #expect(r.status == 2 && r.err.contains("release and publish do not run with -n"), "\(args): \(r.out) \(r.err)")
+            #expect(!r.out.contains("ran"), "\(args): \(r.out)")
         }
-        let r = try make(["publish", "ZIP=dist/other.zip"])
-        #expect(r.status == 2 && r.err.contains("Do not set ZIP") && r.out.isEmpty, "\(r.err)")
+        for flags in ["n", "-n", "--dry-run", "--dry-run --no-print-directory"] {
+            let r = try guardMake([], makeflags: flags)
+            #expect(r.status == 2 && r.err.contains("release and publish do not run with -n"), "MAKEFLAGS=\(flags): \(r.out) \(r.err)")
+            #expect(!r.out.contains("ran"), "MAKEFLAGS=\(flags): \(r.out)")
+        }
+    }
+
+    @Test func dryRunGuardLetsRealRunsThrough() throws {
+        for args in [["-k"], ["-j4"], ["--no-print-directory"], []] {
+            let r = try guardMake(args)
+            #expect(r.status == 0 && r.out.contains("ran"), "\(args): \(r.out) \(r.err)")
+        }
     }
 
     /// VERSION feeds the ZIP default, so it is checked before anything expands it.
