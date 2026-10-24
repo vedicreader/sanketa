@@ -22,7 +22,7 @@ Get the latest zip from [the releases page](https://github.com/vedicreader/sanke
 4. If macOS blocks it, right-click `Sanketa.app` and select Open. If macOS still blocks it, go to System Settings, then Privacy & Security, and click Open Anyway.
 5. Allow Accessibility. The next section gives the steps.
 
-A release that is not notarized says so in its notes. macOS blocks such a release at the first start.
+Each release has a Developer ID signature, and Apple notarized it.
 
 ## Build from source
 
@@ -206,15 +206,9 @@ make release NOTARY_PROFILE=sanketa-notary
 
 Without credentials, the zip has a signature, but Gatekeeper rejects it. After notarization, `make gatekeeper` shows "accepted, source=Notarized Developer ID".
 
-The GitHub Actions job builds and tests each push to main and each pull request. It uploads an ad-hoc bundle as `Sanketa-<sha>.zip`. When you push a tag such as `v0.1.0`, it attaches a zip to a GitHub release. To sign and notarize that zip, add these repository secrets:
+Releases are signed and notarized only on the maintainer's Mac. GitHub has no signing keys or notary keys. To publish a release, run `make publish`. It runs `make release`. Then it uses `gh release create` to make the release `v<version>` with the notarized zip. This also pushes the tag.
 
-- `MACOS_CERT_P12_BASE64`: your Developer ID Application certificate and its private key, exported as a .p12 file, in base64.
-- `MACOS_CERT_PASSWORD`: the password of the .p12 file.
-- `NOTARY_KEY_ID`: the key id of an App Store Connect API key.
-- `NOTARY_ISSUER_ID`: the issuer id of that key.
-- `NOTARY_KEY_P8_BASE64`: the .p8 file of that key, in base64.
-
-To make the base64 text, use `base64 -i file.p12 | pbcopy`. If a secret is missing, the job attaches an ad-hoc zip, and the release notes say "Not notarized".
+The GitHub Actions job builds and tests each push to main and each pull request. It uploads a bundle with an ad-hoc signature as `Sanketa-<sha>.zip`. The job does not make or change a release.
 
 The code has three libraries and the app:
 

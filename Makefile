@@ -5,7 +5,7 @@ INSTALL_DIR ?= $(HOME)/Applications
 VERSION := $(shell /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
 ZIP ?= dist/Sanketa-$(VERSION).zip
 
-.PHONY: test bundle app release zip run install verify gatekeeper remote-setup
+.PHONY: test bundle app release zip publish run install verify gatekeeper remote-setup
 
 test:
 	swift test
@@ -34,6 +34,15 @@ release: bundle
 	if [ $$s -eq 3 ]; then echo "$(ZIP) has a Developer ID signature but no notarization. To notarize, write ~/.config/sanketa/notary.json with key_id, issuer_id and key_path, or run 'xcrun notarytool store-credentials sanketa-notary --apple-id <id> --team-id 7632NRC559' and then 'make release NOTARY_PROFILE=sanketa-notary'."; \
 	elif [ $$s -ne 0 ]; then exit $$s; \
 	else xcrun stapler staple $(APP) && $(MAKE) zip; fi
+
+NOTES := dist/notes-$(VERSION).md
+
+# makes the GitHub release v$(VERSION) with the notarized zip and pushes its tag
+publish: release
+	printf '%s\n\n%s\n\n%s\n' "Sanketa $(VERSION) for macOS 26 on Apple Silicon. The app has a Developer ID signature, and Apple notarized it." \
+		"To install it, unzip the file and move Sanketa.app to Applications. Then open it and allow Accessibility." \
+		"Sanketa needs only the Accessibility permission. It does not monitor input, and it does not use the network." > $(NOTES)
+	gh release create v$(VERSION) $(ZIP) --title "Sanketa $(VERSION)" --notes-file $(NOTES)
 
 # an old zip goes to /tmp/sanketa-trash, because rm is not allowed here
 zip:

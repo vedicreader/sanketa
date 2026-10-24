@@ -3,7 +3,6 @@ name: build
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
 
 permissions:
@@ -31,64 +30,3 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: macos-26
-    permissions:
-      contents: write
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
-      MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
-      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-      NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
-      NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
-      NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: secrets
-        run: |
-          if [ -n "$MACOS_CERT_P12_BASE64" ] && [ -n "$MACOS_CERT_PASSWORD" ] && [ -n "$NOTARY_KEY_ID" ] \
-             && [ -n "$NOTARY_ISSUER_ID" ] && [ -n "$NOTARY_KEY_P8_BASE64" ]; then
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "zip=dist/Sanketa-${GITHUB_REF_NAME#v}.zip" >> "$GITHUB_OUTPUT"
-      - name: Import the Developer ID certificate into a temporary keychain
-        if: steps.secrets.outputs.signed == 'true'
-        run: |
-          KC="$RUNNER_TEMP/sanketa.keychain-db"
-          KCPW="$(uuidgen)"
-          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security create-keychain -p "$KCPW" "$KC"
-          security set-keychain-settings -lut 21600 "$KC"
-          security unlock-keychain -p "$KCPW" "$KC"
-          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KCPW" "$KC"
-          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
-          echo "$NOTARY_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
-      - name: Sign, notarize and staple
-        if: steps.secrets.outputs.signed == 'true'
-        run: >
-          NOTARY_KEY_PATH="$RUNNER_TEMP/AuthKey.p8" NOTARY_ISSUER="$NOTARY_ISSUER_ID"
-          make release ZIP="${{ steps.secrets.outputs.zip }}"
-      - name: Ad-hoc bundle
-        if: steps.secrets.outputs.signed != 'true'
-        run: |
-          make app SIGN_ID=-
-          make zip ZIP="${{ steps.secrets.outputs.zip }}"
-      - name: Create the GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SIGNED: ${{ steps.secrets.outputs.signed }}
-        run: |
-          if [ "$SIGNED" = true ]; then
-            NOTES="Signed with Developer ID and notarized by Apple."
-          else
-            NOTES="Not notarized. This build has an ad-hoc signature. macOS blocks it at the first start. To open it, go to System Settings, Privacy & Security, and click Open Anyway."
-          fi
-          gh release create "$GITHUB_REF_NAME" "${{ steps.secrets.outputs.zip }}" --title "Sanketa $GITHUB_REF_NAME" --notes "$NOTES"
-      - name: Remove the temporary keychain
-        if: always() && steps.secrets.outputs.signed == 'true'
-        run: security delete-keychain "$RUNNER_TEMP/sanketa.keychain-db" || true
