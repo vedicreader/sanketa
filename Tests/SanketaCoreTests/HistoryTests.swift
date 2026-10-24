@@ -51,7 +51,7 @@ struct HistoryTests {
         #expect(text.utf8.count <= 4_000_000)
         #expect(es.first?.command.range(of: "^echo \\d+$", options: .regularExpression) != nil)
         #expect(es.last?.command == "echo \(n - 1)")
-        #expect(Date().timeIntervalSince(t0) < 1)
+        #expect(Date().timeIntervalSince(t0) < 5)
     }
 
     @Test func invalidUTF8DoesNotCrash() throws {

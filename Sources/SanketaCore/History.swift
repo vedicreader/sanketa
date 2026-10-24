@@ -95,6 +95,7 @@ public final class HistoryCache: @unchecked Sendable {
 
     public func entries(fish: URL?, bash: URL?, maxEntries: Int) -> [HistoryEntry] {
         lock.lock(); defer { lock.unlock() }
+        slots = slots.filter { $0.key == fish || $0.key == bash }
         let all = [(fish, Shell.fish), (bash, .bash)].flatMap { u, s in u.map { Array(read($0, s).suffix(max(0, maxEntries))) } ?? [] }
         if all != last { last = all; gen += 1 }
         return all
