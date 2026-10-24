@@ -33,6 +33,7 @@ import Testing
         #expect(try fishTitle(["TMUX=x"], "fish_title htop") == RemoteTag(host: host, layers: ["fish", "tmux", "htop"]))
         #expect(try fishTitle([], "fish_title '/usr/bin/nv:top -d 1'") == RemoteTag(host: host, layers: ["fish", "nv_top"]))
         #expect(try fishTitle([], "fish_title fish") == RemoteTag(host: host, layers: ["fish"]))
+        #expect(try fishTitle([], "fish_title 'FOO=1 BAR=2 make -j4'") == RemoteTag(host: host, layers: ["fish", "make"]))
         // sourcing twice keeps the original default title instead of recursing into itself
         let out = try #require(run([], [fish, "--no-config", "-c",
             "source \(Self.scripts)/remote/sanketa.fish; source \(Self.scripts)/remote/sanketa.fish; fish_title vim"]))
@@ -45,18 +46,19 @@ import Testing
         out.components(separatedBy: "\u{1b}]0;").dropFirst().compactMap { $0.components(separatedBy: "\u{07}").first }
     }
 
-    func bash(_ env: [String], _ script: String, interactive: Bool = false) throws -> String {
+    func bash(_ env: [String], _ script: String, interactive: Bool = false, before: String = "") throws -> String {
         try #require(run(env, ["/bin/bash", "--noprofile", "--norc"] + (interactive ? ["-i"] : [])
-            + ["-c", "source \(Self.scripts)/remote/sanketa.bash; \(script)"]))
+            + ["-c", "\(before) source \(Self.scripts)/remote/sanketa.bash; \(script)"]))
     }
 
     @Test func bashTitleTag() throws {
         let plain = titles(try bash([], "__sanketa_prompt"))
         #expect(plain.map { RemoteTag.parse($0).tag } == [RemoteTag(host: host, layers: ["bash"])])
-        let tm = titles(try bash(["TMUX=x"], "__sanketa_prompt; __sanketa_title 'htop -d 1'; __sanketa_title 'a:b'"))
+        let tm = titles(try bash(["TMUX=x"], "__sanketa_prompt; __sanketa_title 'htop -d 1'; __sanketa_title 'a:b'; __sanketa_title 'FOO=1 make'"))
         #expect(tm.map { RemoteTag.parse($0).tag } == [RemoteTag(host: host, layers: ["bash", "tmux"]),
                                                        RemoteTag(host: host, layers: ["bash", "tmux", "htop"]),
-                                                       RemoteTag(host: host, layers: ["bash", "tmux", "a_b"])])
+                                                       RemoteTag(host: host, layers: ["bash", "tmux", "a_b"]),
+                                                       RemoteTag(host: host, layers: ["bash", "tmux", "make"])])
         #expect(RemoteTag.parse(tm[1]).rest == "htop -d 1")
     }
 
@@ -64,11 +66,38 @@ import Testing
     @Test func bashHooks() throws {
         let quiet = try bash([], "__sanketa_debug; /usr/bin/true; echo \"pc=$PROMPT_COMMAND trap=$(trap -p DEBUG)\"")
         #expect(quiet == "pc= trap=\n")
-        let out = try bash([], "source \(Self.scripts)/remote/sanketa.bash; echo \"pc=$PROMPT_COMMAND\"; __sanketa_prompt; /usr/bin/true x; :",
-                           interactive: true)
-        #expect(out.hasPrefix("pc=__sanketa_prompt\n"))
+        // `eval "$PROMPT_COMMAND"` stands in for bash drawing a prompt
+        let out = try bash([], """
+            source \(Self.scripts)/remote/sanketa.bash; echo "pc=$PROMPT_COMMAND"; eval "$PROMPT_COMMAND"; FOO=1 BAR=2 /usr/bin/true x
+            """, interactive: true)
+        #expect(out.hasPrefix("pc=eval \"$__sanketa_on_prompt\"\n"))
         #expect(titles(out).map { RemoteTag.parse($0).tag } == [RemoteTag(host: host, layers: ["bash"]),
                                                                 RemoteTag(host: host, layers: ["bash", "true"])])
+    }
+
+    /// a DEBUG trap the user (or a terminal's shell integration) set first keeps firing, with the command's $?
+    @Test func bashChainsExistingDebugTrap() throws {
+        let out = try #require(run([], ["/bin/bash", "--noprofile", "--norc", "-i", "-c", """
+            trap 'echo "user-trap[$?] $BASH_COMMAND"' DEBUG
+            source \(Self.scripts)/remote/sanketa.bash
+            eval "$PROMPT_COMMAND"
+            /usr/bin/false
+            /usr/bin/true y
+            echo "trap=$(trap -p DEBUG)"
+            """]))
+        #expect(out.contains("user-trap[0] /usr/bin/false\n"))
+        #expect(out.contains("user-trap[1] /usr/bin/true y\n"))
+        #expect(out.contains("trap=trap -- '__sanketa_debug' DEBUG\n"))
+        #expect(titles(out).compactMap { RemoteTag.parse($0).tag?.layers } == [["bash"], ["bash", "false"]])
+    }
+
+    /// with bash-preexec loaded, the snippet joins its hook arrays and leaves the DEBUG trap alone
+    @Test func bashJoinsBashPreexec() throws {
+        let out = try bash([], """
+            echo "pc=$PROMPT_COMMAND trap=$(trap -p DEBUG) pre=${preexec_functions[*]} cmd=${precmd_functions[*]}"; __sanketa_preexec 'FOO=1 make -j4'
+            """, interactive: true, before: "bash_preexec_imported=defined; preexec_functions=(x); precmd_functions=(y);")
+        #expect(out.hasPrefix("pc= trap= pre=x __sanketa_preexec cmd=y __sanketa_prompt"))
+        #expect(titles(out).map { RemoteTag.parse($0).tag } == [RemoteTag(host: host, layers: ["bash", "make"])])
     }
 
     @Test func remoteSetupLocalHomeIsIdempotent() throws {
@@ -102,7 +131,7 @@ import Testing
         let ft = try #require(run(["HOME=\(home.path)"], [fish, "-c", "fish_title"]))
         #expect(RemoteTag.parse(ft).tag == RemoteTag(host: host, layers: ["fish"]))
         let pc = try #require(run(["HOME=\(home.path)"], ["/bin/bash", "--noprofile", "-i", "-c", "echo \"pc=$PROMPT_COMMAND\""]))
-        #expect(pc == "pc=__sanketa_prompt\n")
+        #expect(pc == "pc=eval \"$__sanketa_on_prompt\"\n")
         let sock = "sanketa-test-\(ProcessInfo.processInfo.processIdentifier)-setup"
         defer { _ = r.run(tmuxBin, ["-L", sock, "kill-server"], timeout: 3) }
         _ = try #require(run(["HOME=\(home.path)"], [tmuxBin, "-L", sock, "-f", tmuxConf.path, "new", "-d", "-s", "s"]))
@@ -110,6 +139,14 @@ import Testing
             .trimmingCharacters(in: .whitespacesAndNewlines) }
         #expect(opt("set-titles") == "on" && opt("set-titles-string") == "#{pane_title}" && opt("allow-rename") == "on")
         #expect(opt("mouse") == "on")
+    }
+
+    /// `--install-here` run by hand (here: against a temp HOME) refuses and writes nothing
+    @Test func installHereRefusesWithoutSetupInvocation() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-home-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        #expect(run(["HOME=\(home.path)"], ["/bin/sh", "\(Self.scripts)/remote-setup.sh", "--install-here"]) == nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: home.path).isEmpty)
     }
 
     @Test func remoteSetupWithoutHostPrintsUsage() throws {

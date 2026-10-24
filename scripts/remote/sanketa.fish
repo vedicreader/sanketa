@@ -7,13 +7,16 @@ function fish_title
     set -q TMUX; and set -a layers tmux
     # fish passes an override for the running command as $argv[1] (e.g. from `fg`)
     set -l cmd (status current-command)
-    set -q argv[1]; and set cmd (string split -f1 ' ' -- (string trim -- $argv[1]))
+    if set -q argv[1]
+        # first word that isn't a leading VAR=value assignment (fish 3.0-compatible)
+        set -l words (string match -rv '^[A-Za-z_][A-Za-z0-9_]*=' -- (string split ' ' -- (string trim -- $argv[1])))
+        set cmd $words[1]
+    end
     set cmd (string replace -r '.*/' '' -- $cmd)
     if test -n "$cmd"; and test "$cmd" != fish
         set -a layers (string replace -ra '[^A-Za-z0-9._+-]' _ -- $cmd | string sub -l 32)
     end
-    set -l host (hostname -s 2>/dev/null; or uname -n)
-    set host (string replace -ra '[^A-Za-z0-9._-]' _ -- $host[1] | string sub -l 64)
+    set -l host (string replace -r '\..*' '' -- $hostname | string replace -ra '[^A-Za-z0-9._-]' _ | string sub -l 64)
     printf '⟦sanketa host=%s layers=%s⟧ ' $host (string join , -- $layers)
     __sanketa_default_title $argv
 end

@@ -7,7 +7,12 @@ set -eu
 marker='# sanketa remote layers'
 
 # --install-here: hook up the copied files in this machine's $HOME (runs on HOST via `ssh HOST sh -s`)
+# The env var is set only by the two invocations below, so running this by hand can't edit the Mac's own ~/.bashrc.
 if [ "${1-}" = --install-here ]; then
+    if [ "${SANKETA_INSTALL_HERE-}" != 1 ]; then
+        echo "remote-setup.sh: --install-here is internal; run: $0 HOST" >&2
+        exit 2
+    fi
     r=.config/sanketa/remote
     cd "$HOME"
     mkdir -p .config/fish/conf.d
@@ -26,7 +31,8 @@ if [ "${1-}" = --install-here ]; then
         fi
     }
     append .bashrc "[ -f ~/$r/sanketa.bash ] && . ~/$r/sanketa.bash"
-    append .tmux.conf "source-file -q ~/$r/tmux.conf"
+    # if-shell rather than `source-file -q`, which needs tmux 3.0
+    append .tmux.conf "if-shell 'test -f ~/$r/tmux.conf' 'source-file ~/$r/tmux.conf'"
     echo "open a new shell; in a running tmux: tmux source-file ~/.tmux.conf"
     exit 0
 fi
@@ -42,10 +48,10 @@ if [ -n "${SANKETA_SETUP_LOCAL_HOME-}" ]; then
     mkdir -p "$SANKETA_SETUP_LOCAL_HOME/.config/sanketa/remote"
     cp "$src/sanketa.fish" "$src/sanketa.bash" "$src/tmux.conf" "$SANKETA_SETUP_LOCAL_HOME/.config/sanketa/remote/"
     echo "copied     ~/.config/sanketa/remote/{sanketa.fish,sanketa.bash,tmux.conf} (local test home)"
-    HOME=$SANKETA_SETUP_LOCAL_HOME sh "$0" --install-here
+    HOME=$SANKETA_SETUP_LOCAL_HOME SANKETA_INSTALL_HERE=1 sh "$0" --install-here
 else
     ssh "$host" 'mkdir -p ~/.config/sanketa/remote'
     scp -q "$src/sanketa.fish" "$src/sanketa.bash" "$src/tmux.conf" "$host:.config/sanketa/remote/"
     echo "copied     $host:~/.config/sanketa/remote/{sanketa.fish,sanketa.bash,tmux.conf}"
-    ssh "$host" sh -s -- --install-here < "$0"
+    ssh "$host" env SANKETA_INSTALL_HERE=1 sh -s -- --install-here < "$0"
 fi

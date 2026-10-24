@@ -67,7 +67,8 @@ public struct RemoteQuery: RemoteQuerying {
 
     public func paneCommand(sshArgv: [String]) -> String? {
         guard let a = SSHArgs.parse(sshArgv) else { return nil }
-        let base = ["-o", "BatchMode=yes"] + a.options
+        // never prompt, and never start a master or a fresh connection if the old master died after the check
+        let base = ["-o", "BatchMode=yes", "-o", "ControlMaster=no", "-o", "ControlPersist=no"] + a.options
         return cache.get(base + [a.destination], ttl: cacheSeconds) {
             guard runner.run(Self.ssh, base + ["-O", "check", a.destination], timeout: 1) != nil else { return nil }
             // ssh joins arguments into a remote shell line, where an unquoted `#` would start a comment

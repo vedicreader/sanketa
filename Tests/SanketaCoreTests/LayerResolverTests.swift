@@ -173,6 +173,33 @@ func titled(_ t: String?) -> TerminalContext {
         #expect(r.chooseTTY(s, terminalPID: 100, title: "nvim-ish") == nil)
     }
 
+    @Test func chooseTTYNoSubstringGuess() {
+        let s = ProcessSnapshot([
+            proc(100, 1, "Conterm"),
+            proc(200, 100, "fish", tty: "ttys001", fg: false),
+            proc(201, 200, "vi", tty: "ttys001"),
+            proc(300, 100, "fish", tty: "ttys002"),
+        ])
+        let r = LayerResolver(library: lib([]), tmux: FakeTmux(), remote: nil)
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "nvim-ish") == nil)
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "vi notes.md") == "ttys001")
+    }
+
+    /// a display name only counts as a whole word: `claude` inside `claudes-notes` picks nothing
+    @Test func chooseTTYDisplayNameNeedsWholeWord() {
+        let s = ProcessSnapshot([
+            proc(100, 1, "Conterm"),
+            proc(200, 100, "fish", tty: "ttys001", fg: false),
+            proc(201, 200, "2.1.304", tty: "ttys001", argv: ["claude"]),
+            proc(300, 100, "fish", tty: "ttys002", fg: false),
+            proc(301, 300, "top", tty: "ttys002"),
+        ])
+        let r = LayerResolver(library: lib([]), tmux: FakeTmux(), remote: nil)
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "claudes-notes") == nil)
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "desktop") == nil)   // `top` inside a word
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "✳ Claude Code") == "ttys001")
+    }
+
     @Test func foregroundProgramWithoutPackIsALayer() {
         func top(_ name: String, _ argv: [String]) -> Layer? {
             let s = ProcessSnapshot([

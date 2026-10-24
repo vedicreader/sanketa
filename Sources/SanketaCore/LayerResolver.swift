@@ -10,22 +10,18 @@ public struct LayerResolver {
         self.library = library; self.tmux = tmux; self.remote = remote
     }
 
-    /// The tty the user is looking at. With several tabs, only a unique window-title match on the foreground
-    /// process's name or display name picks one, whole words first; otherwise nil, because a guessed layer is
-    /// worse than fewer layers.
+    /// The tty the user is looking at. With several tabs, only a unique window-title match picks one: a whole
+    /// title word equal to the foreground process's name or display name (`vi` doesn't match `nvim-ish`).
+    /// Otherwise nil, because a guessed layer is worse than fewer layers.
     public func chooseTTY(_ s: ProcessSnapshot, terminalPID: Int32, title: String?) -> String? {
         let ttys = s.ttys(under: terminalPID)
         if ttys.count <= 1 { return ttys.first }
         guard let rest = title.map({ RemoteTag.parse($0).rest }) else { return nil }
-        let words = Set(rest.split { !($0.isLetter || $0.isNumber || "._+-".contains($0)) }.map(String.init))
-        func names(_ t: String) -> [String] {
-            s.foreground(tty: t).map { [$0.name, Self.displayName($0.name, argv: $0.argv)] }?.filter { !$0.isEmpty } ?? []
+        let words = Set(rest.lowercased().split { !($0.isLetter || $0.isNumber || "._+-".contains($0)) }.map(String.init))
+        let hits = ttys.filter { t in
+            s.foreground(tty: t).map { p in [p.name, Self.displayName(p.name, argv: p.argv)].contains { words.contains($0.lowercased()) } } ?? false
         }
-        for match in [{ words.contains($0) }, { rest.contains($0) }] as [(String) -> Bool] {
-            let hits = ttys.filter { names($0).contains(where: match) }
-            if !hits.isEmpty { return hits.count == 1 ? hits[0] : nil }
-        }
-        return nil
+        return hits.count == 1 ? hits[0] : nil
     }
 
     /// chain from the tty's foreground process up to the terminal, innermost first, without `login`

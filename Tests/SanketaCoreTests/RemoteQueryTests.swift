@@ -59,7 +59,8 @@ final class FakeRunner: CommandRunning, @unchecked Sendable {
 }
 
 @Suite struct RemoteQueryTests {
-    let check = ["-o", "BatchMode=yes", "-O", "check", "me@gpubox"]
+    let base = ["-o", "BatchMode=yes", "-o", "ControlMaster=no", "-o", "ControlPersist=no"]
+    var check: [String] { base + ["-O", "check", "me@gpubox"] }
 
     @Test func noControlMasterNoQuery() {
         let f = FakeRunner(check: nil, query: "htop\n")
@@ -72,9 +73,9 @@ final class FakeRunner: CommandRunning, @unchecked Sendable {
         let f = FakeRunner(check: "", query: "htop\n")
         #expect(RemoteQuery(runner: f).paneCommand(sshArgv: ["ssh", "-p", "22", "-i", "k", "me@gpubox", "tmux", "a"]) == "htop")
         #expect(f.calls.count == 2)
-        #expect(f.calls[0].args == ["-o", "BatchMode=yes", "-p", "22", "-O", "check", "me@gpubox"])
+        #expect(f.calls[0].args == base + ["-p", "22", "-O", "check", "me@gpubox"])
         #expect(f.calls[1].path == "/usr/bin/ssh" && f.calls[1].timeout == 2)
-        #expect(f.calls[1].args == ["-o", "BatchMode=yes", "-p", "22", "me@gpubox", "tmux", "display", "-p",
+        #expect(f.calls[1].args == base + ["-p", "22", "me@gpubox", "tmux", "display", "-p",
                                     "'#{pane_current_command}'"])
         #expect(f.calls[1].args.last == "'#{pane_current_command}'")
     }
