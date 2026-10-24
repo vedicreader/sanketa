@@ -39,12 +39,12 @@ action = "cd back / forward (empty line)"
 group = "Suggestions & history"
 
 [[keys]]
-keys = "⇥"
+keys = "tab"
 action = "Complete, press again for a menu"
 group = "Completion"
 
 [[keys]]
-keys = "⇧⇥"
+keys = "⇧tab"
 action = "Complete and search the menu"
 group = "Completion"
 

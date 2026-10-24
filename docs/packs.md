@@ -204,7 +204,7 @@ action = "Stop turn, keep composer"
 group = "Composer"
 
 [[keys]]
-keys = "⇧⇥"
+keys = "⇧tab"
 action = "Cycle ask, edits, auto, plan"
 group = "Approvals"
 

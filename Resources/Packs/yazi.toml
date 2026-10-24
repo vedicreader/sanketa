@@ -11,7 +11,7 @@ action = "Open or edit the selected files"
 group = "Your keys"
 
 [[keys]]
-keys = "Enter"
+keys = "↩"
 action = "Open the folder under the cursor"
 group = "Your keys"
 
@@ -46,17 +46,17 @@ action = "Go to the bottom"
 group = "Move"
 
 [[keys]]
-keys = "C-d"
+keys = "⌃D"
 action = "Go down half a page"
 group = "Move"
 
 [[keys]]
-keys = "C-u"
+keys = "⌃U"
 action = "Go up half a page"
 group = "Move"
 
 [[keys]]
-keys = "Space"
+keys = "space"
 action = "Select or clear the file"
 group = "Select"
 
@@ -66,12 +66,12 @@ action = "Start visual mode"
 group = "Select"
 
 [[keys]]
-keys = "C-a"
+keys = "⌃A"
 action = "Select all files"
 group = "Select"
 
 [[keys]]
-keys = "Esc"
+keys = "esc"
 action = "Stop visual mode or clear selection"
 group = "Select"
 

@@ -30,7 +30,7 @@ public struct PackLibrary {
                     let p = try decode(Data(contentsOf: f))
                     lib.packs[p.id] = lib.packs[p.id].map { merge($0, p) } ?? p
                 } catch {
-                    lib.errors.append(PackLoadError(file: f.path, message: "\(error)"))
+                    lib.errors.append(PackLoadError(file: f.path, message: PackLint.describe(error)))
                 }
             }
         }

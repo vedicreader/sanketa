@@ -421,7 +421,7 @@ command = "inline_variable"
 
 [[keys]]
 keys = "mod+alt+f"
-action = "Move function or class to a file"
+action = "Move function or class to file"
 group = "Refactor"
 command = "move_symbol"
 
@@ -511,7 +511,7 @@ command = "vault_find"
 
 [[keys]]
 keys = ""
-action = "Adopt a page open in the browser"
+action = "Adopt an open browser page"
 group = "Assist & AI"
 command = "browse_tabs"
 
@@ -1403,7 +1403,7 @@ command = "vault_proofread"
 
 [[keys]]
 keys = "m"
-action = "Show as sent to a hosted model"
+action = "Show as a hosted model sees"
 group = "Vault reader"
 command = "vault_as_sent"
 
@@ -1499,7 +1499,7 @@ action = "Add a note"
 group = "Agent approval card"
 
 [[keys]]
-keys = "⎋"
+keys = "esc"
 action = "Back to preview"
 group = "Agent approval card"
 
@@ -1509,12 +1509,12 @@ action = "Move through suggestions"
 group = "Agent prompt suggestions"
 
 [[keys]]
-keys = "↩ / ⇥"
+keys = "↩ / tab"
 action = "Accept suggestion"
 group = "Agent prompt suggestions"
 
 [[keys]]
-keys = "⎋"
+keys = "esc"
 action = "Close suggestions"
 group = "Agent prompt suggestions"
 
@@ -1534,7 +1534,7 @@ action = "Replace this match"
 group = "Find bar"
 
 [[keys]]
-keys = "⎋"
+keys = "esc"
 action = "Close find bar"
 group = "Find bar"
 
@@ -1549,12 +1549,12 @@ action = "Run or choose"
 group = "Palette, menus & dialogs"
 
 [[keys]]
-keys = "⇥"
+keys = "tab"
 action = "Cycle focus in dialog"
 group = "Palette, menus & dialogs"
 
 [[keys]]
-keys = "⎋"
+keys = "esc"
 action = "Close"
 group = "Palette, menus & dialogs"
 
@@ -1564,22 +1564,22 @@ action = "Previous or next tab"
 group = "Tab strip (tab focused)"
 
 [[keys]]
-keys = "↩ / Space"
+keys = "↩ / space"
 action = "Activate tab"
 group = "Tab strip (tab focused)"
 
 [[keys]]
-keys = "⌫ / ⌦"
+keys = "⌫ / del"
 action = "Close tab"
 group = "Tab strip (tab focused)"
 
 [[keys]]
-keys = "← / → / Space"
+keys = "← / → / space"
 action = "Previous or next slide"
 group = "Slides (present)"
 
 [[keys]]
-keys = "⎋"
+keys = "esc"
 action = "Exit presentation"
 group = "Slides (present)"
 

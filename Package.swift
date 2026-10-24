@@ -20,7 +20,7 @@ let package = Package(
                     resources: [.copy("Fixtures")], swiftSettings: v5),
         // test helper: an AppKit window whose title tests set through stdin
         .executableTarget(name: "SanketaTitleHost", swiftSettings: v5),
-        .testTarget(name: "SanketaSystemTests", dependencies: ["SanketaCore", "SanketaSystem", "SanketaTitleHost"], swiftSettings: v5),
+        .testTarget(name: "SanketaSystemTests", dependencies: ["SanketaCore", "SanketaSystem", "SanketaTitleHost", "Sanketa"], swiftSettings: v5),
         .testTarget(name: "SanketaUITests", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI", "SanketaTitleHost"],
                     swiftSettings: v5),
     ]

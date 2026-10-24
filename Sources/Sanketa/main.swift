@@ -86,8 +86,21 @@ func quitRunning() {
     print("quit \(others.filter(\.isTerminated).map(\.processIdentifier)), still running \(others.filter { !$0.isTerminated }.map(\.processIdentifier))")
 }
 
+/// The arguments after `flag` up to the next `--` flag.
+func args(after flag: String) -> [String] {
+    let a = CommandLine.arguments
+    guard let i = a.firstIndex(of: flag) else { return [] }
+    return Array(a[(i + 1)...].prefix { !$0.hasPrefix("--") })
+}
+
 let out = arg(after: "--out")
-if CommandLine.arguments.contains("--quit-running") {
+if CommandLine.arguments.contains("--lint-pack") {
+    let paths = args(after: "--lint-pack")
+    if paths.isEmpty { FileHandle.standardError.write(Data("usage: Sanketa --lint-pack FILE|FOLDER...\n".utf8)); exit(2) }
+    let r = PackLint.run(paths)
+    print(r.lines.joined(separator: "\n"))
+    exit(r.status)
+} else if CommandLine.arguments.contains("--quit-running") {
     quitRunning()
 } else if CommandLine.arguments.contains("--dump-context") {
     dumpContext(out: out)

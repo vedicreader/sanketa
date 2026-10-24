@@ -9,23 +9,23 @@ action = "Select process"
 group = "Move"
 
 [[keys]]
-keys = "PgUp / PgDn"
+keys = "pgup / pgdn"
 action = "Scroll one page"
 group = "Move"
 
 [[keys]]
-keys = "Home / End"
+keys = "home / end"
 action = "First / last process"
 group = "Move"
 
 [[keys]]
-keys = "⇥ / ⇧⇥"
+keys = "tab / ⇧tab"
 action = "Next / previous screen tab"
 group = "Move"
 
 [[keys]]
 keys = "0–9"
-action = "Jump to a PID as you type"
+action = "Type a PID to jump"
 group = "Move"
 
 [[keys]]
@@ -134,7 +134,7 @@ action = "Invert sort order"
 group = "Sort"
 
 [[keys]]
-keys = "Space"
+keys = "space"
 action = "Tag / untag process"
 group = "Act on processes"
 

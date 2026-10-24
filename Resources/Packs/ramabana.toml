@@ -23,7 +23,7 @@ action = "Take queued text back"
 group = "Composer"
 
 [[keys]]
-keys = "⇥"
+keys = "tab"
 action = "Complete /commands and @paths"
 group = "Composer"
 
@@ -54,7 +54,7 @@ group = "Composer"
 
 # Approvals
 [[keys]]
-keys = "⇧⇥"
+keys = "⇧tab"
 action = "Cycle ask, edits, auto, plan"
 group = "Approvals"
 
@@ -126,7 +126,7 @@ action = "Browse (empty composer)"
 group = "Transcript"
 
 [[keys]]
-keys = "PgUp / PgDn"
+keys = "pgup / pgdn"
 action = "Page"
 group = "Transcript"
 
@@ -156,7 +156,7 @@ action = "Compose from transcript"
 group = "Transcript"
 
 [[keys]]
-keys = "Esc"
+keys = "esc"
 action = "Leave transcript"
 group = "Transcript"
 
@@ -204,7 +204,7 @@ action = "Open row"
 group = "Now pane"
 
 [[keys]]
-keys = "Space"
+keys = "space"
 action = "Toggle row"
 group = "Now pane"
 

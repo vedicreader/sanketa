@@ -8,12 +8,12 @@ apps = []
 
 # General
 [[keys]]
-keys = "Esc"
+keys = "esc"
 action = "Interrupt Claude, close dialog"
 group = "General"
 
 [[keys]]
-keys = "Esc Esc"
+keys = "esc esc"
 action = "Clear draft, or rewind"
 group = "General"
 
@@ -28,7 +28,7 @@ action = "Exit (press twice)"
 group = "General"
 
 [[keys]]
-keys = "⇧⇥"
+keys = "⇧tab"
 action = "Cycle permission modes"
 group = "General"
 
@@ -114,7 +114,7 @@ action = "Queue a message"
 group = "Input"
 
 [[keys]]
-keys = "⇥"
+keys = "tab"
 action = "Accept autocomplete suggestion"
 group = "Input"
 

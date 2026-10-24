@@ -30,7 +30,7 @@ action = "Run line, then load the next"
 group = "History"
 
 [[keys]]
-keys = "⇥ ⇥"
+keys = "tab tab"
 action = "List completions"
 group = "Completion"
 

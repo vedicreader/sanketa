@@ -69,7 +69,7 @@ action = "Open line below / above"
 group = "Edit"
 
 [[keys]]
-keys = "⎋"
+keys = "esc"
 action = "Back to normal mode"
 group = "Edit"
 

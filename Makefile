@@ -5,10 +5,23 @@ INSTALL_DIR ?= $(HOME)/Applications
 VERSION := $(shell /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
 ZIP ?= dist/Sanketa-$(VERSION).zip
 
-.PHONY: test bundle app release zip publish run install verify gatekeeper remote-setup
+.PHONY: test build lint shots bundle app release zip publish run install verify gatekeeper remote-setup
 
+# FILTER=<regex> runs only the matching tests
 test:
-	swift test
+	swift test $(if $(FILTER),--filter '$(FILTER)')
+
+build:
+	swift build
+
+# checks the bundled packs, or PACKS=<file or folder>
+PACKS ?= Resources/Packs
+lint: build
+	"$$(swift build --show-bin-path)/Sanketa" --lint-pack $(PACKS)
+
+# renders the panel scenarios to PNGs (off in make test); SHOTS=<folder> keeps them
+shots:
+	SANKETA_RENDER=1 $(if $(SHOTS),SANKETA_SHOTS_OUT=$(SHOTS)) swift test --filter RenderTests
 
 bundle:
 	swift build -c release

@@ -45,7 +45,7 @@ action = "Command palette"
 group = "Navigation"
 
 [[keys]]
-keys = "Esc"
+keys = "esc"
 action = "Dismiss palette, settings, search"
 group = "Navigation"
 

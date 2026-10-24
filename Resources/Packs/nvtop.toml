@@ -49,7 +49,7 @@ action = "Save the current layout"
 group = "Setup"
 
 [[keys]]
-keys = "F10 / q / ⎋"
+keys = "F10 / q / esc"
 action = "Quit"
 group = "Setup"
 

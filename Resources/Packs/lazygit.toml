@@ -21,12 +21,12 @@ action = "Next or previous item"
 group = "Panels"
 
 [[keys]]
-keys = "Enter"
+keys = "↩"
 action = "Open the selected item"
 group = "Panels"
 
 [[keys]]
-keys = "Esc"
+keys = "esc"
 action = "Go back or cancel"
 group = "Panels"
 
@@ -41,7 +41,7 @@ action = "Show all keys for this panel"
 group = "Panels"
 
 [[keys]]
-keys = "Space"
+keys = "space"
 action = "Stage or unstage the file"
 group = "Files"
 
@@ -81,7 +81,7 @@ action = "Ignore the file"
 group = "Files"
 
 [[keys]]
-keys = "Space"
+keys = "space"
 action = "Stage or unstage the selected lines"
 group = "Lines (in the staging view)"
 
@@ -91,12 +91,12 @@ action = "Select lines or the whole hunk"
 group = "Lines (in the staging view)"
 
 [[keys]]
-keys = "Tab"
+keys = "tab"
 action = "Go between staged and unstaged changes"
 group = "Lines (in the staging view)"
 
 [[keys]]
-keys = "Space"
+keys = "space"
 action = "Check out the branch"
 group = "Branches"
 
@@ -166,7 +166,7 @@ action = "Paste the copied commits"
 group = "Commits"
 
 [[keys]]
-keys = "C-j / C-k"
+keys = "⌃J / ⌃K"
 action = "Move the commit down or up"
 group = "Commits"
 
