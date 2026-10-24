@@ -15,13 +15,16 @@ public final class FileWatcher: @unchecked Sendable {
     var file: DispatchSourceFileSystemObject?
     var kids: [DispatchSourceFileSystemObject] = []
     var pending: DispatchWorkItem?
+    /// inode of `url` at the last event; the folder above reports every change in it, and only a new inode here counts
+    var known: ino_t?
     static let fileEvents: DispatchSource.FileSystemEvent = [.write, .extend, .delete, .rename, .attrib]
 
     public init(url: URL, children: String? = nil, delay: TimeInterval = 0.2, callbackQueue: DispatchQueue = .main,
                 onChange: @escaping () -> Void) {
         self.url = url; self.children = children; self.delay = delay; self.callbackQueue = callbackQueue; self.onChange = onChange
         queue.sync {
-            dir = source(url.deletingLastPathComponent().path, [.write]) { [weak self] in self?.changed() }
+            dir = source(url.deletingLastPathComponent().path, [.write]) { [weak self] in self?.folderChanged() }
+            known = inode()
             watchFile()
         }
     }
@@ -47,8 +50,20 @@ public final class FileWatcher: @unchecked Sendable {
         kids = names.compactMap { source(url.appendingPathComponent($0).path, Self.fileEvents) { [weak self] in self?.changed() } }
     }
 
+    func inode() -> ino_t? {
+        var st = stat()
+        return stat(url.path, &st) == 0 ? st.st_ino : nil
+    }
+
+    /// A save of a sibling (config.toml next to the packs folder) changes the folder above but not `url`: ignored.
+    func folderChanged() {
+        guard inode() != known else { return }
+        changed()
+    }
+
     /// Re-arms on the current inodes and reports once per burst of events (an editor's save is several).
     func changed() {
+        known = inode()
         watchFile()
         pending?.cancel()
         let w = DispatchWorkItem { [weak self] in self.map { s in s.callbackQueue.async { s.onChange() } } }

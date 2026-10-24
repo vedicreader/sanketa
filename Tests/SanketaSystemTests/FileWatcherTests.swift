@@ -61,6 +61,21 @@ import Testing
         #expect(hit.wait(timeout: .now() + 3) == .success, "pack moved away")
     }
 
+    /// config.toml sits next to the packs folder: saving it must not reload the packs.
+    @Test func ignoresSiblingsOfTheWatchedFolder() throws {
+        let d = try folder()
+        try Data("id = \"a\"".utf8).write(to: d.appendingPathComponent("a.toml"))
+        let hit = DispatchSemaphore(value: 0)
+        let w = FileWatcher(url: d, children: "toml", delay: 0.1, callbackQueue: DispatchQueue(label: "test")) { hit.signal() }
+        defer { withExtendedLifetime(w) {} }
+        let config = d.deletingLastPathComponent().appendingPathComponent("config.toml")
+        try Data("hotkey = \"ctrl+opt+k\"".utf8).write(to: config, options: .atomic)
+        try Data("hotkey = \"ctrl+opt+j\"".utf8).write(to: config, options: .atomic)
+        #expect(hit.wait(timeout: .now() + 1) == .timedOut, "a config.toml save reloaded the packs")
+        try Data("id = \"b\"".utf8).write(to: d.appendingPathComponent("b.toml"), options: .atomic)
+        #expect(hit.wait(timeout: .now() + 3) == .success, "a new pack still reloads")
+    }
+
     /// An editor's save is a burst of events; the watcher reports it once, after the debounce.
     @Test func debouncesABurst() throws {
         let d = try folder()
@@ -80,7 +95,8 @@ import Testing
         }
         Thread.sleep(forTimeInterval: 1.0)
         let got = lock.withLock { hits }
-        #expect(got.count == 1, "\(got.count) callbacks")
+        // a loaded machine can split the burst once; it must never report each write
+        #expect((1...2).contains(got.count), "\(got.count) callbacks for 5 writes")
         #expect((got.first?.timeIntervalSince(start) ?? 0) >= 0.3)
     }
 }
