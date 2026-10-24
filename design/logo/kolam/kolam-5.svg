@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<rect x="100" y="100" width="824" height="824" rx="185" fill="#F5EFE3"/>
+<g transform="translate(512 512) scale(1.25) translate(-512 -512)">
+<path d="M 442 302 C 490 350 534 394 582 442 C 630 490 674 534 722 582 C 761 621 761 683 722 722 C 683 761 621 761 582 722 C 543 683 543 621 582 582 C 630 534 674 490 722 442 C 761 403 761 341 722 302 C 683 263 621 263 582 302 C 534 350 490 394 442 442 C 394 490 350 534 302 582 C 263 621 263 683 302 722 C 341 761 403 761 442 722 C 481 683 481 621 442 582 C 394 534 350 490 302 442 C 263 403 263 341 302 302 C 341 263 403 263 442 302 Z" fill="none" stroke="#1F2A5A" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+<g fill="#D8432E"><circle cx="372" cy="372" r="24"/><circle cx="652" cy="372" r="24"/><circle cx="372" cy="652" r="24"/><circle cx="652" cy="652" r="24"/></g>
+</g>
+</svg>
