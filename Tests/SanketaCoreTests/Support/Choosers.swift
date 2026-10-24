@@ -37,6 +37,26 @@ struct SlowChooser: Choosing {
     }
 }
 
+/// Blocks the calling thread; a plain function, so an async caller can use it.
+func block(_ seconds: Double) { Thread.sleep(forTimeInterval: seconds) }
+
+/// Blocks its thread and ignores cancellation, like a model loop that never checks; then answers `["e1"]`.
+final class StubbornChooser: Choosing, @unchecked Sendable {
+    let seconds: Double
+    private let lock = NSLock()
+    private var ended = false
+    var finished: Bool { lock.withLock { ended } }
+    var name: String { "stubborn" }
+    var isRemote: Bool { false }
+    init(seconds: Double) { self.seconds = seconds }
+    func status() -> ModelStatus { .available }
+    func choose(_ prompt: ChoicePrompt) async throws -> [String] {
+        block(seconds)
+        lock.withLock { ended = true }
+        return ["e1"]
+    }
+}
+
 actor PromptLog {
     var prompts: [ChoicePrompt] = []
     var responses: [Result<[String], ChoiceError>]

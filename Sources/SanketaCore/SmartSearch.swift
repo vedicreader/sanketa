@@ -67,22 +67,54 @@ public struct ModelRouter: Sendable {
 
 struct TimedOut: Error {}
 
-/// Calls the chooser with the timeout; on `.contextExceeded` it tries once more with half the entries.
+/// Resumes a continuation once; a result that comes before the continuation is kept for it.
+final class OneShot<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cont: CheckedContinuation<T, Error>?
+    private var early: Result<T, Error>?
+    private var done = false
+
+    func set(_ c: CheckedContinuation<T, Error>) {
+        let r: Result<T, Error>? = lock.withLock { if let e = early { early = nil; return e }; cont = c; return nil }
+        if let r { c.resume(with: r) }
+    }
+
+    func resume(_ r: Result<T, Error>) {
+        let c: CheckedContinuation<T, Error>? = lock.withLock {
+            if done { return nil }
+            done = true
+            if let c = cont { cont = nil; return c }
+            early = r; return nil
+        }
+        c?.resume(with: r)
+    }
+}
+
+/// Calls the chooser with a deadline that the router owns: at the timeout, or when the caller is cancelled, it
+/// cancels the call and returns at once, even when the chooser does not stop. A late answer is dropped.
+/// On `.contextExceeded` it tries once more with half the entries, inside the same deadline.
 func choosePicks(_ chooser: any Choosing, _ prompt: ChoicePrompt, timeout: TimeInterval) async throws -> (picks: [String], prompt: ChoicePrompt) {
-    try await withThrowingTaskGroup(of: ([String], ChoicePrompt).self) { g in
-        g.addTask {
-            do { return (try await chooser.choose(prompt), prompt) }
-            catch ChoiceError.contextExceeded {
-                let h = prompt.halved()
-                return (try await chooser.choose(h), h)
-            }
+    typealias Answer = (picks: [String], prompt: ChoicePrompt)
+    let once = OneShot<Answer>()
+    let work = Task<Answer, Error> {
+        do { return (try await chooser.choose(prompt), prompt) }
+        catch ChoiceError.contextExceeded {
+            let h = prompt.halved()
+            return (try await chooser.choose(h), h)
         }
-        g.addTask {
-            try await Task.sleep(for: .seconds(timeout))
-            throw TimedOut()
-        }
-        defer { g.cancelAll() }
-        return try await g.next()!
+    }
+    Task { once.resume(await work.result) }
+    let timer = Task {
+        try await Task.sleep(for: .seconds(timeout))
+        once.resume(.failure(TimedOut()))
+        work.cancel()
+    }
+    defer { timer.cancel() }
+    return try await withTaskCancellationHandler {
+        try await withCheckedThrowingContinuation { once.set($0) }
+    } onCancel: {
+        once.resume(.failure(CancellationError()))
+        work.cancel()
     }
 }
 
@@ -124,11 +156,10 @@ public struct SmartSearch: Sendable {
         let pool = chooser.isRemote ? items.filter { !$0.packID.hasPrefix("app:") } : items
         let cands = Retrieval.candidates(query, pool, context: context)
         guard !cands.isEmpty else { return SmartResult(items: local) }
-        let (prompt, _) = ChoicePrompt.build(task: .search(query), candidates: cands, maxPicks: Self.maxPicks)
+        let (prompt, refs) = ChoicePrompt.build(task: .search(query), candidates: cands, maxPicks: Self.maxPicks)
         do {
             let (picks, used) = try await choosePicks(chooser, prompt, timeout: timeout)
-            let refs = Dictionary(uniqueKeysWithValues: zip(used.refs, cands))
-            let chosen = Grounding.resolve(picks, refs, order: used.refs, max: Self.maxPicks)
+            let chosen = Grounding.resolve(picks, refs.filter { used.refs.contains($0.key) }, order: used.refs, max: Self.maxPicks)
             let ids = Set(chosen.map(\.id))
             return SmartResult(items: chosen + local.filter { !ids.contains($0.id) }, picked: ids)
         } catch {
@@ -169,8 +200,8 @@ public enum SmartSuggest {
         let cands = candidates(recent: recent, library: library, items: items, excluding: excluding)
         guard !cands.isEmpty else { return [] }
         let cmds = recent.suffix(ChoicePrompt.commandCount).map(\.command)
-        let (prompt, _) = ChoicePrompt.build(task: .suggest(cmds), candidates: cands, maxPicks: maxPicks)
+        let (prompt, refs) = ChoicePrompt.build(task: .suggest(cmds), candidates: cands, maxPicks: maxPicks)
         guard let (picks, used) = try? await choosePicks(chooser, prompt, timeout: timeout) else { return [] }
-        return Grounding.resolve(picks, Dictionary(uniqueKeysWithValues: zip(used.refs, cands)), order: used.refs, max: maxPicks)
+        return Grounding.resolve(picks, refs.filter { used.refs.contains($0.key) }, order: used.refs, max: maxPicks)
     }
 }

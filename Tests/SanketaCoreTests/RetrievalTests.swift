@@ -38,6 +38,13 @@ func entry(_ pack: String, _ title: String, _ detail: String = "", kind: ItemKin
         #expect(refs["e1"] == items[0])
     }
 
+    @Test func promptGivesOneRefPerItem() {
+        let a = entry("p", "A"), b = entry("p", "B")
+        let (p, refs) = ChoicePrompt.build(task: .search("x"), candidates: [a, a, b, a], maxPicks: 2)
+        #expect(p.refs == ["e1", "e2"])
+        #expect(refs == ["e1": a, "e2": b])
+    }
+
     @Test func promptCopyIsExact() {
         let it = entry("tmux", "Split pane left/right", "prefix %")
         let (p, _) = ChoicePrompt.build(task: .search("split pane"), candidates: [it], maxPicks: 3)
@@ -80,5 +87,8 @@ func entry(_ pack: String, _ title: String, _ detail: String = "", kind: ItemKin
         #expect(Grounding.resolve(["e1", "e2", "e3"], refs, order: order, max: 5) == [])
         #expect(Grounding.resolve(["e1"], refs, order: order, max: 5) == [items[0]])
         #expect(Grounding.resolve(["e1", "e3"], refs, order: order, max: 5) == [items[0], items[2]])
+        #expect(Grounding.resolve(["e1", "e2", "e2"], refs, order: order, max: 5) == [])
+        #expect(Grounding.resolve(["e1", "e2", "bogus"], refs, order: order, max: 5) == [])
+        #expect(Grounding.resolve(["bogus", "e1", "e1"], refs, order: order, max: 5) == [items[0]])
     }
 }

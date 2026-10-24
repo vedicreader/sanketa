@@ -64,6 +64,53 @@ private func search(fm: any Choosing, timeout: TimeInterval = 2) -> SmartSearch 
         #expect(r.note?.contains("timed out") == true)
     }
 
+    @Test func stubbornChooserCannotHoldResults() async throws {
+        let slow = StubbornChooser(seconds: 2)
+        let start = Date()
+        let r = await search(fm: slow, timeout: 0.3).results(query, items, context: ["tmux"])
+        #expect(Date().timeIntervalSince(start) < 1.5)
+        #expect(!slow.finished)
+        #expect(r.items == Retrieval.candidates(query, items, context: ["tmux"]))
+        #expect(r.picked.isEmpty)
+        #expect(r.note == "Plain search: stubborn timed out")
+        // the late answer comes and is dropped; nothing changes the result already given
+        while !slow.finished { try await Task.sleep(for: .milliseconds(50)) }
+        #expect(r.picked.isEmpty)
+    }
+
+    @Test func cancelledSearchReturnsAtOnce() async {
+        let slow = StubbornChooser(seconds: 2)
+        let start = Date()
+        let t = Task { await search(fm: slow, timeout: 10).results(query, items, context: ["tmux"]) }
+        try? await Task.sleep(for: .milliseconds(200))
+        t.cancel()
+        let r = await t.value
+        #expect(Date().timeIntervalSince(start) < 1.5)
+        #expect(r.picked.isEmpty)
+        #expect(r.items == Retrieval.candidates(query, items, context: ["tmux"]))
+    }
+
+    @Test func noCandidatesSkipsTheModel() async {
+        let rec = RecordingChooser(responses: [.success(["e1"])])
+        for q in ["how to do", "zzqx wwvy kkjp"] {
+            let r = await search(fm: rec).results(q, items, context: ["tmux"])
+            #expect(r.items == Search.rank(q, items, context: ["tmux"]))
+            #expect(r.note == nil && r.picked.isEmpty)
+        }
+        #expect(await rec.prompts.isEmpty)
+    }
+
+    @Test func duplicateCandidatesGetOneRef() async {
+        let dup = items + [items[0], items[0]]
+        let rec = RecordingChooser(responses: [.success(["e1"])])
+        let r = await search(fm: rec).results(query, dup, context: ["tmux"])
+        let p = await rec.prompts
+        #expect(p.count == 1)
+        #expect(p[0].lines.filter { $0.contains("Split pane left/right") }.count == 1)
+        #expect(Set(r.items.map(\.id)).count == r.items.count)
+        #expect(r.picked.count == 1)
+    }
+
     @Test func noChooserGivesRouterNote() async {
         let s = SmartSearch(router: ModelRouter(config: config(), onDevice: nil, appleFM: nil, remote: nil), timeout: 1)
         let r = await s.results(query, items, context: ["tmux"])

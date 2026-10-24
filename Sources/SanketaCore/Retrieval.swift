@@ -94,12 +94,12 @@ public struct ChoicePrompt: Equatable, Sendable {
 
     public static let lineLimit = 160, commandLimit = 120, commandCount = 10
 
-    /// Refs `e1…eN`; lines stop before their total (with new lines) passes `charBudget`.
+    /// Refs `e1…eN`, one per distinct item id; lines stop before their total (with new lines) passes `charBudget`.
     public static func build(task: Task, candidates: [SearchItem], maxPicks: Int, charBudget: Int = 6000)
         -> (prompt: ChoicePrompt, refs: [String: SearchItem]) {
-        var refs: [String] = [], lines: [String] = [], map: [String: SearchItem] = [:], total = 0
-        for (n, it) in candidates.enumerated() {
-            let ref = "e\(n + 1)"
+        var refs: [String] = [], lines: [String] = [], map: [String: SearchItem] = [:], total = 0, ids = Set<String>()
+        for it in candidates where ids.insert(it.id).inserted {
+            let ref = "e\(refs.count + 1)"
             let line = String("\(ref) | \(it.packName) | \(it.title) | \(it.detail)".prefix(lineLimit))
             if total + line.count + 1 > charBudget { break }
             total += line.count + 1
@@ -113,11 +113,14 @@ public struct ChoicePrompt: Equatable, Sendable {
 
 /// The model only names refs; this keeps the ones that are in the list.
 public enum Grounding {
-    /// Known refs in pick order, without repeats, at most `max`. A pick list that is only the first N refs in list
-    /// order (N ≥ 2) is a model that echoed the list, not a choice, and gives nothing.
+    /// Known refs in pick order, without repeats, at most `max`. When the known refs are only the first N refs in
+    /// list order (N >= 2), the model echoed the list instead of choosing, and this gives nothing. It also drops a
+    /// correct answer that happens to be e1..eN; that is deliberate, because an echo is far more likely.
     public static func resolve(_ picks: [String], _ refs: [String: SearchItem], order: [String], max: Int) -> [SearchItem] {
-        if picks.count >= 2, picks == Array(order.prefix(picks.count)) { return [] }
         var seen = Set<String>()
-        return Array(picks.filter { refs[$0] != nil && seen.insert($0).inserted }.prefix(Swift.max(0, max)).compactMap { refs[$0] })
+        let known = picks.filter { refs[$0] != nil && seen.insert($0).inserted }
+        if known.count >= 2, known == Array(order.prefix(known.count)) { return [] }
+        var ids = Set<String>()
+        return Array(known.compactMap { refs[$0] }.filter { ids.insert($0.id).inserted }.prefix(Swift.max(0, max)))
     }
 }
