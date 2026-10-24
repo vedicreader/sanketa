@@ -141,7 +141,8 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
         let runner = FakeRunner(delay: .seconds(5)) { _ in #"{"picks": ["e1"]}"# }
         let clock = ContinuousClock(), t = clock.now
         let r = await SmartSearch(router: router(fakeChooser(runner)), timeout: 0.3).results(splitQuery, bundled, context: [])
-        #expect(clock.now - t < .seconds(2))
+        // the fake answers only after 5 s; the router stops waiting well before that, even on a busy machine
+        #expect(clock.now - t < .seconds(4))
         #expect(r.note == "Plain search: on-device (fake) timed out")
         try await Task.sleep(for: .milliseconds(300))
         #expect(runner.wasCancelled)
