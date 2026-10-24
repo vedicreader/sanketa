@@ -15,7 +15,8 @@ public final class FileWatcher: @unchecked Sendable {
     var file: DispatchSourceFileSystemObject?
     var kids: [DispatchSourceFileSystemObject] = []
     var pending: DispatchWorkItem?
-    /// inode of `url` at the last event; the folder above reports every change in it, and only a new inode here counts
+    /// inode of `url` at the last event; the folder above reports every change in it, and only a new inode here counts.
+    /// Like the sources and `pending`, it is read and written only on `queue`.
     var known: ino_t?
     static let fileEvents: DispatchSource.FileSystemEvent = [.write, .extend, .delete, .rename, .attrib]
 
@@ -23,8 +24,8 @@ public final class FileWatcher: @unchecked Sendable {
                 onChange: @escaping () -> Void) {
         self.url = url; self.children = children; self.delay = delay; self.callbackQueue = callbackQueue; self.onChange = onChange
         queue.sync {
-            dir = source(url.deletingLastPathComponent().path, [.write]) { [weak self] in self?.folderChanged() }
             known = inode()
+            dir = source(url.deletingLastPathComponent().path, [.write]) { [weak self] in self?.folderChanged() }
             watchFile()
         }
     }
@@ -57,12 +58,14 @@ public final class FileWatcher: @unchecked Sendable {
 
     /// A save of a sibling (config.toml next to the packs folder) changes the folder above but not `url`: ignored.
     func folderChanged() {
+        dispatchPrecondition(condition: .onQueue(queue))
         guard inode() != known else { return }
         changed()
     }
 
     /// Re-arms on the current inodes and reports once per burst of events (an editor's save is several).
     func changed() {
+        dispatchPrecondition(condition: .onQueue(queue))
         known = inode()
         watchFile()
         pending?.cancel()
