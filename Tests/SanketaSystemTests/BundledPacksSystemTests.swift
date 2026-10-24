@@ -91,27 +91,15 @@ import Testing
         #expect(res.layer(nv.name, argv: nv.argv).packID == "vim")
     }
 
-    /// Claude Code as installed natively: the executable is `…/claude/versions/<version>` and argv[0] is `claude`
-    /// (reproduced with `exec -a`); plus a `python3 …/bin/ramabana` script.
+    /// Claude Code as installed natively: the executable is `…/claude/versions/<version>` and argv[0] is `claude`.
+    /// Described as data, not spawned: copying, re-signing and argv[0]-spoofing a binary trips the endpoint threat detector.
+    /// Plus a real `python3 …/bin/ramabana` script.
     @Test func argvAndNameMatchRealSpawnedProcesses() throws {
         let lib = try library()
         let res = LayerResolver(library: lib, tmux: TmuxQuery(runner: r, socket: plain), remote: nil)
         let d = try tempDir()
-        let versions = d.appendingPathComponent("claude/versions")
-        try FileManager.default.createDirectory(at: versions, withIntermediateDirectories: true)
-        let exe = versions.appendingPathComponent("2.1.999")
-        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: exe.path)
-        // a copied platform binary is killed at exec; an ad-hoc signature makes it runnable
-        _ = try #require(r.run("/usr/bin/codesign", ["--force", "-s", "-", exe.path], timeout: 5.0))
-        // posix_spawn sets argv[0] directly: no pre-exec phase for SysctlProcesses' (pid, start) cache to capture
-        var cpid: pid_t = 0
-        let args: [UnsafeMutablePointer<CChar>?] = [strdup("claude"), strdup("30"), nil]
-        defer { args.forEach { free($0) } }
-        try #require(posix_spawn(&cpid, exe.path, nil, nil, args, environ) == 0)
-        defer { kill(cpid, SIGKILL); var st: Int32 = 0; waitpid(cpid, &st, 0) }
-        let cps = snapshot { $0.proc(cpid)?.name == "2.1.999" }
-        let cp = try #require(cps.proc(cpid))
-        try #require(cp.argv.first == "claude")
+        let cp = ProcInfo(pid: 4242, ppid: 1, pgid: 4242, tty: "ttys009", tpgid: 4242, name: "2.1.999",
+                          argv: ["claude"], start: 0, path: NSHomeDirectory() + "/.local/share/claude/versions/2.1.999")
         #expect(res.layer(cp.name, argv: cp.argv) == Layer(kind: .program, name: "claude", packID: "claude"))
 
         let bin = d.appendingPathComponent("bin")
