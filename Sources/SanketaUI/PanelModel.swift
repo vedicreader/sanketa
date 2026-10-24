@@ -6,6 +6,8 @@ import SanketaSystem
 public struct RowGroup: Identifiable, Equatable {
     public var name: String?
     public var keys: [KeyEntry]
+    /// false for a group outside the layer's active context; such a group starts folded
+    public var inContext = true
     public var id: String { name ?? "" }
 }
 
@@ -40,6 +42,8 @@ public enum PanelBlock: Identifiable, Equatable {
     @Published public private(set) var sections: [LayerSectionData] = []
     @Published public private(set) var tipCards: [SearchItem] = []
     @Published public var collapsed: Set<String> = []
+    /// out-of-context groups that the user opened
+    @Published public var expanded: Set<String> = []
     @Published public private(set) var selectedLayer: String?
     /// keyboard focus is on the layer list rather than the search field
     @Published public var listFocused = false
@@ -70,8 +74,40 @@ public enum PanelBlock: Identifiable, Equatable {
             guard let p = packs.first, p.id == l.packID else { return nil }
             packs = packs.dropFirst()
             guard !p.keys.isEmpty || !p.tips.isEmpty else { return nil }
-            return LayerSectionData(layer: l, index: i, pack: p, groups: groups(p.keys))
+            return LayerSectionData(layer: l, index: i, pack: ordered(p, context: l.context), groups: groups(p, context: l.context))
         }
+    }
+
+    /// Keys grouped as `groups(_:)`; with an active context its groups come first and the others are out of context.
+    public static func groups(_ p: Pack, context: String?) -> [RowGroup] {
+        let all = groups(p.keys)
+        guard let context else { return all }
+        let inside = all.filter { g in g.keys.contains { p.key($0, isIn: context) } }
+        return inside + all.filter { !inside.contains($0) }.map { var g = $0; g.inContext = false; return g }
+    }
+
+    /// The pack with the active context's keys and tips first, so tip cards and search take them first.
+    public static func ordered(_ p: Pack, context: String?) -> Pack {
+        guard let context else { return p }
+        var o = p
+        let k = p.keys.filter { p.key($0, isIn: context) }, t = p.tips.filter { p.tip($0, isIn: context) }
+        o.keys = k + p.keys.filter { !k.contains($0) }
+        o.tips = t + p.tips.filter { !t.contains($0) }
+        return o
+    }
+
+    /// Id of group `g` in section `s`, for `collapsed` and `expanded`.
+    nonisolated static func groupID(_ s: LayerSectionData, _ g: RowGroup) -> String { s.id + "#" + g.id }
+
+    /// A group is folded when it is out of context and not opened, or in context and closed.
+    public func isFolded(_ s: LayerSectionData, _ g: RowGroup) -> Bool {
+        let id = Self.groupID(s, g)
+        return g.inContext ? collapsed.contains(id) : !expanded.contains(id)
+    }
+
+    public func toggle(_ s: LayerSectionData, _ g: RowGroup) {
+        let id = Self.groupID(s, g)
+        if g.inContext { toggle(id) } else if expanded.remove(id) == nil { expanded.insert(id) }
     }
 
     /// Keys grouped by `group`, groups in order of first appearance.
@@ -142,11 +178,13 @@ public enum PanelBlock: Identifiable, Equatable {
     }
 
     /// Items the tip cards draw from: the context packs' keys and tips, innermost layer first.
-    public var tipPool: [SearchItem] { sections.flatMap { SearchItem.items(from: $0.pack) } }
+    public var tipPool: [SearchItem] { sections.flatMap { SearchItem.items(from: $0.pack, context: $0.layer.context) } }
 
-    /// First card from the innermost layer that has any, the rest from all current layers.
+    /// First card from the innermost layer that has any (from its active context when that has any), the rest from
+    /// all current layers.
     func pickTips() {
-        let inner = sections.lazy.map { SearchItem.items(from: $0.pack) }.first { !$0.isEmpty } ?? []
+        let all = sections.lazy.map { SearchItem.items(from: $0.pack, context: $0.layer.context) }.first { !$0.isEmpty } ?? []
+        let inner = all.contains(where: \.active) ? all.filter(\.active) : all
         let first = store.pick(from: inner, count: 1, seed: seed)
         let rest = store.pick(from: tipPool.filter { !first.contains($0) }, count: Self.tipCount - first.count, seed: seed &+ 0x9E37)
         tipCards = first + rest

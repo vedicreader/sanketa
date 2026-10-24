@@ -424,3 +424,102 @@ func threadCPUSeconds() -> Double {
         #expect(Theme.tintOpacity(.low) > Theme.tintOpacity(.medium) && Theme.tintOpacity(.medium) > Theme.tintOpacity(.high))
     }
 }
+
+/// A window title with a scope token puts that pack context's groups, tips and search hits first.
+@MainActor struct PanelContextTests {
+    static let pack = try! PackLibrary.decode(Data("""
+    id = "app:org.example.ide"
+    name = "IDE"
+    title_scope = ' · ([a-z]+(?::[a-z0-9]+)?)$'
+
+    [[contexts]]
+    name = "notebook"
+    scopes = ["notebook"]
+    groups = ["Cells", "Editing"]
+
+    [[contexts]]
+    name = "terminal"
+    scopes = ["terminal"]
+    groups = ["Terminal"]
+
+    [[keys]]
+    keys = "⌘1"
+    action = "Focus files"
+    group = "Panes"
+
+    [[keys]]
+    keys = "⌘D"
+    action = "Select next match"
+    group = "Editing"
+
+    [[keys]]
+    keys = "⌃C"
+    action = "Interrupt shell"
+    group = "Terminal"
+
+    [[keys]]
+    keys = "⌘↩"
+    action = "Run cell"
+    group = "Cells"
+
+    [[tips]]
+    title = "Clear the shell"
+    snippet = "⌘K"
+    tags = ["terminal"]
+
+    [[tips]]
+    title = "Run all cells"
+    snippet = "⇧⌘↩"
+    tags = ["notebook"]
+    """.utf8))
+
+    func ctx(_ title: String?) -> Context {
+        let l = LayerResolver.applyContexts([Layer(kind: .app, name: "IDE", packID: Self.pack.id)], packs: [Self.pack], title: title)
+        return Context(appName: "IDE", bundleID: "org.example.ide", layers: l, packs: [Self.pack], axTrusted: true)
+    }
+
+    @Test func activeContextGroupsFirstOthersFolded() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1)
+        m.update(ctx("2⚙ (!) · ide — sanketa · notebook"))
+        let s = try #require(m.sections.first)
+        #expect(s.layer.context == "notebook" && Breadcrumb.label(s.layer) == "IDE · notebook")
+        #expect(s.groups.map(\.name) == ["Editing", "Cells", "Panes", "Terminal"])
+        #expect(s.groups.map(\.inContext) == [true, true, false, false])
+        #expect(s.groups.map { m.isFolded(s, $0) } == [false, false, true, true])
+        m.toggle(s, s.groups[2]); m.toggle(s, s.groups[0])
+        #expect(s.groups.map { m.isFolded(s, $0) } == [true, false, false, true])
+        #expect(s.pack.tips.first?.title == "Run all cells")
+        for seed in 0..<10 as Range<UInt64> {
+            let t = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: seed)
+            t.update(ctx("ide — x · notebook"))
+            #expect(["Select next match", "Run cell", "Run all cells"].contains(t.tipCards.first?.title ?? ""))
+        }
+
+        m.update(ctx("ide — sanketa · terminal"))
+        let t = try #require(m.sections.first)
+        #expect(t.groups.map(\.name) == ["Terminal", "Panes", "Editing", "Cells"])
+        #expect(t.pack.tips.first?.title == "Clear the shell")
+    }
+
+    @Test func titleWithoutTokenKeepsTodaysOrder() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1)
+        for title in ["ide — sanketa", nil, "ide — sanketa · web"] as [String?] {
+            m.update(ctx(title))
+            let s = try #require(m.sections.first)
+            #expect(s.layer.context == nil && Breadcrumb.label(s.layer) == "IDE")
+            #expect(s.groups.map(\.name) == ["Panes", "Editing", "Terminal", "Cells"])
+            #expect(s.groups.allSatisfy { $0.inContext && !m.isFolded(s, $0) })
+            #expect(s.pack == Self.pack)
+        }
+    }
+
+    @Test func searchPutsActiveContextFirst() throws {
+        let s = SearchModel(pasteboard: NSPasteboard(name: .init("sanketa-test-\(UUID().uuidString)")))
+        s.setSource(library: PackLibrary(packs: [:]), context: ctx("ide — x · terminal"))
+        s.query = "s"
+        #expect(s.results.first?.title == "Interrupt shell")
+        s.setSource(context: ctx("ide — x · notebook"))
+        s.query = "se"
+        #expect(s.results.first?.title == "Select next match")
+    }
+}

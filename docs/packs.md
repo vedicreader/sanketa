@@ -25,6 +25,10 @@ Top-level fields:
 | `mode` | `"extend"` or `"replace"` | no, default `"extend"` | Has an effect only when a user pack has the same `id` as a bundled pack. |
 | `keys` | array of tables `[[keys]]` | no | Shortcuts. |
 | `tips` | array of tables `[[tips]]` | no | Snippets with a short explanation. |
+| `title_scope` | string | no | A regex on the title of the window in front. Its first group is the scope token that picks a context. See "Contexts". |
+| `contexts` | array of tables `[[contexts]]` | no | Views of the app, such as a terminal pane, with their own key groups. |
+| `titles` | array of strings | no, default `[]` | Regexes on the window title of a browser. A match shows this pack for the browser. |
+| `title_apps` | array of strings | no, default Chrome, Safari and Arc | The bundle ids of the browsers that `titles` applies to. |
 
 A pack without `processes`, `match` and `apps` never shows next to a program. But search can still find its entries.
 
@@ -36,6 +40,7 @@ Each `[[keys]]` table:
 | `action` | string | yes | What the key does, in six words or fewer. The panel is narrow. |
 | `group` | string | no | The heading of the key, such as `"Panes"`. Keys without a group show together. |
 | `command` | string | no | tmux: the command that the key runs, to match your live keys. Leela: the action id, to read your keymap. Other packs do not use it. |
+| `context` | string | no | The name of a context. It puts the key in that context, and the `groups` of the contexts have no effect on it. |
 
 Each `[[tips]]` table:
 
@@ -45,6 +50,15 @@ Each `[[tips]]` table:
 | `snippet` | string | yes | The command or text to type. It must run as written. |
 | `explain` | string | no, default `""` | One or two short sentences: what the snippet does, or when to use it. |
 | `tags` | array of strings | no, default `[]` | More words for search. |
+| `context` | string | no | The name of a context. Without it, a tip is in each context whose name or scope is one of its tags. |
+
+Each `[[contexts]]` table:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `name` | string | yes | The name. The panel shows it after the layer name, such as `Leela · notebook`. |
+| `scopes` | array of strings | no, default `[]` | The scope tokens that select this context. |
+| `groups` | array of strings | no, default `[]` | The key groups in this context. A group can be in more than one context. |
 
 Sanketa ignores other fields. A file does not load if it has no `id` or `name`. It also does not load if a key has no `keys` or `action`, or a tip has no `title` or `snippet`.
 
@@ -61,6 +75,40 @@ An example for step 3: the Claude Code program file has its version as its name 
 If two packs match, the pack whose `id` comes first in alphabetical order wins. Thus keep match strings narrow. Use `match` for programs that run in an interpreter. A Python tool shows as `python3.12`, with a command line such as `python3 /Users/you/.local/bin/ramabana --resume`. The match string `"ramabana"` also finds `nvim ~/code/ramabana/cli.py`. The match string `"bin/ramabana"` finds only the installed script.
 
 Use `apps` for GUI apps. When an app other than a terminal is in front, Sanketa reads its menu keys. Then it adds the pack whose `apps` has the bundle id of the app. With `mode = "extend"`, your keys show with the menu keys. A key that you write in the same way as the menu (such as `⇧⌘N`) replaces the menu label. To find the bundle id of an app, use `mdls -name kMDItemCFBundleIdentifier /Applications/Safari.app`.
+
+## Contexts
+
+Some apps have panes or modes, and each one has its own keys. A context tells Sanketa which keys go with which pane. This works only for an app or a terminal, and only when its window title names the pane.
+
+Sanketa reads the title of the window in front. It applies the `title_scope` regex to the title and takes the text of the first group. This text is the scope token. Then Sanketa looks for the first context whose `scopes` has the token. A token with a colon, such as `editor:md`, also matches the scope `editor` when no context has the full token.
+
+When a context is active:
+
+- The breadcrumb and the header of the layer show its name, such as `Leela · notebook`.
+- The groups of the context come first and are open. The other groups come after them and are closed. Click a group heading to open or close it.
+- Search puts the keys and tips of the context higher.
+- The tips of the context come first.
+
+If the title has no token, or no context has the token, the panel shows the pack as it does without contexts.
+
+Leela puts the focused pane at the end of its title, as in `2⚙ (!) · leela — sanketa · notebook`. The bundled Leela pack has this regex, and contexts such as this one:
+
+```toml
+id = "leela"
+name = "Leela"
+title_scope = ' · ([a-z]+(?::[a-z0-9]+)?)(?: [-–] [^·]*)?$'
+
+[[contexts]]
+name = "notebook"
+scopes = ["notebook"]
+groups = ["Notebook: run", "Notebook: cells", "Editing"]
+```
+
+The last part of the regex lets a browser add its name after the title, as Chrome does.
+
+### An app in a browser
+
+An app can also run in a browser tab. Use `titles` to find it there. If the browser in front is in `title_apps`, and its window title matches one of the `titles` regexes, Sanketa shows the pack above the menu keys of the browser. The contexts of the pack also work there. A pack whose `apps` has the browser bundle id has priority. The bundled Leela pack has `titles = ['(^|· )leela( — | · |$)']`.
 
 ## Key style
 

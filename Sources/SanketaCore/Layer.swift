@@ -7,9 +7,11 @@ public struct Layer: Hashable, Identifiable {
     public var name: String
     public var packID: String?
     public var host: String?
+    /// the pack context that the window title picks, such as `notebook`
+    public var context: String?
     public var id: String { "\(host ?? "local")/\(packID ?? name)" }
-    public init(kind: LayerKind, name: String, packID: String? = nil, host: String? = nil) {
-        self.kind = kind; self.name = name; self.packID = packID; self.host = host
+    public init(kind: LayerKind, name: String, packID: String? = nil, host: String? = nil, context: String? = nil) {
+        self.kind = kind; self.name = name; self.packID = packID; self.host = host; self.context = context
     }
 }
 

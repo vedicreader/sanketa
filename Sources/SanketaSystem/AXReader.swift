@@ -93,3 +93,40 @@ public enum AXReader {
         return one.count > 160 ? one.prefix(160) + "…" : one
     }
 }
+
+/// Calls `onChange` on the main run loop when the app's focused window changes or that window's title changes.
+/// Accessibility notifications, so nothing polls.
+public final class AXTitleWatcher {
+    let observer: AXObserver
+    let app: AXUIElement
+    let onChange: () -> Void
+    var window: AXUIElement?
+
+    public init?(pid: pid_t, onChange: @escaping () -> Void) {
+        var o: AXObserver?
+        let cb: AXObserverCallback = { _, _, note, refcon in
+            guard let refcon else { return }
+            let me = Unmanaged<AXTitleWatcher>.fromOpaque(refcon).takeUnretainedValue()
+            if (note as String) != kAXTitleChangedNotification { me.watchFocusedWindow() }
+            me.onChange()
+        }
+        guard AXObserverCreate(pid, cb, &o) == .success, let o else { return nil }
+        observer = o; app = AXUIElementCreateApplication(pid); self.onChange = onChange
+        AXUIElementSetMessagingTimeout(app, 0.5)
+        for n in [kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification] {
+            AXObserverAddNotification(o, app, n as CFString, Unmanaged.passUnretained(self).toOpaque())
+        }
+        watchFocusedWindow()
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(o), .defaultMode)
+    }
+
+    func watchFocusedWindow() {
+        if let w = window { AXObserverRemoveNotification(observer, w, kAXTitleChangedNotification as CFString) }
+        window = AXMenuNode.attr(app, kAXFocusedWindowAttribute).map { $0 as! AXUIElement }
+        if let w = window {
+            AXObserverAddNotification(observer, w, kAXTitleChangedNotification as CFString, Unmanaged.passUnretained(self).toOpaque())
+        }
+    }
+
+    deinit { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode) }
+}

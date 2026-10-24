@@ -46,24 +46,28 @@ public struct ContextEngine: @unchecked Sendable {
         let trusted = AXReader.isTrusted
         let resolver = LayerResolver(library: library, tmux: tmux, remote: remote)
         var snap: ProcessSnapshot?
-        let layers: [Layer]
+        let layers: [Layer], title: String?
         if config.terminals.contains(bundleID) {
             let s = SysctlProcesses.snapshot(under: [pid])
             snap = s
-            let title = trusted ? AXReader.focusedWindowTitle(pid: pid) : nil
+            title = trusted ? AXReader.focusedWindowTitle(pid: pid) : nil
             layers = resolver.resolve(s, terminal: TerminalContext(pid: pid, bundleID: bundleID, appName: appName, windowTitle: title))
         } else {
-            layers = resolver.resolveApp(bundleID: bundleID, name: appName)
+            title = trusted && library.readsTitle(bundleID: bundleID) ? AXReader.focusedWindowTitle(pid: pid) : nil
+            layers = resolver.resolveApp(bundleID: bundleID, name: appName, title: title)
         }
-        let packs = layers.compactMap { l -> Pack? in
+        let paired = layers.map { l -> Pack? in
             switch l.kind {
-            case .app, .terminal: return appPack(pid: pid, bundleID: bundleID, name: appName, trusted: trusted)
+            case .app where l.packID == "app:\(bundleID)", .terminal:
+                return appPack(pid: pid, bundleID: bundleID, name: appName, trusted: trusted)
             case .multiplexer where l.packID == "tmux" && l.host == nil:
                 return library.packs["tmux"].map { tmuxPack($0, bin: snap.flatMap { tmuxBinary($0, under: pid) }) }
             default: return l.packID.flatMap { library.packs[$0] }
             }
         }
-        return Context(appName: appName, bundleID: bundleID, layers: layers, packs: packs, axTrusted: trusted)
+        let packs = paired.compactMap { $0 }
+        let withContexts = LayerResolver.applyContexts(layers, packs: paired, title: title)
+        return Context(appName: appName, bundleID: bundleID, layers: withContexts, packs: packs, axTrusted: trusted)
     }
 
     /// menu shortcuts merged with any user pack whose `apps` lists the bundle id
@@ -105,6 +109,8 @@ public struct ContextEngine: @unchecked Sendable {
     var timer: Timer?
     var busy = false
     var observer: NSObjectProtocol?
+    var titles: AXTitleWatcher?
+    var pendingTitle: DispatchWorkItem?
 
     public init(config: Config, library: PackLibrary) { engine = ContextEngine(config: config, library: library) }
 
@@ -120,7 +126,24 @@ public struct ContextEngine: @unchecked Sendable {
 
     public func reload(library: PackLibrary) {
         engine.library = library
+        watchTitle(NSWorkspace.shared.frontmostApplication)
         refresh()
+    }
+
+    /// An app whose title picks a pack context (or hosts a pack) is not polled; its title changes push a refresh.
+    func watchTitle(_ app: NSRunningApplication?) {
+        titles = nil
+        guard let app, let bid = app.bundleIdentifier, bid != Bundle.main.bundleIdentifier,
+              !engine.config.terminals.contains(bid), AXReader.isTrusted, engine.library.readsTitle(bundleID: bid) else { return }
+        titles = AXTitleWatcher(pid: app.processIdentifier) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.pendingTitle?.cancel()
+                let w = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.refresh() } }
+                self.pendingTitle = w
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: w)
+            }
+        }
     }
 
     func activated(_ app: NSRunningApplication?) {
@@ -135,6 +158,7 @@ public struct ContextEngine: @unchecked Sendable {
             t.tolerance = interval * 0.2
             timer = t
         }
+        watchTitle(app)
         refresh(app)
     }
 

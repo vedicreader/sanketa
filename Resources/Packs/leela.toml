@@ -4,10 +4,63 @@ name = "Leela"
 apps = ["org.vedicreader.leela"]
 processes = []
 match = []
+# Leela titles its window `[<agent marks> · ]leela — <folder> · <scope>`. In a browser the title can end in
+# ` - Google Chrome – <profile>`, so the scope regex allows that tail (no ` · ` in it).
+title_scope = ' · ([a-z]+(?::[a-z0-9]+)?)(?: [-–] [^·]*)?$'
+# Leela in a browser tab (plain `leela`, or `leela --app` in Chrome); title_apps keeps the default browser list.
+titles = ['(^|· )leela( — | · |$)']
 
 # Leela's shipped defaults (leela/core/keys.py), in Leela's chord syntax, with the action id in `command`.
 # At load Sanketa overlays ~/.config/leela/keys.json (or $LEELA_KEYMAP): `keys` overrides win, "" hides the entry,
 # and space-separated chords are alternatives. Entries without `command` are fixed keys that keys.json can't change.
+
+# Each context lists the scope tokens that pick it and the key groups that belong to it.
+# Groups in no context (Panes, Tabs & files, Assist & AI ...) show folded below the active context's groups.
+
+[[contexts]]
+name = "notebook"
+scopes = ["notebook"]
+groups = ["Notebook: run", "Notebook: cells", "Editing", "Kernel & run"]
+
+[[contexts]]
+name = "editor"
+scopes = ["py", "editor"]
+groups = ["Editing", "Refactor", "Find & navigate", "Find bar"]
+
+[[contexts]]
+name = "terminal"
+scopes = ["terminal"]
+groups = ["Terminal"]
+
+[[contexts]]
+name = "agent"
+scopes = ["agent"]
+groups = ["Agent", "Agent approval card", "Agent prompt suggestions"]
+
+[[contexts]]
+name = "exec"
+scopes = ["exec"]
+groups = ["Exec console"]
+
+[[contexts]]
+name = "files"
+scopes = ["files"]
+groups = ["File tree"]
+
+[[contexts]]
+name = "variables"
+scopes = ["vars"]
+groups = ["Variables"]
+
+[[contexts]]
+name = "vault"
+scopes = ["vault"]
+groups = ["Vault reader"]
+
+[[contexts]]
+name = "review"
+scopes = ["review"]
+groups = ["Vault review"]
 
 [[keys]]
 keys = "alt+shift+1"

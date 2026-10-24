@@ -6,6 +6,8 @@ struct LayerSection: View {
     let data: LayerSectionData
     let collapsed: Bool
     var selected = false
+    var folded: (RowGroup) -> Bool = { _ in false }
+    var toggleGroup: (RowGroup) -> Void = { _ in }
     let toggle: () -> Void
 
     var body: some View {
@@ -14,7 +16,8 @@ struct LayerSection: View {
                 HStack(spacing: 6) {
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                         .rotationEffect(.degrees(collapsed ? 0 : 90))
-                    Text(data.pack.name + (data.layer.host.map { " @ \($0)" } ?? "")).font(Theme.header)
+                    Text(data.pack.name + (data.layer.host.map { " @ \($0)" } ?? "") + (data.layer.context.map { " · \($0)" } ?? ""))
+                        .font(Theme.header)
                     Spacer()
                     if let p = data.pack.prefix {
                         HStack(spacing: 4) { Text("prefix").font(Theme.small); KeyLabel(text: KeyNotation.display(p), small: true) }
@@ -25,8 +28,25 @@ struct LayerSection: View {
             .buttonStyle(.plain)
             if !collapsed {
                 ForEach(data.groups) { g in
-                    if let n = g.name { Text(n).font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, 2) }
-                    ForEach(Array(g.keys.enumerated()), id: \.offset) { _, k in
+                    let shut = data.layer.context != nil && folded(g)
+                    if let n = g.name {
+                        if data.layer.context != nil {
+                            // with an active context every group folds; the others start folded
+                            Button { toggleGroup(g) } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "chevron.right").font(.system(size: 7, weight: .bold))
+                                        .rotationEffect(.degrees(shut ? 0 : 90))
+                                    Text(n).font(Theme.small)
+                                    Spacer()
+                                }
+                                .foregroundStyle(Theme.secondary).contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain).padding(.top, 2)
+                        } else {
+                            Text(n).font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, 2)
+                        }
+                    }
+                    if !shut { ForEach(Array(g.keys.enumerated()), id: \.offset) { _, k in
                         HStack(alignment: .firstTextBaseline) {
                             // disabled menu items stay listed, dimmed: their state changes with context
                             Text(k.action).font(Theme.text).foregroundStyle(k.enabled == false ? Theme.secondary : .primary).lineLimit(2)
@@ -35,7 +55,7 @@ struct LayerSection: View {
                                 .frame(minWidth: Theme.keyColumn, alignment: .trailing).layoutPriority(1)
                         }
                         .padding(.vertical, Theme.rowPad)
-                    }
+                    } }
                 }
                 if !data.pack.tips.isEmpty {
                     Text("Tips").font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, 2)

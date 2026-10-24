@@ -67,8 +67,20 @@ public struct LayerResolver {
         return out.filter { seen.insert($0.id).inserted }
     }
 
-    public func resolveApp(bundleID: String, name: String) -> [Layer] {
-        [Layer(kind: .app, name: name, packID: "app:\(bundleID)")]
+    /// The app's layer; a browser window whose title shows a pack's app (`titles`) gets that pack's layer in front.
+    public func resolveApp(bundleID: String, name: String, title: String? = nil) -> [Layer] {
+        let app = Layer(kind: .app, name: name, packID: "app:\(bundleID)")
+        guard library.pack(bundleID: bundleID) == nil, let p = library.pack(hostedIn: bundleID, title: title) else { return [app] }
+        return [Layer(kind: .app, name: p.name, packID: p.id), app]
+    }
+
+    /// Sets each app or terminal layer's `context` from the window title. `packs[i]` is the pack of `layers[i]`.
+    public static func applyContexts(_ layers: [Layer], packs: [Pack?], title: String?) -> [Layer] {
+        zip(layers, packs).map { l, p in
+            var l = l
+            if l.kind == .app || l.kind == .terminal { l.context = p?.activeContext(title: title)?.name }
+            return l
+        }
     }
 
     func layer(_ name: String, argv: [String], host: String? = nil) -> Layer {

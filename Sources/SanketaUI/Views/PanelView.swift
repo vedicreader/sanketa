@@ -51,7 +51,8 @@ struct PanelView: View {
                 }
                 .padding(.horizontal, 6)
             case .section(let s):
-                LayerSection(data: s, collapsed: model.collapsed.contains(s.id), selected: model.selectedLayer == s.id) { model.toggle(s.id) }
+                LayerSection(data: s, collapsed: model.collapsed.contains(s.id), selected: model.selectedLayer == s.id,
+                             folded: { model.isFolded(s, $0) }, toggleGroup: { model.toggle(s, $0) }) { model.toggle(s.id) }
                     .id(s.id)
             case .noPack(let l, _):
                 NoPackSection(layer: l)
@@ -115,12 +116,17 @@ struct Breadcrumb: View {
     let layers: [Layer]
     let click: (Int) -> Void
 
+    /// `ssh host`, `name@host`, or `name · context` when the window title picks a pack context
+    static func label(_ l: Layer) -> String {
+        l.kind == .remote ? "ssh \(l.name)" : l.name + (l.host.map { "@\($0)" } ?? "") + (l.context.map { " · \($0)" } ?? "")
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             ForEach(Array(layers.enumerated()), id: \.offset) { i, l in
                 if i > 0 { Text(" › ").foregroundStyle(Theme.secondary) }
                 Button { click(i) } label: {
-                    Text(l.kind == .remote ? "ssh \(l.name)" : l.name + (l.host.map { "@\($0)" } ?? ""))
+                    Text(Self.label(l))
                         .fontWeight(i == 0 ? .semibold : .medium)
                         .foregroundStyle(i == 0 ? Theme.primary : Theme.secondary)
                 }

@@ -10,6 +10,8 @@ public struct SearchItem: Hashable, Identifiable {
     public var detail: String
     public var explain: String?
     public var tags: [String]
+    /// in the active context of its layer; ranks higher
+    public var active = false
     public var id: String { "\(packID)|\(kind.rawValue)|\(title)" }
 
     public init(packID: String, packName: String, kind: ItemKind, title: String, detail: String,
@@ -18,10 +20,13 @@ public struct SearchItem: Hashable, Identifiable {
         self.detail = detail; self.explain = explain; self.tags = tags
     }
 
-    public static func items(from p: Pack) -> [SearchItem] {
-        p.keys.map { SearchItem(packID: p.id, packName: p.name, kind: .key, title: $0.action, detail: $0.keys) }
-        + p.tips.map { SearchItem(packID: p.id, packName: p.name, kind: .tip, title: $0.title, detail: $0.snippet,
-                                  explain: $0.explain, tags: $0.tags) }
+    /// The pack's keys and tips; with `context`, those in that pack context are `active`.
+    public static func items(from p: Pack, context: String? = nil) -> [SearchItem] {
+        func mark(_ i: SearchItem, _ on: Bool) -> SearchItem { var i = i; i.active = on; return i }
+        return p.keys.map { k in mark(SearchItem(packID: p.id, packName: p.name, kind: .key, title: k.action, detail: k.keys),
+                                      context.map { p.key(k, isIn: $0) } ?? false) }
+        + p.tips.map { t in mark(SearchItem(packID: p.id, packName: p.name, kind: .tip, title: t.title, detail: t.snippet,
+                                            explain: t.explain, tags: t.tags), context.map { p.tip(t, isIn: $0) } ?? false) }
     }
 }
 
@@ -53,8 +58,11 @@ public enum Search {
         return isSubsequence(t, of: title) ? 3 : nil
     }
 
+    /// Bonus for an item in its layer's active context: one match level, so a better match elsewhere still wins.
+    static let activeBonus = 10
+
     public static func score(_ query: String, _ item: SearchItem) -> Int? {
-        var total = 0
+        var total = item.active ? activeBonus : 0
         for t in tokens(query) {
             guard let s = tokenScore(t, item) else { return nil }
             total += s
@@ -67,7 +75,7 @@ public enum Search {
         let rankOf = { (i: SearchItem) in context.firstIndex(of: i.packID) ?? Int.max }
         let scored: [(i: Int, item: SearchItem, score: Int)]
         if tokens(query).isEmpty {
-            scored = items.enumerated().filter { rankOf($0.element) != .max }.map { ($0.offset, $0.element, 0) }
+            scored = items.enumerated().filter { rankOf($0.element) != .max }.map { ($0.offset, $0.element, $0.element.active ? activeBonus : 0) }
         } else {
             scored = items.enumerated().compactMap { o in score(query, o.element).map { (o.offset, o.element, $0) } }
         }

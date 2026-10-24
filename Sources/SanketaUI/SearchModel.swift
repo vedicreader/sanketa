@@ -24,10 +24,12 @@ import SanketaSystem
     }
 
     /// Context packs (live tmux keys, menu shortcuts) win over library packs with the same id.
+    /// Entries in a layer's active pack context are marked `active`.
     var items: [SearchItem] {
         let ids = Set(context.packs.map(\.id))
+        let active = Dictionary(context.layers.compactMap { l in l.context.flatMap { c in l.packID.map { ($0, c) } } }) { a, _ in a }
         let rest = library.packs.values.filter { !ids.contains($0.id) }.sorted { $0.id < $1.id }
-        return (context.packs + rest).flatMap(SearchItem.items)
+        return (context.packs + rest).flatMap { SearchItem.items(from: $0, context: active[$0.id]) }
     }
 
     /// The tmux-style prefix of a result's pack, so its keys render in Mac symbols.

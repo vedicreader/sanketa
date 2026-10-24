@@ -47,6 +47,10 @@ public struct PackLibrary {
         m.apps = union(base.apps, overlay.apps)
         m.keys = overlaying(base.keys, overlay.keys, by: \.keys)
         m.tips = overlaying(base.tips, overlay.tips, by: \.title)
+        m.titleScope = overlay.titleScope ?? base.titleScope
+        m.contexts = overlaying(base.contexts, overlay.contexts, by: \.name)
+        m.titles = union(base.titles, overlay.titles)
+        m.titleApps = union(base.titleApps, overlay.titleApps)
         return m
     }
 
@@ -73,5 +77,15 @@ public struct PackLibrary {
 
     public func pack(bundleID: String) -> Pack? {
         packs.values.sorted { $0.id < $1.id }.first { $0.apps.contains(bundleID) }
+    }
+
+    /// The pack whose app runs in the browser `bundleID`, found by the window title.
+    public func pack(hostedIn bundleID: String, title: String?) -> Pack? {
+        packs.values.sorted { $0.id < $1.id }.first { $0.hosted(in: bundleID, title: title) }
+    }
+
+    /// True when the app's window title can change its layers: a pack reads a scope from it, or a pack may be hosted in it.
+    public func readsTitle(bundleID: String) -> Bool {
+        pack(bundleID: bundleID)?.titleScope != nil || packs.values.contains { !$0.titles.isEmpty && $0.titleApps.contains(bundleID) }
     }
 }
