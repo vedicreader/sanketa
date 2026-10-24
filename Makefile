@@ -8,6 +8,8 @@ test:
 app:
 	swift build -c release
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
+	# a fresh inode: overwriting a signed executable in place gets it killed at exec (SIGKILL, cached signature)
+	mkdir -p /tmp/sanketa-trash && mv $(APP)/Contents/MacOS/Sanketa /tmp/sanketa-trash/Sanketa-$$$$ 2>/dev/null || true
 	cp "$$(swift build -c release --show-bin-path)/Sanketa" $(APP)/Contents/MacOS/Sanketa
 	cp Resources/Info.plist $(APP)/Contents/Info.plist
 	mkdir -p /tmp/sanketa-trash && mv $(APP)/Contents/Resources/Packs /tmp/sanketa-trash/Packs-$$$$ 2>/dev/null || true
