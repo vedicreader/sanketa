@@ -226,14 +226,25 @@ func bundledContext(_ names: [String]) throws -> Context {
         #expect(shown(m, chrome) == Self.chromeMenu.keys.count)
     }
 
-    /// A terminal tool stack is still an index, but the terminal's own menu keys at the bottom are open.
+    /// A terminal tool stack is still an index, the terminal's own menu keys too: the tool in front stands out.
     @Test func terminalStackStaysAnIndex() throws {
+        let menu = MenuKeys.pack(bundleID: "com.apple.Terminal", name: "Terminal", shortcuts: Self.chromeMenu.keys.map {
+            MenuShortcut(path: [$0.group ?? "", $0.action], keys: $0.keys) })
+        var c = try bundledContext(["htop", "tmux", "fish", "Terminal"])
+        c.packs[3] = menu
+        c.layers[3].packID = menu.id
         let m = try model()
-        m.update(try bundledContext(["htop", "tmux", "fish", "Terminal"]))
+        m.update(c)
         let htop = m.sections[0], tmux = m.sections[1], term = try #require(m.sections.last)
         #expect(htop.groups.dropFirst(2).contains { m.isFolded(htop, $0) })
         #expect(tmux.groups.dropFirst().allSatisfy { m.isFolded(tmux, $0) })
-        #expect(term.pack.id == terminal.id && term.groups.allSatisfy { !m.isFolded(term, $0) })
+        #expect(term.layer.kind == .terminal && term.groups.count == 6)
+        #expect(!m.isFolded(term, term.groups[0]) && term.groups.dropFirst().allSatisfy { m.isFolded(term, $0) })
+        // alone (no shell found), the terminal's menu is still an index: the first section opens 2 groups
+        let alone = Context(appName: "Terminal", bundleID: "com.apple.Terminal", layers: [c.layers[3]], packs: [menu], axTrusted: true)
+        m.update(alone)
+        let s = m.sections[0]
+        #expect(s.groups.prefix(2).allSatisfy { !m.isFolded(s, $0) } && s.groups.dropFirst(2).allSatisfy { m.isFolded(s, $0) })
     }
 }
 

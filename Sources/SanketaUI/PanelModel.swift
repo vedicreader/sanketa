@@ -163,12 +163,13 @@ struct StackState {
         return folds[Self.groupID(s, g)] ?? defaultFolded(s, g)
     }
 
-    /// The panel is an index of a tool stack: the first section opens its first 2 groups, the other sections their
-    /// first group, and the rest show as one line each. Menu keys (`app:` packs, in menu-bar order) and a stack of one
-    /// section open every group. With an active context, its groups are open and the others folded.
+    /// The panel is an index of a terminal's tool stack: the first section opens its first 2 groups, the other sections
+    /// (the terminal's own menu keys too) their first group, and the rest show as one line each. An app that is not a
+    /// terminal opens every group of its menu keys (`app:` packs, in menu-bar order) and of a lone section.
+    /// With an active context, its groups are open and the others folded.
     public func defaultFolded(_ s: LayerSectionData, _ g: RowGroup) -> Bool {
         if s.layer.context != nil { return !g.inContext }
-        if sections.count == 1 || s.pack.id.hasPrefix("app:") { return false }
+        if s.layer.kind != .terminal, sections.count == 1 || s.pack.id.hasPrefix("app:") { return false }
         let open = s.id == sections.first?.id ? 2 : 1
         return (s.groups.firstIndex(of: g) ?? 0) >= open
     }
