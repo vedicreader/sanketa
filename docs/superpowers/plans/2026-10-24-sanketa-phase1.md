@@ -200,7 +200,7 @@ Lookup: `pack(process:argv:)` first returns a pack where any `match` string is a
 - [ ] **Step 1: Write failing tests:**
   - `parseClientsStripsDev`
   - `parseKeysPrefixAndRoot`: the fixture contains `bind-key -T prefix % split-window -h` → `KeyEntry(keys: "prefix %", command: "split-window -h")`. Mouse keys are absent.
-  - `parseKeysRepeatFlagAndEscapes`: `bind-key -r -T prefix Up select-pane -U` → keys `"prefix Up"`. `bind-key -T prefix \" split-window` → keys `"prefix \""`. Escaped `\\;` and `\\#` keys are unescaped the same way.
+  - `parseKeysRepeatFlagAndEscapes`: `bind-key -r -T prefix Up select-pane -U` → keys `"prefix Up"`. `bind-key -T prefix \" split-window` → keys `"prefix \""`. Escaped `\;` and `\#` keys are unescaped the same way.
   - `mergeLiveUsesUserKeysWithBundledLabel`: bundled `{keys:"prefix %", action:"Split left/right", command:"split-window -h"}`, live `prefix |` → `split-window -h` → result has `keys "prefix |"`, `action "Split left/right"`
   - `mergeLiveDropsUnbound`
   - `remoteTagParses`: `"⟦sanketa host=gpubox layers=fish,tmux,htop⟧ ~/w"` → host `gpubox`, layers `[fish,tmux,htop]`, rest `"~/w"`
