@@ -58,7 +58,8 @@ struct StackState {
     /// keyboard focus is on the layer list rather than the search field
     @Published public var listFocused = false
     @Published public var translucency = Translucency.medium
-    @Published public var packErrors: [PackLoadError] = []
+    /// A new set of bad files shows as a count again.
+    @Published public var packErrors: [PackLoadError] = [] { didSet { if packErrors != oldValue { showAllErrors = false } } }
     /// why config.toml did not load; Sanketa then uses the defaults
     @Published public var configError: PackLoadError?
     /// the footer lists every bad pack file, not only the count

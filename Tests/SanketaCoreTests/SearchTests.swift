@@ -113,4 +113,17 @@ struct SearchTests {
         #expect(Search.rank("split pane", items, context: []).map(\.packID) == ["tmux", "kaku"])
         #expect(Search.rank("strip", items, context: []).map(\.packID) == ["sed"])
     }
+
+    /// The floor drops only fuzzy matches: keys bound to tab or esc still show next to a title match.
+    @Test func floorKeepsKeyTextMatches() {
+        let items = [
+            SearchItem(packID: "htop", packName: "htop", kind: .key, title: "Tab bar", detail: "F2"),
+            SearchItem(packID: "htop", packName: "htop", kind: .key, title: "Next screen", detail: "tab"),
+            SearchItem(packID: "vim", packName: "vim", kind: .key, title: "Normal mode", detail: "esc"),
+            SearchItem(packID: "vim", packName: "vim", kind: .key, title: "Escape a character", detail: "⌃V"),
+            SearchItem(packID: "fish", packName: "fish", kind: .tip, title: "Trim a bad suffix", detail: "string trim"),
+        ]
+        #expect(Search.rank("tab", items, context: []).map(\.title) == ["Tab bar", "Next screen"])
+        #expect(Search.rank("esc", items, context: []).map(\.title) == ["Escape a character", "Normal mode"])
+    }
 }

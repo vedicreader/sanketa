@@ -128,6 +128,11 @@ func bundledContext(_ names: [String]) throws -> Context {
         }
         s.query = "split pane"
         #expect(s.results.first?.title == "Split pane left/right" && !s.results.contains { $0.packID == "sed" })
+        // keys found by their key text stay: tab and esc
+        s.query = "tab"
+        #expect(s.results.contains { $0.kind == .key && $0.detail.lowercased().contains("tab") && !$0.title.lowercased().contains("tab") })
+        s.query = "esc"
+        #expect(s.results.contains { $0.kind == .key && $0.detail.contains("esc") && !$0.title.lowercased().contains("esc") })
     }
 
     @Test func noResultTextIsPlainAndSaysWhatToDo() {
@@ -158,6 +163,10 @@ func bundledContext(_ names: [String]) throws -> Context {
         #expect(m.errorLines == [.init(text: "3 pack files did not load. Click to see them.", action: .showAll)])
         m.showAllErrors = true
         #expect(m.errorLines.map(\.text) == ["a.toml: key 1 has no keys.", "b.toml: the pack has no id.", "c.toml: line 3: syntax error."])
+        m.packErrors = m.packErrors                     // the same set (a reload with no change) keeps the list open
+        #expect(m.showAllErrors)
+        m.packErrors.append(err("d.toml", "the pack has no name"))
+        #expect(!m.showAllErrors && m.errorLines.count == 1)
     }
 
     /// The real loader's messages reach the footer as they are, from a broken pack on disk.

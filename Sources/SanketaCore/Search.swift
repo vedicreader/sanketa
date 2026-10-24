@@ -70,8 +70,12 @@ public enum Search {
         return total
     }
 
-    /// A result must score at least this share of the top score; weaker matches only add noise.
+    /// A fuzzy result (a word found only as letters in order in the title) must score at least this share of the
+    /// top score. Matches in the title, keys, tags or pack name always stay.
     public static let floor = 0.5
+
+    /// True when some word of the query matches the item only as a subsequence of its title.
+    static func fuzzy(_ query: String, _ item: SearchItem) -> Bool { tokens(query).contains { tokenScore($0, item) == 3 } }
 
     /// `context` is pack ids, innermost first; context packs sort ahead of the rest, then by score.
     public static func rank(_ query: String, _ items: [SearchItem], context: [String], limit: Int = 50) -> [SearchItem] {
@@ -82,7 +86,7 @@ public enum Search {
         } else {
             scored = items.enumerated().compactMap { o in score(query, o.element).map { (o.offset, o.element, $0) } }
             let top = Double(scored.map(\.score).max() ?? 0)
-            scored.removeAll { Double($0.score) < top * floor }
+            scored.removeAll { Double($0.score) < top * floor && fuzzy(query, $0.item) }
         }
         return scored.sorted { a, b in
             let (ra, rb) = (rankOf(a.item), rankOf(b.item))
