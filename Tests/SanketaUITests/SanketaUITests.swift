@@ -115,6 +115,35 @@ func threadCPUSeconds() -> Double {
         #expect(threadCPUSeconds() - t0 < 0.1)   // main thread under ~3% over 3 s, generous for a loaded machine
     }
 
+    @Test func markLoadsAsTemplateFromBrandFolder() throws {
+        let img = try #require(Brand.mark())
+        #expect(img.isTemplate && img.size == NSSize(width: 18, height: 18))
+        #expect(img.representations.map(\.pixelsWide).sorted() == [18, 36, 54])
+        // a folder with only the 1x file still gives a mark; an empty folder gives none
+        let d = try tempURL("x").deletingLastPathComponent()
+        try FileManager.default.copyItem(at: Brand.directory().appendingPathComponent("sanketa-mark.png"),
+                                         to: d.appendingPathComponent("sanketa-mark.png"))
+        #expect(Brand.mark(in: d)?.representations.count == 1)
+        #expect(Brand.mark(in: try tempURL("y").deletingLastPathComponent()) == nil)
+    }
+
+    @Test func markSitsInTopStripAndPassesClicks() throws {
+        let c = try controller()
+        defer { c.panel.orderOut(nil) }
+        c.show()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        let root = try #require(c.panel.contentView)
+        root.layoutSubtreeIfNeeded()
+        #expect(c.mark.isDescendant(of: root) && c.mark.image?.isTemplate == true)
+        let f = c.mark.convert(c.mark.bounds, to: nil), h = root.bounds.height
+        #expect(abs(f.minX - Theme.pad) < 0.5 && abs(f.width - 18) < 0.5)
+        #expect(abs(f.midY - (h - Theme.topStrip / 2)) < 0.5)                     // centred in the strip
+        let w = c.wordmark.convert(c.wordmark.bounds, to: nil)
+        #expect(w.minX > f.maxX && w.maxY <= h && w.minY >= h - Theme.topStrip)   // the name fits in the strip
+        #expect(root.hitTest(root.convert(NSPoint(x: f.midX, y: f.midY), from: nil)) !== c.mark)
+        #expect(!c.panel.isKeyWindow && !NSApp.isActive)
+    }
+
     @Test func panelShowDoesNotStealFocus() throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }

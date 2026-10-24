@@ -22,6 +22,9 @@ public final class SanketaPanel: NSPanel {
     public let panel: SanketaPanel
     public let field = SearchTextField()
     public let glass = NSGlassEffectView()
+    /// the kolam mark and the name in the empty title-bar strip; not interactive
+    let mark = PassthroughImageView()
+    let wordmark = PassthroughLabel(labelWithString: "Sanketa")
     public let model: PanelModel
     public let search: SearchModel
     public private(set) var searching = false
@@ -62,7 +65,27 @@ public final class SanketaPanel: NSPanel {
             pick: { [weak self] in self?.pick($0) },
             clickLayer: { [weak self] in self?.clickLayer($0) }))
         host.sizingOptions = []
-        glass.contentView = host
+        let root = NSView()
+        host.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(host)
+        mark.image = Brand.mark()
+        mark.imageScaling = .scaleProportionallyUpOrDown
+        // Theme.secondary in AppKit: label colour at 72 %
+        mark.contentTintColor = NSColor.labelColor.withAlphaComponent(0.72)
+        mark.setAccessibilityElement(false)
+        wordmark.font = NSFont.systemFont(ofSize: 11, weight: .medium).withSmallCaps()
+        wordmark.textColor = NSColor.labelColor.withAlphaComponent(0.72)
+        for v in [mark, wordmark] as [NSView] { v.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(v) }
+        NSLayoutConstraint.activate([
+            host.leadingAnchor.constraint(equalTo: root.leadingAnchor), host.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            host.topAnchor.constraint(equalTo: root.topAnchor), host.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            mark.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: Theme.pad),
+            mark.centerYAnchor.constraint(equalTo: root.topAnchor, constant: Theme.topStrip / 2),
+            mark.widthAnchor.constraint(equalToConstant: Brand.markPoints), mark.heightAnchor.constraint(equalToConstant: Brand.markPoints),
+            wordmark.leadingAnchor.constraint(equalTo: mark.trailingAnchor, constant: 6),
+            wordmark.firstBaselineAnchor.constraint(equalTo: mark.centerYAnchor, constant: 4),
+        ])
+        glass.contentView = root
         panel.contentView = glass
 
         if let s = NSScreen.main?.visibleFrame {

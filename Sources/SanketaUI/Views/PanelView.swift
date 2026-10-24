@@ -34,7 +34,7 @@ struct PanelView: View {
             }
             if model.showsFooter { Footer(model: model, grant: grantAccessibility) }
         }
-        .padding(.top, 26)
+        .padding(.top, Theme.topStrip)
         .frame(minWidth: 260, minHeight: 240)
         .background(Theme.tint(scheme == .dark).opacity(Theme.tintOpacity(model.translucency)))
     }
