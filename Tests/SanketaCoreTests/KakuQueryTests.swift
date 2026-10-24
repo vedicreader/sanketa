@@ -55,6 +55,15 @@ import Testing
         #expect(KakuQuery.paneTTYs(list: "") == [:])
     }
 
+    /// `sh -c … ramabana …/bin/ramabana`: the shell runs ramabana, so its layer is the program ramabana.
+    @Test func shellRunningAToolIsThatTool() throws {
+        let r = try resolver()
+        let l = r.layer("bash", argv: ["sh", "-c", "exec python3 \"$1\"", "ramabana", "/Users/user/.local/bin/ramabana"])
+        #expect(l.kind == .program && l.name == "ramabana" && l.packID == "ramabana")
+        let plain = r.layer("fish", argv: ["-fish"])          // a shell with its own pack stays a shell
+        #expect(plain.kind == .shell && plain.name == "fish" && plain.packID == "fish")
+    }
+
     @Test func twoWindowsPickTheFocusedTTY() throws {
         let fake = try Self.recorded()
         let focused = KakuQuery(runner: fake, cli: Self.cli).focusedTTY(pid: 28331)
@@ -69,7 +78,8 @@ import Testing
         let ls = r.resolve(Self.snapshot, terminal: TerminalContext(pid: 28331, bundleID: "fun.tw93.kaku", appName: "Kaku",
                                                                    windowTitle: Self.title, focusedTTY: focused))
         // the pane's ramabana layer; the client's tmux layer has the same pack and shows once
-        #expect(ls.map(\.name) == ["bash", "fish", "Kaku"])
+        #expect(ls.map(\.name) == ["ramabana", "fish", "Kaku"])
+        #expect(ls.first?.kind == .program)
         #expect(ls.map(\.packID) == ["ramabana", "fish", "app:fun.tw93.kaku"])
     }
 

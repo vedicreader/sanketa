@@ -81,8 +81,8 @@ import Testing
         #expect(t.keys.contains { $0.action == "Split pane left/right" })
     }
 
-    /// ramabana's shape: a private server whose argv names bin/ramabana. The pane's layer gives the ramabana keys; the
-    /// client's tmux layer has the same pack, so it shows once.
+    /// ramabana's shape: a private server whose argv names bin/ramabana. The pane's layer is ramabana; the client's
+    /// tmux layer has the same pack, so it shows once.
     @Test func ramabanaPaneShowsAboveItsTmux() throws {
         defer { _ = tmux(inner, ["kill-server"]); _ = tmux(outer, ["kill-server"]) }
         let script = try conf().deletingLastPathComponent().appendingPathComponent("bin/ramabana").path
@@ -92,8 +92,8 @@ import Testing
         config.terminals = ["test.terminal"]
         let c = ContextEngine(config: config, library: PackLibrary.load(bundled: Self.packs, user: nil))
             .compute(pid: server, bundleID: "test.terminal", appName: "TestTerm")
-        // macOS /bin/sh is bash
-        #expect(c.layers.map(\.name) == ["bash", "fish", "TestTerm"])
+        // macOS /bin/sh is bash; it runs ramabana, so the crumb says ramabana
+        #expect(c.layers.map(\.name) == ["ramabana", "fish", "TestTerm"])
         #expect(c.layers.map(\.packID) == ["ramabana", "fish", "app:test.terminal"])
         #expect(c.packs.first?.id == "ramabana")
     }

@@ -85,10 +85,12 @@ public struct LayerResolver {
         }
     }
 
+    /// A shell whose argv picks another tool's pack (`sh …/bin/ramabana`) is that tool: a program named after the pack.
     func layer(_ name: String, argv: [String], host: String? = nil) -> Layer {
-        let kind: LayerKind = Self.shells.contains(name) ? .shell : name == "tmux" ? .multiplexer : .program
         let pick = library.pick(process: name, argv: argv)
-        var l = Layer(kind: kind, name: kind == .program ? Self.displayName(name, argv: argv) : name,
+        let script = Self.shells.contains(name) && pick.map { !$0.pack.processes.contains(name) } == true
+        let kind: LayerKind = script ? .program : Self.shells.contains(name) ? .shell : name == "tmux" ? .multiplexer : .program
+        var l = Layer(kind: kind, name: script ? pick!.pack.name : kind == .program ? Self.displayName(name, argv: argv) : name,
                       packID: pick?.pack.id, host: host, reason: pick?.reason)
         l.process = name; l.argv = argv
         return l
