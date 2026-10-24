@@ -3,7 +3,8 @@ import Foundation
 import SanketaCore
 
 public enum SysctlProcesses {
-    struct Key: Hashable { let pid: Int32, start: Double }
+    /// `exec` keeps pid and start time but changes `p_comm`, so a detail read between fork and exec isn't reused after it.
+    struct Key: Hashable { let pid: Int32, start: Double, comm: String }
     typealias Detail = (path: String?, argv: [String])
     nonisolated(unsafe) static var details = [Key: Detail]()
     /// `devname` scans /dev with lstat per call; a device number always names the same tty
@@ -11,7 +12,7 @@ public enum SysctlProcesses {
     static let lock = NSLock()
 
     /// All processes from one `KERN_PROC_ALL` sysctl; path and argv only for descendants of `roots` and of tmux servers
-    /// (every process when `roots` is nil), cached per (pid, start).
+    /// (every process when `roots` is nil), cached per (pid, start, p_comm).
     public static func snapshot(under roots: [Int32]? = nil) -> ProcessSnapshot {
         lock.withLock {
             let base = kinfos()
@@ -19,7 +20,7 @@ public enum SysctlProcesses {
             var next = [Key: Detail]()
             let procs = base.map { p -> ProcInfo in
                 guard want?.contains(p.pid) ?? true else { return p }
-                let k = Key(pid: p.pid, start: p.start)
+                let k = Key(pid: p.pid, start: p.start, comm: p.name)
                 let d = details[k] ?? { let path = path(p.pid); return (path, argv(p.pid)) }()
                 next[k] = d
                 var q = p
@@ -30,7 +31,7 @@ public enum SysctlProcesses {
             }
             // keep cached entries of live processes that weren't detailed this time
             for p in base {
-                let k = Key(pid: p.pid, start: p.start)
+                let k = Key(pid: p.pid, start: p.start, comm: p.name)
                 if next[k] == nil, let d = details[k] { next[k] = d }
             }
             details = next

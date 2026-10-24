@@ -5,6 +5,19 @@ import Testing
 
 let tmuxBin = "/opt/homebrew/bin/tmux"
 
+/// CPU time of the calling thread (`thread_info`), not of the whole test process.
+func threadCPUSeconds() -> Double {
+    var info = thread_basic_info()
+    var count = mach_msg_type_number_t(MemoryLayout<thread_basic_info>.size / MemoryLayout<integer_t>.size)
+    let port = mach_thread_self()
+    defer { mach_port_deallocate(mach_task_self_, port) }
+    _ = withUnsafeMutablePointer(to: &info) {
+        $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { thread_info(port, thread_flavor_t(THREAD_BASIC_INFO), $0, &count) }
+    }
+    return Double(info.user_time.seconds + info.system_time.seconds)
+        + Double(info.user_time.microseconds + info.system_time.microseconds) / 1e6
+}
+
 @Suite struct SysctlProcessesTests {
     @Test func snapshotSeesSpawnedChild() throws {
         let c = Process()
@@ -35,19 +48,36 @@ let tmuxBin = "/opt/homebrew/bin/tmux"
         #expect(s.foreground(tty: tty)?.pid == pid)
     }
 
-    func cpuSeconds() -> Double {
-        var u = rusage()
-        getrusage(RUSAGE_SELF, &u)
-        func s(_ t: timeval) -> Double { Double(t.tv_sec) + Double(t.tv_usec) / 1e6 }
-        return s(u.ru_utime) + s(u.ru_stime)
+    /// A child snapshotted between fork and exec must not keep the parent's path and argv after the exec.
+    @Test func execRefreshesCachedDetails() throws {
+        let me = ProcessInfo.processInfo.processIdentifier
+        let c = Process()
+        c.executableURL = URL(fileURLWithPath: "/bin/sh")
+        c.arguments = ["-c", "sleep 0.3; exec /bin/sleep 30"]
+        try c.run()
+        defer { c.terminate(); c.waitUntilExit() }
+        let before = try #require(SysctlProcesses.snapshot(under: [me]).proc(c.processIdentifier))
+        #expect(before.name == "sh" && before.argv.first == "/bin/sh", "\(before)")
+        var after = before
+        let end = Date().addingTimeInterval(5)
+        while Date() < end {
+            Thread.sleep(forTimeInterval: 0.1)
+            after = try #require(SysctlProcesses.snapshot(under: [me]).proc(c.processIdentifier))
+            if after.name == "sleep" { break }
+        }
+        #expect(after.start == before.start)
+        #expect(after.name == "sleep")
+        #expect(after.argv == ["/bin/sleep", "30"])
+        #expect(after.path == "/bin/sleep")
     }
 
+    /// CPU of the calling thread only, so suites running in parallel in this process don't count.
     @Test func snapshotIsCheap() throws {
         let me = ProcessInfo.processInfo.processIdentifier
-        let t0 = cpuSeconds()
+        let t0 = threadCPUSeconds()
         var s = ProcessSnapshot([])
         for _ in 0..<10 { s = SysctlProcesses.snapshot(under: [me]) }
-        let used = cpuSeconds() - t0
+        let used = threadCPUSeconds() - t0
         #expect(s.procs.count > 50)
         #expect(s.proc(me)?.path != nil)
         #expect(used < 0.5, "10 scoped snapshots used \(used) s CPU")
