@@ -53,11 +53,19 @@ func threadCPUSeconds() -> Double {
         let me = ProcessInfo.processInfo.processIdentifier
         let c = Process()
         c.executableURL = URL(fileURLWithPath: "/bin/sh")
-        c.arguments = ["-c", "sleep 0.3; exec /bin/sleep 30"]
+        c.arguments = ["-c", "sleep 1.5; exec /bin/sleep 30"]
         try c.run()
         defer { c.terminate(); c.waitUntilExit() }
-        let before = try #require(SysctlProcesses.snapshot(under: [me]).proc(c.processIdentifier))
-        #expect(before.name == "sh" && before.argv.first == "/bin/sh", "\(before)")
+        // the first snapshot can run before the child has exec'd /bin/sh: poll until its argv shows /bin/sh (the shell may be bash behind /bin/sh)
+        var seen: ProcInfo?
+        let ready = Date().addingTimeInterval(2)
+        while Date() < ready {
+            seen = SysctlProcesses.snapshot(under: [me]).proc(c.processIdentifier)
+            if seen?.argv.first == "/bin/sh" { break }
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        let before = try #require(seen)
+        #expect(["sh", "bash"].contains(before.name) && before.argv.first == "/bin/sh", "\(before)")
         var after = before
         let end = Date().addingTimeInterval(5)
         while Date() < end {
