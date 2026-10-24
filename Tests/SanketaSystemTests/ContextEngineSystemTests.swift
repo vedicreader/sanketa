@@ -54,6 +54,19 @@ import Testing
         #expect(t.prefix == "C-b")
     }
 
+    /// A read before the server is up gives no live keys; it must not hide the live keys for the cache's 30 s.
+    @Test func emptyLiveKeysAreNotCached() throws {
+        let sock = "sanketa-test-\(ProcessInfo.processInfo.processIdentifier)-ce-late"
+        defer { _ = tmux(sock, ["kill-server"]) }
+        let lib = PackLibrary.load(bundled: Self.packs, user: nil)
+        let base = try #require(lib.packs["tmux"])
+        let e = ContextEngine(config: Config(), library: lib, tmuxSocket: sock)
+        #expect(!e.tmuxPack(base, bin: tmuxBin).keys.contains { $0.keys == "prefix |" })
+        _ = try #require(tmux(sock, ["-f", "/dev/null", "new", "-d", "-s", "late", "/bin/sleep", "30"]))
+        _ = try #require(tmux(sock, ["bind-key", "|", "split-window", "-h"]))
+        #expect(e.tmuxPack(base, bin: tmuxBin).keys.contains { $0.keys == "prefix |" && $0.command == "split-window -h" })
+    }
+
     /// fish in a terminal runs ssh; the title carries the remote host's tag; layers resolve against the real bundled packs.
     /// The process tree is described as data: copying a binary to run it under the name `ssh` trips the endpoint
     /// threat detector (process masquerading), so no fake `ssh` is ever spawned.

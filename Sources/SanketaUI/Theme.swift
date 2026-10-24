@@ -34,8 +34,6 @@ public enum Theme {
 
     static func tint(_ dark: Bool) -> Color { dark ? .black : .white }
 
-    static let glyphs = ["ctrl": "⌃", "opt": "⌥", "alt": "⌥", "shift": "⇧", "cmd": "⌘"]
-
     /// `ctrl+opt+k` → `⌃⌥K`, for menus and notes.
     public static func display(hotkey s: String) -> String { KeyNotation.display(s) }
 }

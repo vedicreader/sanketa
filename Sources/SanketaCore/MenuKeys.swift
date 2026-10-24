@@ -86,7 +86,7 @@ public enum MenuKeys {
 
     public static func pack(bundleID: String, name: String, shortcuts: [MenuShortcut]) -> Pack {
         Pack(id: "app:\(bundleID)", name: name,
-             keys: shortcuts.map { KeyEntry(keys: $0.keys, action: $0.path.dropFirst().joined(separator: " › "), group: $0.path[0],
+             keys: shortcuts.map { KeyEntry(keys: $0.keys, action: $0.path.dropFirst().joined(separator: " › "), group: $0.path.first,
                                             enabled: $0.enabled ? nil : false) })
     }
 }

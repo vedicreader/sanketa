@@ -9,8 +9,9 @@ import Testing
 /// WCAG contrast of the real panel text over approximated glass: generated backgrounds, Gaussian-blurred
 /// (standing in for the glass), under the level's adaptive tint, with the real views rendered on top.
 @MainActor struct ContrastTests {
-    static let out = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent(".superpowers/sdd/2026-10-24-sanketa-phase1/contrast")
+    /// PNGs and numbers.tsv go to a temp dir, or to `$SANKETA_CONTRAST_OUT` when it is set.
+    static let out = ProcessInfo.processInfo.environment["SANKETA_CONTRAST_OUT"].map { URL(fileURLWithPath: $0) }
+        ?? FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-contrast")
     static let scale = 2.0, width = 312.0
 
     struct RGBA { var px: [UInt8]; let w: Int, h: Int }
@@ -146,7 +147,7 @@ import Testing
             }
         }
         try table.joined(separator: "\n").write(to: Self.out.appendingPathComponent("numbers.tsv"), atomically: true, encoding: .utf8)
-        print(table.joined(separator: "\n"))
+        print("contrast output: \(Self.out.path)\n" + table.joined(separator: "\n"))
         #expect(failures.isEmpty, "\(failures)")
     }
 }

@@ -30,7 +30,8 @@ public struct ProcessRunner: CommandRunning {
             if p.isRunning { kill(p.processIdentifier, SIGKILL) }
             return nil
         }
-        _ = read.wait(timeout: .now() + 1)
+        // a grandchild still holding the pipe: the reader may still be writing `box.data`
+        guard read.wait(timeout: .now() + 1) == .success else { return nil }
         return p.terminationStatus == 0 ? String(decoding: box.data, as: UTF8.self) : nil
     }
 }

@@ -45,6 +45,13 @@ func loadSnapshot(_ name: String) throws -> ProcessSnapshot {
         #expect(Date().timeIntervalSince(t0) < 1.0)
     }
 
+    /// A background grandchild keeps stdout open after the child exits; the runner gives up instead of racing the reader.
+    @Test func runnerPipeHeldByGrandchildIsNil() {
+        let t0 = Date()
+        #expect(ProcessRunner().run("/bin/sh", ["-c", "/bin/sleep 3 & echo hi"], timeout: 1.0) == nil)
+        #expect(Date().timeIntervalSince(t0) < 2.5)
+    }
+
     @Test func runnerNonZeroIsNil() {
         #expect(ProcessRunner().run("/usr/bin/false", [], timeout: 1.0) == nil)
     }

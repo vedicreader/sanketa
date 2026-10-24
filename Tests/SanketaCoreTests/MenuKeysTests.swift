@@ -47,6 +47,11 @@ struct FakeNode: MenuNode {
         #expect(MenuKeys.format(char: "", virtualKey: nil, modifiers: 0, glyph: 0x17) == "⌘⌫")
     }
 
+    @Test func emptyPathDoesNotCrash() {
+        let p = MenuKeys.pack(bundleID: "com.x", name: "X", shortcuts: [MenuShortcut(path: [], keys: "⌘K")])
+        #expect(p.keys == [KeyEntry(keys: "⌘K", action: "", group: nil)])
+    }
+
     @Test func menuPackGroups() {
         let s = [MenuShortcut(path: ["Format", "Font", "Bold"], keys: "⌘B"),
                  MenuShortcut(path: ["Format", "Font", "Italic"], keys: "⌘I"),

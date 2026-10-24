@@ -78,7 +78,8 @@ public struct ContextEngine: @unchecked Sendable {
 
     func tmuxPack(_ p: Pack, bin: String?) -> Pack {
         guard let bin else { return p }
-        let l = live.get(bin) { tmux.liveKeys(tmux: bin) }
+        // an empty read (server still starting, or a timeout) isn't cached
+        let l = live.get(bin, keep: { !$0.keys.isEmpty }) { tmux.liveKeys(tmux: bin) }
         var m = Tmux.mergeLive(p, live: l.keys)
         m.prefix = l.prefix ?? p.prefix
         return m
@@ -127,9 +128,12 @@ public struct ContextEngine: @unchecked Sendable {
         timer?.invalidate()
         timer = nil
         if engine.config.terminals.contains(app.bundleIdentifier ?? "") {
-            timer = Timer.scheduledTimer(withTimeInterval: engine.config.pollInterval, repeats: true) { [weak self] _ in
+            let interval = max(0.25, engine.config.pollInterval)
+            let t = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { if self?.busy == false { self?.refresh() } }
             }
+            t.tolerance = interval * 0.2
+            timer = t
         }
         refresh(app)
     }

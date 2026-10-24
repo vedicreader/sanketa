@@ -263,6 +263,21 @@ func threadCPUSeconds() -> Double {
     }
 }
 
+@MainActor struct MonitorTimerTests {
+    /// `pollInterval = 0` must not spin: the poll timer runs at 0.25 s at most, with 20% tolerance for coalescing.
+    @Test func pollIntervalIsClampedAndTolerant() throws {
+        let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
+        var config = Config()
+        config.pollInterval = 0
+        config.terminals = ["com.apple.finder"]
+        let m = ContextMonitor(config: config, library: PackLibrary())
+        m.activated(finder)
+        let t = try #require(m.timer)
+        defer { t.invalidate() }
+        #expect(t.timeInterval == 0.25 && abs(t.tolerance - 0.05) < 1e-9)
+    }
+}
+
 @MainActor @Suite(.serialized) struct PanelFocusTests {
     func tab(_ shift: Bool) -> NSEvent {
         NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: shift ? .shift : [], timestamp: 0, windowNumber: 0,
@@ -306,6 +321,35 @@ func threadCPUSeconds() -> Double {
         #expect(!c.model.listFocused && c.field.currentEditor() != nil && c.panel.firstResponder === c.field.currentEditor())
         c.endSearch()
         #expect(!c.panel.isKeyWindow && !c.model.listFocused)
+    }
+
+    func key(_ code: Int) -> NSEvent {
+        NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+                         context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: UInt16(code))!
+    }
+
+    /// With the layer list focused the results are hidden: ↩ must not copy one, and ↑/↓ move between sections.
+    @Test func hiddenResultsIgnoreReturn() throws {
+        let c = try controller()
+        defer { c.panel.orderOut(nil) }
+        c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
+        c.beginSearch(previousApp: nil)
+        let ed = try #require(c.field.currentEditor() as? NSTextView)
+        ed.insertText("pane", replacementRange: NSRange(location: NSNotFound, length: 0))
+        try #require(!c.search.results.isEmpty)
+        ed.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        let ids = c.model.sections.map(\.id)
+        try #require(c.model.listFocused && c.model.selectedLayer == ids[0])
+        c.search.pasteboard.clearContents()
+        let sel = c.search.selection
+        c.panel.keyDown(with: key(kReturn))
+        #expect(c.search.pasteboard.string(forType: .string) == nil)
+        #expect(c.searching && c.panel.isKeyWindow)
+        c.panel.keyDown(with: key(kDown))
+        #expect(c.model.selectedLayer == ids[1] && c.search.selection == sel)
+        c.panel.keyDown(with: key(kUp))
+        #expect(c.model.selectedLayer == ids[0] && c.search.selection == sel)
+        c.endSearch()
     }
 
     @Test func translucencyLevelsSwitchGlass() throws {

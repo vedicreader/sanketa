@@ -146,16 +146,16 @@ public final class SanketaPanel: NSPanel {
     }
 
     /// Keys while the layer list has focus: Tab/⇧Tab cycle sections (⇧Tab returns to the field in search),
-    /// arrows and ↩ keep their search behaviour, Esc ends search.
+    /// ↑/↓ cycle sections too, Esc ends search. Results are hidden then, so ↩ does nothing.
     func key(_ e: NSEvent) -> Bool {
         let shift = e.modifierFlags.contains(.shift)
         switch Int(e.keyCode) {
         case kTab:
             if shift && searching { focusField() } else { model.cycleLayer(shift ? -1 : 1) }
         case kEscape: searching ? endSearch() : handBack(to: Self.frontmostOther)
-        case kUp: search.move(-1)
-        case kDown: search.move(1)
-        case kReturn: if search.activate() != nil { endSearch() }
+        case kUp: model.listFocused ? model.cycleLayer(-1) : search.move(-1)
+        case kDown: model.listFocused ? model.cycleLayer(1) : search.move(1)
+        case kReturn: if !model.listFocused, search.activate() != nil { endSearch() }
         default: return false
         }
         return true
