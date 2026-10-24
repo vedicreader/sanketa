@@ -35,6 +35,7 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         guard let stub = Self.stub(for: request), let url = request.url else {
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL)); return
         }
+        stub.hold?(url.path)
         let (status, body) = stub.answer(request)
         var headers = ["Content-Type": "application/json"]
         // a 3xx answer's body is the Location; the session asks its delegate whether to follow it
@@ -61,9 +62,15 @@ final class Stub: @unchecked Sendable {
     private var answers: [String: [(Int, Data)]]
     private var seen: [StubRequest] = []
     let session: URLSession
+    /// Runs on the loading thread before each answer, with the path; a test may block here to hold a request open.
+    var hold: (@Sendable (String) -> Void)?
 
-    init(_ answers: [String: [(Int, String)]]) {
-        self.answers = answers.mapValues { $0.map { ($0.0, Data($0.1.utf8)) } }
+    convenience init(_ answers: [String: [(Int, String)]]) {
+        self.init(data: answers.mapValues { $0.map { ($0.0, Data($0.1.utf8)) } })
+    }
+
+    init(data answers: [String: [(Int, Data)]]) {
+        self.answers = answers
         let c = URLSessionConfiguration.ephemeral
         c.protocolClasses = [StubProtocol.self]
         c.httpAdditionalHeaders = [StubProtocol.idHeader: id]
