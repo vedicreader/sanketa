@@ -5,7 +5,7 @@ INSTALL_DIR ?= $(HOME)/Applications
 VERSION := $(shell /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
 ZIP ?= dist/Sanketa-$(VERSION).zip
 
-.PHONY: test build lint shots bundle app release zip publish run install verify gatekeeper remote-setup
+.PHONY: test build lint shots bundle app release zip publish run relaunch install verify gatekeeper remote-setup
 
 # FILTER=<regex> runs only the matching tests
 test:
@@ -66,6 +66,11 @@ zip:
 	ditto -c -k --keepParent $(APP) "$(ZIP)"
 
 run:
+	open $(APP)
+
+# asks the running Sanketa to quit, then opens the fresh build
+relaunch:
+	$(APP)/Contents/MacOS/Sanketa --quit-running
 	open $(APP)
 
 # move the old bundle aside, then copy a fresh one: cp -R over a signed bundle overwrites the executable in place
