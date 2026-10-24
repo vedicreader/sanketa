@@ -17,8 +17,9 @@ public enum Theme {
     static let snippet = Font.system(size: 13, weight: .medium, design: .monospaced)
     static let header = Font.system(size: 11.5, weight: .semibold).smallCaps()
     static let pad: CGFloat = 14
-    /// height of the hidden title bar at the top of the panel, where the mark sits
-    static let topStrip: CGFloat = 26
+    /// The top row, in the hidden title bar: the mark and the breadcrumb. The search field is `fieldGap` below it.
+    static let topRow: CGFloat = 32
+    static let fieldGap: CGFloat = 6
     static let rowGap: CGFloat = 7
     static let sectionGap: CGFloat = 14
     static let hairline = Color.primary.opacity(0.2)

@@ -18,3 +18,10 @@ struct SearchField: NSViewRepresentable {
     func makeNSView(context: Context) -> SearchTextField { field }
     func updateNSView(_ v: SearchTextField, context: Context) {}
 }
+
+/// Hosts a controller-owned AppKit view, such as the mark, at a frame that tests can read.
+struct Passthrough: NSViewRepresentable {
+    let view: NSView
+    func makeNSView(context: Context) -> NSView { view }
+    func updateNSView(_ v: NSView, context: Context) {}
+}

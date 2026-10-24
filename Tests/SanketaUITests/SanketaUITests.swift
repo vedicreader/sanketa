@@ -117,7 +117,7 @@ func threadCPUSeconds() -> Double {
 
     @Test func markLoadsAsTemplateFromBrandFolder() throws {
         let img = try #require(Brand.mark())
-        #expect(img.isTemplate && img.size == NSSize(width: 18, height: 18))
+        #expect(img.isTemplate && img.size == NSSize(width: 15, height: 15))
         #expect(img.representations.map(\.pixelsWide).sorted() == [18, 36, 54])
         // a folder with only the 1x file still gives a mark; an empty folder gives none
         let d = try tempURL("x").deletingLastPathComponent()
@@ -127,20 +127,28 @@ func threadCPUSeconds() -> Double {
         #expect(Brand.mark(in: try tempURL("y").deletingLastPathComponent()) == nil)
     }
 
-    @Test func markSitsInTopStripAndPassesClicks() throws {
+    /// The mark and the breadcrumb share one 32 pt row in the title bar; the search field follows 6 pt below it,
+    /// with no dead space. Clicks pass through the mark, and the breadcrumb gets its clicks.
+    @Test func topRowHoldsMarkAndBreadcrumb() throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
+        c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
         c.show()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
         let root = try #require(c.panel.contentView)
         root.layoutSubtreeIfNeeded()
+        let h = root.bounds.height
         #expect(c.mark.isDescendant(of: root) && c.mark.image?.isTemplate == true)
-        let f = c.mark.convert(c.mark.bounds, to: nil), h = root.bounds.height
-        #expect(abs(f.minX - Theme.pad) < 0.5 && abs(f.width - 18) < 0.5)
-        #expect(abs(f.midY - (h - Theme.topStrip / 2)) < 0.5)                     // centred in the strip
-        let w = c.wordmark.convert(c.wordmark.bounds, to: nil)
-        #expect(w.minX > f.maxX && w.maxY <= h && w.minY >= h - Theme.topStrip)   // the name fits in the strip
-        #expect(root.hitTest(root.convert(NSPoint(x: f.midX, y: f.midY), from: nil)) !== c.mark)
+        let f = c.mark.convert(c.mark.bounds, to: nil)
+        #expect(abs(f.minX - Theme.pad) < 0.5 && abs(f.width - 15) < 0.5 && abs(f.height - 15) < 0.5, "\(f)")
+        #expect(abs(f.midY - (h - Theme.topRow / 2)) <= 0.5, "mark centre \(h - f.midY) pt from the top")
+        let field = c.field.convert(c.field.bounds, to: nil)
+        #expect(abs((h - field.maxY) - (Theme.topRow + Theme.fieldGap)) < 1, "field top \(h - field.maxY) pt from the top")
+        let frame = try #require(root.superview)        // the window frame view, with the title bar views
+        let atMark = frame.hitTest(frame.convert(NSPoint(x: f.midX, y: f.midY), from: nil))
+        #expect(atMark !== c.mark)
+        let crumb = frame.hitTest(frame.convert(NSPoint(x: f.maxX + 7 + 8, y: f.midY), from: nil))
+        #expect(crumb?.isDescendant(of: root) == true, "the title bar takes the breadcrumb click: \(String(describing: crumb))")
         #expect(!c.panel.isKeyWindow && !NSApp.isActive)
     }
 

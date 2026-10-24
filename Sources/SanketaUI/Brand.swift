@@ -1,9 +1,8 @@
 import AppKit
-import CoreText
 
 /// The Sanketa mark: a line version of the kolam icon (design/logo/sanketa-mark.svg), as a template image.
 public enum Brand {
-    public static let markPoints: CGFloat = 18
+    public static let markPoints: CGFloat = 15
 
     /// `Bundle.main.resourceURL/Brand` in the app; `<repo>/Resources/Brand` under `swift run` and in tests.
     public static func directory() -> URL {
@@ -33,16 +32,3 @@ final class PassthroughImageView: NSImageView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
-final class PassthroughLabel: NSTextField {
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-}
-
-extension NSFont {
-    /// The same font with lower case drawn as small capitals.
-    func withSmallCaps() -> NSFont {
-        let d = fontDescriptor.addingAttributes([.featureSettings: [[
-            NSFontDescriptor.FeatureKey.typeIdentifier: kLowerCaseType,
-            NSFontDescriptor.FeatureKey.selectorIdentifier: kLowerCaseSmallCapsSelector]]])
-        return NSFont(descriptor: d, size: pointSize) ?? self
-    }
-}

@@ -7,6 +7,7 @@ struct PanelView: View {
     @ObservedObject var model: PanelModel
     @ObservedObject var search: SearchModel
     let field: SearchTextField
+    let mark: NSView
     let grantAccessibility: () -> Void
     let pick: (Int) -> Void
     let clickLayer: (Int) -> Void
@@ -15,9 +16,13 @@ struct PanelView: View {
     var showsList: Bool { search.query.isEmpty || model.listFocused }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Breadcrumb(layers: model.context.layers, click: clickLayer).padding(.horizontal, Theme.pad)
-            SearchField(field: field).padding(.horizontal, Theme.pad - 2)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 7) {
+                Passthrough(view: mark).frame(width: Brand.markPoints, height: Brand.markPoints)
+                Breadcrumb(layers: model.context.layers, click: clickLayer)
+            }
+            .frame(height: Theme.topRow).padding(.horizontal, Theme.pad)
+            SearchField(field: field).padding(.horizontal, Theme.pad - 2).padding(.top, Theme.fieldGap).padding(.bottom, 10)
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: Theme.sectionGap) {
@@ -34,7 +39,8 @@ struct PanelView: View {
             }
             if model.showsFooter { Footer(model: model, grant: grantAccessibility) }
         }
-        .padding(.top, Theme.topStrip)
+        // the top row sits in the title bar, so the safe area there would only add dead space
+        .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 260, minHeight: 240)
         .background(Theme.tint(scheme == .dark).opacity(Theme.tintOpacity(model.translucency)))
     }
