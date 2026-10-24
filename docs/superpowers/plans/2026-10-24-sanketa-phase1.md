@@ -11,7 +11,7 @@
 
 A Makefile assembles and signs `build/Sanketa.app`. Bundled TOML packs ship in `Contents/Resources/Packs`.
 
-**Tech Stack:** Swift 6.2 toolchain (Xcode 26, macOS 26.5 SDK), language mode v5, Swift Testing, SwiftUI + AppKit, Carbon `RegisterEventHotKey`, ApplicationServices AX API, `dduan/TOMLDecoder` (pin to its latest release tag when adding).
+**Tech Stack:** Swift 6.2 toolchain (Xcode 26, macOS 26.5 SDK), language mode v5, Swift Testing, SwiftUI + AppKit, Carbon `RegisterEventHotKey`, ApplicationServices AX API, `dduan/TOMLDecoder` (pin to its latest release tag when adding; check whether it decodes from `String` or `Data` and adapt `PackLibrary.decode`).
 
 **Spec:** `docs/superpowers/specs/2026-10-24-sanketa-design.md`
 
@@ -35,7 +35,7 @@ A Makefile assembles and signs `build/Sanketa.app`. Bundled TOML packs ship in `
 1. **Terminal with several tabs or splits, each with its own tty.** The panel should follow the focused one, not a random one. Pinned by `chooseTTYPrefersTitleMatch` and `chooseTTYFallsBackToNewest` (Task 4).
 2. **Malformed or partial user pack TOML.** That one pack is skipped and its error shown in the panel footer. Other packs still load and nothing crashes. Pinned by `loadSkipsBadPackAndReportsError` (Task 1).
 3. **tmux server gone, binary missing, or a command that hangs.** Fall back to a bare `tmux` layer within the timeout. Pinned by `runnerTimesOut` (Task 3) and `resolveTmuxWithNoClientsShowsBareTmux` (Task 4).
-4. **Apps with huge menus (Excel) or apps that don't answer AX (hung or Electron).** The read is capped (0.5 s messaging timeout, 2000 items, depth 4) and the panel shows what it got. Pinned by `menuPackGroupsAndCaps` (Task 5). The AX timeout is checked in the Task 8 smoke run.
+4. **Apps with huge menus (Excel) or apps that don't answer AX (hung or Electron).** The read is capped (0.5 s messaging timeout, 2000 items, depth 4) and the panel shows what it got. Pinned by `walkRespectsCaps` (Task 5). The AX timeout is checked in the Task 8 smoke run.
 5. **Accessibility not granted, or revoked.** Process-based terminal layers still show (sysctl needs no permission). A one-line "Grant Accessibility" row appears and opens System Settings. Pinned by `resolveWithoutTitleStillResolves` (Task 4). The row is checked in Task 8.
 
 ---
@@ -109,7 +109,7 @@ sanketa/
 
 Merge rules: `overlay.mode == .replace` → overlay. `.extend` → overlay keys replace base keys with the same `keys` string, others are appended. Tips are handled the same way, keyed by `title`. `processes`, `match` and `apps` are unioned. `name` and `prefix` come from the overlay when set.
 
-Lookup: `pack(process:argv:)` returns the pack whose `processes` contains `name` exactly. Failing that, it returns the pack where any `match` string is a substring of `argv.joined(separator: " ")`. `pack(bundleID:)` matches `apps`.
+Lookup: `pack(process:argv:)` first returns a pack where any `match` string is a substring of `argv.joined(separator: " ")`. Failing that, it returns the pack whose `processes` contains `name` exactly. `match` goes first so that a `python` pack can't hide ramabana. Iterate packs sorted by `id` for deterministic ties. `pack(bundleID:)` matches `apps`.
 
 - [ ] **Step 1:** `git init`. Write `Package.swift`:
   - tools 6.2, `.macOS(.v26)`
@@ -120,7 +120,7 @@ Lookup: `pack(process:argv:)` returns the pack whose `processes` contains `name`
   - `decodeFullPack`: the spec's tmux example → `keys[0].keys == "prefix %"`, `prefix == "C-b"`, `tips[0].tags == ["loops","files"]`
   - `mergeExtendReplacesSameKeysAndAppends`
   - `mergeReplaceDropsBase`
-  - `lookupByProcessThenArgv`: pack `match=["ramabana"]` found for `name "python3"`, argv `["python3","/Users/x/.local/bin/ramabana"]`
+  - `lookupArgvBeforeProcess`: with both a pack `processes=["python3"]` and a pack `match=["ramabana"]`, `name "python3"` and argv `["python3","/Users/x/.local/bin/ramabana"]` → the ramabana pack. A plain `python3` argv → the python pack.
   - `lookupByBundleID`
   - `loadSkipsBadPackAndReportsError`: fixture user dir with one valid file and one with invalid TOML → valid pack present, `errors.count == 1`, `errors[0].file` ends in the bad filename
 - [ ] **Step 3:** `swift test` → the new tests fail.
@@ -144,8 +144,14 @@ Lookup: `pack(process:argv:)` returns the pack whose `processes` contains `name`
     - `foreground(tty: String) -> ProcInfo?`: procs with `tty == t && pgid == tpgid`; prefer `pid == pgid`, else highest `start`
     - `chain(from: ProcInfo, until stop: (ProcInfo) -> Bool) -> [ProcInfo]`: walks `ppid` upward, innermost first, excluding the stopping proc
   - `public protocol CommandRunning { func run(_ path: String, _ args: [String], timeout: TimeInterval) -> String? }`. Returns stdout on exit 0 and nil on failure or timeout.
-  - `public struct ProcessRunner: CommandRunning`. On timeout it terminates the child.
-  - `SanketaSystem.SysctlProcesses.snapshot() -> ProcessSnapshot`. Built from `sysctl([CTL_KERN, KERN_PROC, KERN_PROC_ALL])`, `devname(e_tdev, S_IFCHR)`, `KERN_PROCARGS2` for argv (failures → `[]`) and `proc_pidpath`.
+  - `public struct ProcessRunner: CommandRunning`. It reads stdout as it arrives (e.g. `readabilityHandler` or a reader thread) so output above the 64 KB pipe buffer can't deadlock. On timeout it terminates the child.
+  - `SanketaSystem.SysctlProcesses.snapshot() -> ProcessSnapshot`. Sources:
+    - `sysctl([CTL_KERN, KERN_PROC, KERN_PROC_ALL])` for the process list
+    - tty from `devname(e_tdev, S_IFCHR)`, mapped to nil when `e_tdev == NODEV` or the result is `"??"`
+    - `start` from `kp_proc.p_un.__p_starttime`
+    - `name` is the `proc_pidpath` basename when available, otherwise `p_comm` (which is cut to 16 characters)
+    - argv from `KERN_PROCARGS2` (failures → `[]`)
+  - `chain` stops at pid ≤ 1 and guards against cycles with a visited set.
 
 - [ ] **Step 1: Write failing tests** against fixture `conterm_tmux_htop.json`. The fixture's process tree:
   - Conterm 100
@@ -162,6 +168,7 @@ Lookup: `pack(process:argv:)` returns the pack whose `processes` contains `name`
   - `runnerReturnsStdout`: `/bin/echo hi` → `"hi\n"`
   - `runnerTimesOut`: `/bin/sleep 5` with timeout 0.2 → nil within 1 s
   - `runnerNonZeroIsNil`: `/usr/bin/false`
+  - `runnerLargeOutput`: `/bin/sh -c 'head -c 200000 /dev/zero | tr "\\0" a'` → 200000 characters
 - [ ] **Step 2:** `swift test` → fail.
 - [ ] **Step 3:** Implement `Process.swift`, `CommandRunner.swift`, `SysctlProcesses.swift`.
 - [ ] **Step 4:** `swift test` → pass. Then add a throwaway check in `main.swift` printing `SysctlProcesses.snapshot().ttys(under: getppid())`. `swift run Sanketa` from a terminal should print this terminal's tty. Remove the check.
@@ -193,6 +200,7 @@ Lookup: `pack(process:argv:)` returns the pack whose `processes` contains `name`
 - [ ] **Step 1: Write failing tests:**
   - `parseClientsStripsDev`
   - `parseKeysPrefixAndRoot`: the fixture contains `bind-key -T prefix % split-window -h` → `KeyEntry(keys: "prefix %", command: "split-window -h")`. Mouse keys are absent.
+  - `parseKeysRepeatFlagAndEscapes`: `bind-key -r -T prefix Up select-pane -U` → keys `"prefix Up"`. `bind-key -T prefix \\" split-window` → keys `"prefix \""`. Escaped `\\;` and `\\#` keys are unescaped the same way.
   - `mergeLiveUsesUserKeysWithBundledLabel`: bundled `{keys:"prefix %", action:"Split left/right", command:"split-window -h"}`, live `prefix |` → `split-window -h` → result has `keys "prefix |"`, `action "Split left/right"`
   - `mergeLiveDropsUnbound`
   - `remoteTagParses`: `"⟦sanketa host=gpubox layers=fish,tmux,htop⟧ ~/w"` → host `gpubox`, layers `[fish,tmux,htop]`, rest `"~/w"`
@@ -223,7 +231,7 @@ Lookup: `pack(process:argv:)` returns the pack whose `processes` contains `name`
 `chooseTTY` algorithm:
 1. Take the candidate ttys under the terminal pid.
 2. If there is one, return it.
-3. Otherwise score each candidate's foreground proc. +2 if the window title (remote tag stripped) contains the proc's `name`. +1 if the title contains the basename of its cwd-like last title token. Ties go to the highest `start`.
+3. Otherwise score each candidate's foreground proc: +2 if the window title (remote tag stripped) contains the proc's `name`. Ties go to the highest `start`.
 4. With no title, return the tty whose foreground proc has the highest `start`.
 
 `resolve` algorithm:
@@ -264,7 +272,10 @@ Lookup: `pack(process:argv:)` returns the pack whose `processes` contains `name`
   - `MenuKeys.format(char: String?, virtualKey: Int?, modifiers: Int) -> String?`. AX modifier bits: shift=1, option=2, control=4, noCommand=8. Output order is `⌃⌥⇧⌘` followed by the key, with letters uppercased.
     - Virtual keys used when `char` is empty: 36 `↩`, 48 `⇥`, 49 `Space`, 51 `⌫`, 53 `⎋`, 117 `⌦`, 123 `←`, 124 `→`, 125 `↓`, 126 `↑`.
     - F1–F12: 122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111.
-    - Returns nil when there is neither a char nor a known vkey.
+    - AppKit private-use function-key characters (`0xF700`–`0xF8FF`, e.g. `NSUpArrowFunctionKey` 0xF700, `NSF1FunctionKey` 0xF704) map to the same symbols.
+    - `MenuKeys.format(…, glyph: Int?)` also accepts `AXMenuItemCmdGlyph` values for the common glyphs (return, tab, delete, escape, arrows, F-keys). The builder takes the table from `Carbon` `kMenu*Glyph` constants.
+    - Returns nil when there is no char, known vkey or known glyph.
+  - `public protocol MenuNode { var title: String? { get }; var shortcut: String? { get }; var children: [MenuNode] { get } }` and `MenuKeys.walk(_ topMenus: [MenuNode], maxDepth: Int = 4, maxItems: Int = 2000) -> [MenuShortcut]`: a pure capped walker that `AXReader` feeds lazily-loaded AX nodes into
   - `MenuKeys.pack(bundleID: String, name: String, shortcuts: [MenuShortcut]) -> Pack`: `id "app:\(bundleID)"`, `keys` with `action = path.dropFirst().joined(" › ")` and `group = path[0]`
   - `SanketaSystem.AXReader`:
     - `static var isTrusted: Bool`
@@ -277,7 +288,9 @@ Lookup: `pack(process:argv:)` returns the pack whose `processes` contains `name`
   - `formatCtrlOptNoCmd` (mods 4|2|8, "t" → `"⌃⌥T"`)
   - `formatVirtualKeyArrow` (mods 0, char "", vkey 126 → `"⌘↑"`)
   - `formatNothingIsNil`
-  - `menuPackGroupsAndCaps`: 3 shortcuts across 2 top menus → 3 keys, groups preserved, action `"Font › Bold"` for path `["Format","Font","Bold"]`
+  - `formatPrivateUseArrow` (char `"\u{F700}"` → `"⌘↑"`)
+  - `menuPackGroups`: 3 shortcuts across 2 top menus → 3 keys, groups preserved, action `"Font › Bold"` for path `["Format","Font","Bold"]`
+  - `walkRespectsCaps`: a fake tree with 5000 items and depth 6 → at most 2000 shortcuts, none deeper than 4
 - [ ] **Step 2:** `swift test` → fail.
 - [ ] **Step 3:** Implement `MenuKeys.swift` and `AXReader.swift`.
 - [ ] **Step 4:** `swift test` → pass.
@@ -319,7 +332,7 @@ Scoring:
   - `tipStorePersistsAcrossInstances`
   - `pickExcludesKnown`
   - `pickDeterministicForSeed`
-  - `pickLessIsRarer`: over 1000 seeds, `.less` is picked under 40% as often as a normal item
+  - `pickLessIsRarer`: 4 items with one marked `.less`, `count: 1`, over 1000 seeds → the `.less` item is picked under 40% as often as the average normal item
 - [ ] **Step 2:** `swift test` → fail.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** `swift test` → pass.
@@ -333,7 +346,7 @@ Scoring:
 
 **Interfaces:**
 - Produces:
-  - `public struct Config: Codable, Equatable { hotkey: String; terminals: [String]; pollInterval: Double; tipRotateSeconds: Double }`. Defaults: `"ctrl+opt+k"`, the four terminal bundle ids from Global Constraints, `1.0`, `120`. Missing keys take defaults; unknown keys are ignored, so phase 2 can add an `[llm]` table. `config.toml` is the settings surface, reached from the status menu's Open Config (a planner's call instead of a settings window).
+  - `public struct Config: Codable, Equatable { hotkey: String; terminals: [String]; pollInterval: Double; tipRotateSeconds: Double }`. Defaults: `"ctrl+opt+k"`, the four terminal bundle ids from Global Constraints, `1.0`, `120`. Write a custom `init(from:)` with `decodeIfPresent`, so missing keys take defaults. Numbers accept TOML integers or floats (try `Double`, fall back to `Int`). Unknown keys are ignored, so phase 2 can add an `[llm]` table. `config.toml` is the settings surface, reached from the status menu's Open Config (a planner's call instead of a settings window).
   - `Config.load(_ url: URL) -> (Config, String?)`: a missing file gives defaults and a nil error; bad TOML gives defaults and an error message.
   - `public struct Hotkey: Equatable { keyCode: UInt32; carbonModifiers: UInt32 }`
   - `Hotkey.parse(_ s: String) -> Hotkey?`. Tokens are separated by `+` and case-insensitive.
@@ -345,6 +358,7 @@ Scoring:
   - `defaultsWhenMissing`
   - `partialConfigKeepsDefaults` (only `hotkey` set)
   - `badTomlReturnsError`
+  - `integerPollIntervalAccepted` (`pollInterval = 2` → `2.0`)
   - `parseCtrlOptK` → `keyCode == UInt32(kVK_ANSI_K)`, mods 6144
   - `parseRejectsTwoKeys`
   - `parseRejectsNoKey`
@@ -371,8 +385,9 @@ Scoring:
     - `init(config: Config, library: PackLibrary)`
     - `start()`
     - `reload(library:)`
-  - `ContextMonitor.computeOnce(frontmost: NSRunningApplication) -> Context`: synchronous, also used by the CLI.
-  - `--dump-context`: waits 3 s, so the user can focus a terminal, then prints the layers and pack ids for the frontmost app.
+  - `public struct ContextEngine: Sendable { init(config: Config, library: PackLibrary); func compute(pid: pid_t, bundleID: String, appName: String) -> Context }`: synchronous and nonisolated. The monitor calls it on its background queue, and the CLI calls it directly.
+  - `--dump-context [--out FILE]`: spins `RunLoop.main.run(until: Date()+3)` (not `sleep`) so `frontmostApplication` updates, then prints the layers and pack ids for the frontmost app, to FILE if given.
+  - Accessibility is granted per responsible app. Run dumps through `open -W build/Sanketa.app --args --dump-context --out /tmp/sk.txt` so Sanketa's own grant applies, not Terminal's.
   - `--dump-menus <bundleID>`: prints the menu shortcuts.
 
 Monitor behaviour:
@@ -396,14 +411,15 @@ Makefile targets:
 
 Bundled packs are found at `Bundle.main.resourceURL/Packs`. When running via `swift run`, fall back to `<repo>/Resources/Packs`, located from `#filePath`.
 
-- [ ] **Step 1:** Implement `ContextMonitor.swift` and the CLI modes. Pure logic is already tested; this task is glue.
+- [ ] **Step 1:** Implement `ContextMonitor.swift` (with `ContextEngine`) and the CLI modes. Pure logic is already tested; this task is glue. Add `--dump-ax <bundleID>`, which prints the focused window's AX attribute names and values (title, document, any pid or tty-like attribute) two levels deep.
 - [ ] **Step 2:** Create a placeholder `Resources/Packs/tmux.toml` holding the spec example, so dumps show something before Task 10.
 - [ ] **Step 3:** `make test` → all pass. Run `make app verify`. Expected: `valid on disk` and an `Authority=Apple Development: …` line. If no identity is found, stop and report; do not fall back to ad-hoc signing silently.
 - [ ] **Step 4: Smoke test.**
   - Grant Accessibility to `build/Sanketa.app`. That needs the user, so ask once.
-  - In Terminal.app, run `tmux new -d -s sk 'htop'` and attach with `tmux attach -t sk`.
-  - Run `build/Sanketa.app/Contents/MacOS/Sanketa --dump-context` from a second Terminal window and focus the tmux window within 3 s.
-  - Expected: `htop`, `fish`, `tmux`, `Terminal` (outer fish deduped).
+  - In Terminal.app, run `tmux new -d -s sk`, then `tmux send-keys -t sk htop Enter`, then attach with `tmux attach -t sk`.
+  - From a second window, run `open -W build/Sanketa.app --args --dump-context --out /tmp/sk.txt` and focus the tmux window within 3 s.
+  - Expected in `/tmp/sk.txt`: `htop`, `fish`, `tmux`, `Terminal` (outer fish deduped).
+  - Run `--dump-ax app.conterm.Conterm` with Conterm focused. Record in the task report what its AX tree exposes for the focused pane. If it exposes a tty or pid, use it in `chooseTTY` ahead of the title heuristic.
   - Then run `--dump-menus com.apple.Terminal` → contains `⌘T`.
   - Then `--dump-menus` for a hung or slow app (any Electron app) → returns within 3 s.
 - [ ] **Step 5:** Commit `feat: context monitor, CLI dumps, signed app bundle`.
@@ -424,8 +440,8 @@ Panel:
 - An `NSPanel` subclass with `canBecomeKey = true`.
 - Style mask `[.nonactivatingPanel, .titled, .fullSizeContentView, .resizable]`, titlebar hidden and transparent, `isMovableByWindowBackground`.
 - `level = .floating`, `collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]`, `hidesOnDeactivate = false`, `becomesKeyOnlyIfNeeded = true`.
-- Content is an `NSGlassEffectView` hosting the SwiftUI `PanelView`.
-- `setFrameAutosaveName("SanketaPanel")`. Default size 340×520, at the right edge of the main screen.
+- `isOpaque = false`, `backgroundColor = .clear`. Content is an `NSGlassEffectView` whose `contentView` is an `NSHostingView(PanelView)`.
+- Set the default frame (340×520, right edge of the main screen) first, then `setFrameAutosaveName("SanketaPanel")`, so a saved position wins.
 - Shown at launch.
 
 Layout (Theme is the builder's call within this):
@@ -439,7 +455,7 @@ Search mode:
 1. The hotkey records `NSWorkspace.shared.frontmostApplication`, shows the panel, makes it key and focuses `SearchField`.
 2. Results come from a `SearchProviding` (`LocalSearch`) over all library items plus context packs, with the context ids taken from the current layers.
 3. ↑/↓ move through results. ↩ copies the item's `detail`.
-4. Esc clears the search, resigns key and calls `previousApp?.activate()`.
+4. Esc clears the search, calls `makeFirstResponder(nil)`, `orderOut(nil)`, `orderFrontRegardless()` and `previousApp?.activate()`. Don't call `resignKey()` directly; AppKit calls it.
 
 Status item menu: Show/Hide Panel, Search (with the hotkey shown), Reload Packs, Open Packs Folder (creates `~/.config/sanketa/packs`), Open Config, Grant Accessibility…, Quit.
 
@@ -480,7 +496,7 @@ Content rules:
 - `docs/packs.md`: the full schema, matching rules (`processes`, `match` against argv, `apps` for GUI bundle ids), extend/replace, where user packs live, and a complete example for ramabana. It is written so an LLM can produce a valid pack from it.
 
 - [ ] **Step 1: Write failing tests:**
-  - `allBundledPacksParse` (zero errors)
+  - `allBundledPacksParse` (zero errors). Locate `Resources/Packs` from `#filePath`; it is not a test resource.
   - `bundledIDsUniqueAndMatchFilename`
   - `everyPackHasContent`
   - `tmuxPackHasCommands`: every tmux key has a non-nil `command`
@@ -500,17 +516,18 @@ Content rules:
 - Consumes: `RemoteQuerying` (Task 4), `CommandRunning`
 - Produces: `public struct RemoteQuery: RemoteQuerying { init(runner: CommandRunning, cacheSeconds: Double = 5) }`
   - `paneCommand(sshArgv:)` parses the destination from argv (last non-option argument, skipping the values of `-p -l -i -o -J -F`).
-  - It runs `/usr/bin/ssh -o BatchMode=yes -O check <dest>` with a 1 s timeout. Only if that succeeds does it run `/usr/bin/ssh -o BatchMode=yes <dest> tmux display -p '#{pane_current_command}'` with a 2 s timeout.
+  - It runs `/usr/bin/ssh -o BatchMode=yes -O check <dest>` with a 1 s timeout. Only if that succeeds does it run `/usr/bin/ssh -o BatchMode=yes <dest> tmux display -p "'#{pane_current_command}'"` with a 2 s timeout. The format is passed as one argv element *containing* single quotes, because ssh joins arguments into a remote shell line and an unquoted `#` starts a comment there.
   - Results are cached per destination.
 
 Remote scripts:
-- `sanketa.fish` defines `fish_title`. It prints `⟦sanketa host=(hostname -s) layers=…⟧ ` followed by the default fish title.
+- `sanketa.fish` first runs `functions -q __sanketa_default_title; or functions -c fish_title __sanketa_default_title`, then redefines `fish_title`. It prints `⟦sanketa host=(hostname -s) layers=…⟧ ` followed by the default fish title.
   - The layers start with `fish`.
   - `tmux` is added when `$TMUX` is set.
   - Then the current command's first word when one is running (`status current-command`, unless it is `fish`).
   - Tokens are restricted to the tag grammar; disallowed characters become `_`.
 - `sanketa.bash` does the same for bash, using `PROMPT_COMMAND` plus a `DEBUG` trap emitting `\e]0;…\a`.
 - `tmux.conf` contains `set -g set-titles on`, `set -g set-titles-string '#{pane_title}'` and `set -g allow-rename on`.
+- `make remote-setup HOST=…` runs `scripts/remote-setup.sh HOST`. This stands in for the spec's `sanketa remote-setup` command (a planner's call: a repo script needs no CLI parsing in the app).
 - `remote-setup.sh HOST`:
   - `scp`s the three files to `~/.config/sanketa/remote/` on HOST.
   - Appends idempotent `source` lines to `~/.config/fish/conf.d/sanketa.fish` (as a file copy), `~/.bashrc` and `~/.tmux.conf`, guarded by a marker comment.
@@ -520,7 +537,7 @@ Remote scripts:
 - [ ] **Step 1: Write failing tests** with a fake runner:
   - `destinationParsing` (`["ssh","-p","22","-i","k","me@gpubox"]` → `me@gpubox`)
   - `noControlMasterNoQuery`: check fails → nil, and the second command is never run
-  - `queriesWhenMasterExists`
+  - `queriesWhenMasterExists`: the fake runner sees the last argument exactly `'#{pane_current_command}'`, quotes included
   - `cachesPerDestination`: two calls → one query
 - [ ] **Step 2:** `swift test` → fail.
 - [ ] **Step 3:** Implement `RemoteQuery.swift`, the scripts and the setup script.
@@ -545,6 +562,7 @@ Steps:
 - [ ] **Step 3:** Build the iconset with `sips` (16–1024 at @1x/@2x), then `iconutil -c icns` → `Resources/AppIcon.icns`. Run `make app verify`; the icon shows in Finder.
 - [ ] **Step 4:** Write `README.md`, following the `write-prose` skill: what it is, install (`make app install`), granting Accessibility, the hotkey, user packs (link `docs/packs.md`), remote setup, and the limits:
   - non-default tmux sockets and nested tmux
+  - iTerm2 sessions under a re-parented `iTermServer` may not resolve beyond the app layer
   - remote layers need the title snippet or a ControlMaster
   - tty choice in multi-tab terminals is heuristic
 - [ ] **Step 5:** Commit `feat: app icon and README`.
