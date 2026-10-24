@@ -24,23 +24,25 @@ struct ThrowingChooser: Choosing {
     func choose(_ prompt: ChoicePrompt) async throws -> [String] { throw error }
 }
 
-/// Sleeps (cancellably) before it answers.
-struct SlowChooser: Choosing {
-    var seconds: Double
-    var name = "slow"
+/// Sleeps (cancellably) before it answers; `finished` turns true only when it answers.
+final class SlowChooser: Choosing, @unchecked Sendable {
+    let seconds: Double
+    private let lock = NSLock()
+    private var ended = false
+    var finished: Bool { lock.withLock { ended } }
+    var name: String { "slow" }
     var isRemote: Bool { false }
     init(seconds: Double) { self.seconds = seconds }
     func status() -> ModelStatus { .available }
     func choose(_ prompt: ChoicePrompt) async throws -> [String] {
         try await Task.sleep(for: .seconds(seconds))
+        lock.withLock { ended = true }
         return ["e1"]
     }
 }
 
-/// Blocks the calling thread; a plain function, so an async caller can use it.
-func block(_ seconds: Double) { Thread.sleep(forTimeInterval: seconds) }
-
-/// Blocks its thread and ignores cancellation, like a model loop that never checks; then answers `["e1"]`.
+/// Ignores cancellation, like a model loop that never checks: it waits on its own `Thread`, not on a Swift
+/// concurrency pool thread, so it does not starve other work; then answers `["e1"]`.
 final class StubbornChooser: Choosing, @unchecked Sendable {
     let seconds: Double
     private let lock = NSLock()
@@ -51,7 +53,12 @@ final class StubbornChooser: Choosing, @unchecked Sendable {
     init(seconds: Double) { self.seconds = seconds }
     func status() -> ModelStatus { .available }
     func choose(_ prompt: ChoicePrompt) async throws -> [String] {
-        block(seconds)
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            Thread.detachNewThread { [seconds] in
+                Thread.sleep(forTimeInterval: seconds)
+                c.resume()
+            }
+        }
         lock.withLock { ended = true }
         return ["e1"]
     }

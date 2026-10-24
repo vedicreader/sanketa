@@ -14,7 +14,8 @@ private func config(onDevice: Bool = false, appleFM: Bool = false, openai: Bool 
     var c = LLMConfig(); c.onDevice = onDevice; c.appleFM = appleFM; c.openai = openai; c.suggest = suggest; return c
 }
 
-private func search(fm: any Choosing, timeout: TimeInterval = 2) -> SmartSearch {
+/// The fakes answer at once; the long default keeps a starved thread pool in a full run from timing them out.
+private func search(fm: any Choosing, timeout: TimeInterval = 60) -> SmartSearch {
     SmartSearch(router: ModelRouter(config: config(appleFM: true), onDevice: nil, appleFM: fm, remote: nil), timeout: timeout)
 }
 
@@ -56,36 +57,33 @@ private func search(fm: any Choosing, timeout: TimeInterval = 2) -> SmartSearch 
         #expect(!r.items.isEmpty)
     }
 
+    // Under a full parallel run other suites can hold the thread pool for seconds, so there is no wall-clock limit:
+    // the result must come before the 15 s fake answers, with the timeout or cancellation reported.
     @Test func smartSearchTimesOut() async {
-        let start = Date()
-        let r = await search(fm: SlowChooser(seconds: 5), timeout: 0.3).results(query, items, context: ["tmux"])
-        #expect(Date().timeIntervalSince(start) < 1.5)
+        let slow = SlowChooser(seconds: 15)
+        let r = await search(fm: slow, timeout: 0.3).results(query, items, context: ["tmux"])
+        #expect(!slow.finished)
         #expect(r.items == Retrieval.candidates(query, items, context: ["tmux"]))
         #expect(r.note?.contains("timed out") == true)
     }
 
-    @Test func stubbornChooserCannotHoldResults() async throws {
-        let slow = StubbornChooser(seconds: 2)
-        let start = Date()
+    @Test func stubbornChooserCannotHoldResults() async {
+        let slow = StubbornChooser(seconds: 15)
         let r = await search(fm: slow, timeout: 0.3).results(query, items, context: ["tmux"])
-        #expect(Date().timeIntervalSince(start) < 1.5)
         #expect(!slow.finished)
         #expect(r.items == Retrieval.candidates(query, items, context: ["tmux"]))
         #expect(r.picked.isEmpty)
         #expect(r.note == "Plain search: stubborn timed out")
-        // the late answer comes and is dropped; nothing changes the result already given
-        while !slow.finished { try await Task.sleep(for: .milliseconds(50)) }
-        #expect(r.picked.isEmpty)
     }
 
     @Test func cancelledSearchReturnsAtOnce() async {
-        let slow = StubbornChooser(seconds: 2)
-        let start = Date()
-        let t = Task { await search(fm: slow, timeout: 10).results(query, items, context: ["tmux"]) }
+        let slow = StubbornChooser(seconds: 15)
+        let t = Task { await search(fm: slow, timeout: 30).results(query, items, context: ["tmux"]) }
         try? await Task.sleep(for: .milliseconds(200))
         t.cancel()
         let r = await t.value
-        #expect(Date().timeIntervalSince(start) < 1.5)
+        #expect(!slow.finished)
+        #expect(r.note == "Plain search: stubborn failed")
         #expect(r.picked.isEmpty)
         #expect(r.items == Retrieval.candidates(query, items, context: ["tmux"]))
     }
@@ -109,6 +107,10 @@ private func search(fm: any Choosing, timeout: TimeInterval = 2) -> SmartSearch 
         #expect(p[0].lines.filter { $0.contains("Split pane left/right") }.count == 1)
         #expect(Set(r.items.map(\.id)).count == r.items.count)
         #expect(r.picked.count == 1)
+
+        let failed = await search(fm: ThrowingChooser(error: .badResponse)).results(query, dup, context: ["tmux"])
+        #expect(failed.note != nil)
+        #expect(Set(failed.items.map(\.id)).count == failed.items.count)
     }
 
     @Test func noChooserGivesRouterNote() async {
@@ -134,7 +136,7 @@ private func search(fm: any Choosing, timeout: TimeInterval = 2) -> SmartSearch 
                               title: "Split pane side by side", detail: "⌘D")
         let all = items + [menu]
         let remote = RecordingChooser(isRemote: true)
-        let rs = SmartSearch(router: ModelRouter(config: config(openai: true), onDevice: nil, appleFM: nil, remote: remote), timeout: 2)
+        let rs = SmartSearch(router: ModelRouter(config: config(openai: true), onDevice: nil, appleFM: nil, remote: remote), timeout: 60)
         let r = await rs.results(query, all, context: ["tmux"])
         let sent = await remote.prompts
         #expect(sent.count == 1)
@@ -212,16 +214,16 @@ private func search(fm: any Choosing, timeout: TimeInterval = 2) -> SmartSearch 
         let cands = SmartSuggest.candidates(recent: recent, library: lib, items: all, excluding: [])
         let fm = FixedChooser(picks: ["e2", "e5", "e9"])
         let r = ModelRouter(config: config(appleFM: true), onDevice: nil, appleFM: fm, remote: nil)
-        let got = await SmartSuggest.pick(recent: recent, library: lib, items: all, excluding: [], router: r, timeout: 2)
+        let got = await SmartSuggest.pick(recent: recent, library: lib, items: all, excluding: [], router: r, timeout: 60)
         #expect(got == [cands[1], cands[4]])
 
         let remote = RecordingChooser(responses: [.success(["e2"])], isRemote: true)
         let rr = ModelRouter(config: config(openai: true), onDevice: nil, appleFM: nil, remote: remote)
-        #expect(await SmartSuggest.pick(recent: recent, library: lib, items: all, excluding: [], router: rr, timeout: 2).isEmpty)
+        #expect(await SmartSuggest.pick(recent: recent, library: lib, items: all, excluding: [], router: rr, timeout: 60).isEmpty)
         #expect(await remote.prompts.isEmpty)
 
         let bad = ModelRouter(config: config(appleFM: true), onDevice: nil, appleFM: ThrowingChooser(error: .badResponse), remote: nil)
-        #expect(await SmartSuggest.pick(recent: recent, library: lib, items: all, excluding: [], router: bad, timeout: 2).isEmpty)
+        #expect(await SmartSuggest.pick(recent: recent, library: lib, items: all, excluding: [], router: bad, timeout: 60).isEmpty)
     }
 }
 

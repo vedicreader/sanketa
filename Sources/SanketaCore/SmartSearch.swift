@@ -90,6 +90,8 @@ final class OneShot<T: Sendable>: @unchecked Sendable {
     }
 }
 
+private let deadlineQueue = DispatchQueue(label: "dev.sanketa.model-deadline")
+
 /// Calls the chooser with a deadline that the router owns: at the timeout, or when the caller is cancelled, it
 /// cancels the call and returns at once, even when the chooser does not stop. A late answer is dropped.
 /// On `.contextExceeded` it tries once more with half the entries, inside the same deadline.
@@ -104,12 +106,13 @@ func choosePicks(_ chooser: any Choosing, _ prompt: ChoicePrompt, timeout: TimeI
         }
     }
     Task { once.resume(await work.result) }
-    let timer = Task {
-        try await Task.sleep(for: .seconds(timeout))
+    // the deadline fires from its own queue, so a busy Swift thread pool cannot delay it
+    let deadline = DispatchWorkItem {
         once.resume(.failure(TimedOut()))
         work.cancel()
     }
-    defer { timer.cancel() }
+    deadlineQueue.asyncAfter(deadline: .now() + timeout, execute: deadline)
+    defer { deadline.cancel() }
     return try await withTaskCancellationHandler {
         try await withCheckedThrowingContinuation { once.set($0) }
     } onCancel: {
@@ -149,7 +152,8 @@ public struct SmartSearch: Sendable {
 
     public func results(_ query: String, _ items: [SearchItem], context: [String]) async -> SmartResult {
         let ranked = Search.rank(query, items, context: context)
-        let local = ranked.isEmpty ? Retrieval.candidates(query, items, context: context) : ranked
+        var seen = Set<String>()
+        let local = (ranked.isEmpty ? Retrieval.candidates(query, items, context: context) : ranked).filter { seen.insert($0.id).inserted }
         guard query.split(whereSeparator: \.isWhitespace).count >= 3 else { return SmartResult(items: local) }
         guard let chooser = router.searchChooser() else { return SmartResult(items: local, note: router.searchNote()) }
         // menu items can hold window and document names: they never go to a remote server
