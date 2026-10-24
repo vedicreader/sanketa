@@ -1,4 +1,4 @@
-# Flags checked against man grep on macOS 26 (ugrep-based grep 7.8; the same flags work in GNU and BSD grep).
+# Flags checked against /usr/bin/grep on macOS 26 (BSD grep, GNU compatible, 2.6.0-FreeBSD); GNU grep takes the same flags.
 # Every snippet runs unchanged in fish and bash.
 id = "grep"
 name = "grep"

@@ -104,6 +104,31 @@ func run(_ bin: String, _ args: [String], input: String) throws -> (Int32, Strin
 
     func tips(_ id: String) throws -> [Tip] { try #require(lib.packs[id]).tips }
 
+    /// File names and paths that mention claude-code or the versions folder are not Claude Code itself.
+    @Test func claudeMatchIgnoresFilesNamedLikeIt() throws {
+        let r = LayerResolver(library: lib, tmux: FakeTmux(), remote: nil)
+        #expect(r.layer("nvim", argv: ["nvim", "notes/claude-code.md"]).packID == "vim")
+        #expect(r.layer("git", argv: ["git", "clone", "https://github.com/anthropics/claude-code"]).packID == "git")
+        #expect(r.layer("ls", argv: ["ls", "/Users/x/.local/share/claude/versions/"]).packID != "claude")
+        #expect(r.layer("node", argv: ["node", "/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/cli.js"]).packID == "claude")
+        #expect(r.layer("2.1.304", argv: ["claude", "-c"]).packID == "claude")
+    }
+
+    /// The real-users tip runs on this Mac and prints at least the current user.
+    @Test func awkRealUsersTipPrintsUsers() throws {
+        let t = try #require(try tips("awk").first { $0.title == "Filter rows by a number" })
+        let p = Process(), out = Pipe()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", t.snippet]
+        p.standardOutput = out; p.standardError = FileHandle.nullDevice
+        try p.run()
+        let users = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .split(separator: "\n").map(String.init)
+        p.waitUntilExit()
+        #expect(p.terminationStatus == 0)
+        #expect(users.contains(NSUserName()), "\(users)")
+    }
+
     @Test func fishTipsCoverTheBasicsAndParse() throws {
         let all = try tips("fish").map(\.snippet).joined(separator: "\n")
         for needle in ["for ", "if test", "string split", "string replace", "string match", "math ", "set -l", "set -g", "set -gx",

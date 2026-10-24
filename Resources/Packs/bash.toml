@@ -11,7 +11,7 @@ group = "History"
 
 [[keys]]
 keys = "⌃S"
-action = "Search history forward"
+action = "Search forward (needs stty -ixon)"
 group = "History"
 
 [[keys]]

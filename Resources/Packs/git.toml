@@ -6,67 +6,67 @@ processes = ["git"]
 [[keys]]
 keys = "y"
 action = "Stage this hunk"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "n"
 action = "Skip this hunk"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "q"
 action = "Quit, skip the rest"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "a"
 action = "Stage this and rest of file"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "d"
 action = "Skip this and rest of file"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "s"
 action = "Split into smaller hunks"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "e"
 action = "Edit the hunk by hand"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "j / k"
 action = "Next / previous undecided hunk"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "J / K"
 action = "Next / previous hunk"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "g"
 action = "Go to a hunk by number"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "/"
 action = "Find a hunk by regex"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "p / P"
 action = "Print hunk / in the pager"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[keys]]
 keys = "?"
 action = "Help"
-group = "Hunk prompt (add -p)"
+group = "Interactive add (git add -p)"
 
 [[tips]]
 title = "History as a graph"

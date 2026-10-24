@@ -47,8 +47,8 @@ tags = ["math", "csv"]
 
 [[tips]]
 title = "Filter rows by a number"
-snippet = "awk -F: '$3 >= 500 {print $1}' /etc/passwd"
-explain = "A condition before { } picks the lines; here real users on macOS"
+snippet = "dscl . list /Users UniqueID | awk '$2 >= 500 {print $1}'"
+explain = "A condition before { } picks the lines; here real users on macOS (ids from 500)"
 tags = ["filter"]
 
 [[tips]]
@@ -96,7 +96,7 @@ tags = ["csv", "format"]
 [[tips]]
 title = "Drop a column"
 snippet = "awk '{$2 = \"\"; print}' data.txt"
-explain = "Blank the field and print; the line is rebuilt without it"
+explain = "Blanks the field but keeps its place, so two spaces remain where it was"
 tags = ["columns"]
 
 [[tips]]

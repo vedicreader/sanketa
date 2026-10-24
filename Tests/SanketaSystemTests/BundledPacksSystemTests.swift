@@ -103,15 +103,14 @@ import Testing
         try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: exe.path)
         // a copied platform binary is killed at exec; an ad-hoc signature makes it runnable
         _ = try #require(r.run("/usr/bin/codesign", ["--force", "-s", "-", exe.path], timeout: 5.0))
-        let c = try spawn("/bin/bash", ["-c", "exec -a claude \(exe.path) 30"])
-        defer { c.terminate(); c.waitUntilExit() }
-        // SysctlProcesses caches argv per (pid, start), which exec keeps; snapshot only after bash has exec'd
-        let end = Date().addingTimeInterval(5)
-        while !(r.run("/bin/ps", ["-o", "args=", "-p", "\(c.processIdentifier)"])?.hasPrefix("claude ") ?? false) && Date() < end {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        let cps = snapshot { $0.proc(c.processIdentifier)?.name == "2.1.999" }
-        let cp = try #require(cps.proc(c.processIdentifier))
+        // posix_spawn sets argv[0] directly: no pre-exec phase for SysctlProcesses' (pid, start) cache to capture
+        var cpid: pid_t = 0
+        let args: [UnsafeMutablePointer<CChar>?] = [strdup("claude"), strdup("30"), nil]
+        defer { args.forEach { free($0) } }
+        try #require(posix_spawn(&cpid, exe.path, nil, nil, args, environ) == 0)
+        defer { kill(cpid, SIGKILL); var st: Int32 = 0; waitpid(cpid, &st, 0) }
+        let cps = snapshot { $0.proc(cpid)?.name == "2.1.999" }
+        let cp = try #require(cps.proc(cpid))
         try #require(cp.argv.first == "claude")
         #expect(res.layer(cp.name, argv: cp.argv) == Layer(kind: .program, name: "claude", packID: "claude"))
 

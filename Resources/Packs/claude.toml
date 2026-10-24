@@ -1,7 +1,9 @@
 id = "claude"
 name = "Claude Code"
 processes = ["claude"]
-match = ["claude-code", "/.local/share/claude/versions/"]
+# npm installs run `node …/@anthropic-ai/claude-code/cli.js`; the native install (…/claude/versions/<ver>, argv[0] `claude`)
+# is found by processes through the argv[0] fallback.
+match = ["@anthropic-ai/claude-code/"]
 apps = []
 
 # General
