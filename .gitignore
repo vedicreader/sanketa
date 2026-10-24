@@ -3,3 +3,4 @@ build/
 .claude/
 .DS_Store
 .swiftpm/
+.superpowers/
