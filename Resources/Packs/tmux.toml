@@ -1,0 +1,16 @@
+# Placeholder until the full bundled packs land (Task 10); this is the spec's example pack.
+id = "tmux"
+name = "tmux"
+processes = ["tmux"]          # process names that activate this pack
+prefix = "C-b"                # optional, shown as a chip
+
+[[keys]]
+keys = "prefix %"
+action = "Split pane left/right"
+group = "Panes"
+
+[[tips]]
+title = "Loop over files"
+snippet = "for f in *.log; echo $f; end"
+explain = "fish for-loop; no do/done needed"
+tags = ["loops", "files"]

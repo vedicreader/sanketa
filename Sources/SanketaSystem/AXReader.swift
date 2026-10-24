@@ -47,4 +47,48 @@ public enum AXReader {
         guard let w = AXMenuNode.attr(app, kAXFocusedWindowAttribute) else { return nil }
         return AXMenuNode.attr(w as! AXUIElement, kAXTitleAttribute) as? String
     }
+
+    /// Attribute names and short values of the focused window and focused element, two levels deep.
+    public static func dump(pid: pid_t, depth: Int = 2) -> [String] {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.5)
+        var out = [String]()
+        let first = (AXMenuNode.attr(app, kAXWindowsAttribute) as? [AXUIElement])?.first
+        let roots: [(String, CFTypeRef?)] = [(kAXFocusedWindowAttribute, AXMenuNode.attr(app, kAXFocusedWindowAttribute)),
+                                             (kAXFocusedUIElementAttribute, AXMenuNode.attr(app, kAXFocusedUIElementAttribute)),
+                                             ("AXWindows[0]", first)]
+        for (name, v) in roots {
+            out.append("[\(name)]")
+            guard let v, CFGetTypeID(v) == AXUIElementGetTypeID() else { out.append("  (none)"); continue }
+            dump(v as! AXUIElement, level: 1, depth: depth, into: &out)
+        }
+        return out
+    }
+
+    static func dump(_ el: AXUIElement, level: Int, depth: Int, into out: inout [String]) {
+        let pad = String(repeating: "  ", count: level)
+        var names: CFArray?
+        _ = AXUIElementCopyAttributeNames(el, &names)
+        var pid: pid_t = 0
+        if AXUIElementGetPid(el, &pid) == .success { out.append("\(pad)(pid) \(pid)") }
+        for n in (names as? [String] ?? []) {
+            out.append("\(pad)\(n) = \(describe(AXMenuNode.attr(el, n)))")
+        }
+        guard level < depth else { return }
+        for (i, k) in (AXMenuNode.attr(el, kAXChildrenAttribute) as? [AXUIElement] ?? []).prefix(20).enumerated() {
+            out.append("\(pad)child \(i):")
+            dump(k, level: level + 1, depth: depth, into: &out)
+        }
+    }
+
+    static func describe(_ v: CFTypeRef?) -> String {
+        guard let v else { return "nil" }
+        if CFGetTypeID(v) == AXUIElementGetTypeID() {
+            return "<\(AXMenuNode.attr(v as! AXUIElement, kAXRoleAttribute) as? String ?? "element")>"
+        }
+        if let a = v as? [Any] { return "[\(a.count) items]" }
+        let s = (v as? String).map { "\"\($0)\"" } ?? "\(v)"
+        let one = s.replacingOccurrences(of: "\n", with: "⏎")
+        return one.count > 160 ? one.prefix(160) + "…" : one
+    }
 }
