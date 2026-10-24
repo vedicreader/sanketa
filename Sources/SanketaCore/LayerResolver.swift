@@ -62,16 +62,17 @@ public struct LayerResolver {
                 out = [layer(first.name, argv: first.argv)]
             }
         }
-        out.append(Layer(kind: .terminal, name: terminal.appName, packID: "app:\(terminal.bundleID)"))
+        out.append(Layer(kind: .terminal, name: terminal.appName, packID: "app:\(terminal.bundleID)", reason: "menu keys"))
         var seen = Set<String>()
         return out.filter { seen.insert($0.id).inserted }
     }
 
     /// The app's layer; a browser window whose title shows a pack's app (`titles`) gets that pack's layer in front.
     public func resolveApp(bundleID: String, name: String, title: String? = nil) -> [Layer] {
-        let app = Layer(kind: .app, name: name, packID: "app:\(bundleID)")
-        guard library.pack(bundleID: bundleID) == nil, let p = library.pack(hostedIn: bundleID, title: title) else { return [app] }
-        return [Layer(kind: .app, name: p.name, packID: p.id), app]
+        let own = library.pack(bundleID: bundleID)
+        let app = Layer(kind: .app, name: name, packID: "app:\(bundleID)", reason: "menu keys" + (own.map { " and pack \($0.id) via apps" } ?? ""))
+        guard own == nil, let p = library.pack(hostedIn: bundleID, title: title) else { return [app] }
+        return [Layer(kind: .app, name: p.name, packID: p.id, reason: "titles of \(p.id) match the window title"), app]
     }
 
     /// Sets each app or terminal layer's `context` from the window title. `packs[i]` is the pack of `layers[i]`.
@@ -85,8 +86,9 @@ public struct LayerResolver {
 
     func layer(_ name: String, argv: [String], host: String? = nil) -> Layer {
         let kind: LayerKind = Self.shells.contains(name) ? .shell : name == "tmux" ? .multiplexer : .program
+        let pick = library.pick(process: name, argv: argv)
         return Layer(kind: kind, name: kind == .program ? Self.displayName(name, argv: argv) : name,
-                     packID: library.pack(process: name, argv: argv)?.id, host: host)
+                     packID: pick?.pack.id, host: host, reason: pick?.reason)
     }
 
     static let interpreters: Set = ["node", "python", "python3", "ruby", "perl", "bun", "deno"]

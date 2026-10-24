@@ -92,6 +92,18 @@ func run(_ bin: String, _ args: [String], input: String) throws -> (Int32, Strin
         #expect(lib.pack(process: "bash", argv: ["/bin/bash", "--login"])?.id == "bash")
     }
 
+    /// `--dump-context` says why each layer got its pack.
+    @Test func pickSaysWhichRuleMatched() throws {
+        let rama = ["/usr/bin/python3", "/Users/x/.local/bin/ramabana", "--resume"]
+        #expect(lib.pick(process: "python3.13", argv: rama).map { "\($0.pack.id) \($0.reason)" } == "ramabana match \"bin/ramabana\"")
+        #expect(lib.pick(process: "htop", argv: ["htop"])?.reason == "process htop")
+        #expect(lib.pick(process: "2.1.304", argv: ["claude", "-c"]).map { "\($0.pack.id) \($0.reason)" } == "claude argv[0] claude")
+        #expect(lib.pick(process: "duckdb", argv: ["duckdb"]) == nil)
+        let r = LayerResolver(library: lib, tmux: FakeTmux(), remote: nil)
+        #expect(r.layer("htop", argv: ["htop"]).reason == "process htop")
+        #expect(r.resolveApp(bundleID: "org.vedicreader.leela", name: "Leela").first?.reason == "menu keys and pack leela via apps")
+    }
+
     @Test func everyBundledKeyRendersAsMacSymbols() throws {
         let leftover = try Regex(#"(^|\s)[CMS]-\S|(?i:ctrl|alt|cmd|shift|opt)\+"#)
         for p in lib.packs.values {

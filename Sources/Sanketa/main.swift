@@ -47,17 +47,42 @@ func arg(after flag: String) -> String? {
     return a.firstIndex(of: flag).flatMap { a.index(after: $0) < a.count ? a[a.index(after: $0)] : nil }
 }
 
+/// `--dump-context [--watch] [--pack FILE] [--delay SECONDS]`: the context of the app in front, with the reason for each pack.
 func dumpContext(out: String?) {
-    RunLoop.main.run(until: Date().addingTimeInterval(3))
-    guard let app = NSWorkspace.shared.frontmostApplication, let bid = app.bundleIdentifier else {
-        return emit(["no frontmost app"], to: out)
+    if let d = arg(after: "--delay").flatMap(Double.init) { RunLoop.main.run(until: Date().addingTimeInterval(d)) }
+    let config = loadConfig()
+    var lib = loadLibrary(config: config)
+    if let f = arg(after: "--pack") {
+        do {
+            let p = try PackLibrary.decode(Data(contentsOf: URL(fileURLWithPath: f)))
+            lib.packs[p.id] = lib.packs[p.id].map { PackLibrary.merge($0, p) } ?? p
+        } catch {
+            FileHandle.standardError.write(Data("\((f as NSString).lastPathComponent): \(PackLint.describe(error))\n".utf8))
+            exit(1)
+        }
     }
-    let c = ContextEngine(config: loadConfig(), library: loadLibrary())
-        .compute(pid: app.processIdentifier, bundleID: bid, appName: app.localizedName ?? bid)
-    emit(["app: \(c.appName) (\(c.bundleID)) axTrusted=\(c.axTrusted)", "layers:"]
-         + c.layers.map { "  \($0.kind.rawValue) \($0.name) pack=\($0.packID ?? "-")\($0.host.map { " host=\($0)" } ?? "")" }
-         + ["packs:"] + c.packs.map { "  \($0.id) keys=\($0.keys.count) tips=\($0.tips.count)\($0.prefix.map { " prefix=\($0)" } ?? "")" },
-         to: out)
+    let engine = ContextEngine(config: config, library: lib)
+    func compute() -> (Context, String?)? {
+        guard let app = NSWorkspace.shared.frontmostApplication, let bid = app.bundleIdentifier else { return nil }
+        let c = engine.compute(pid: app.processIdentifier, bundleID: bid, appName: app.localizedName ?? bid)
+        return (c, c.axTrusted ? AXReader.focusedWindowTitle(pid: app.processIdentifier) : nil)
+    }
+    guard CommandLine.arguments.contains("--watch") else {
+        guard let (c, title) = compute() else { return emit(["no frontmost app"], to: out) }
+        return emit(DebugInfo.context(c, title: title, showTitle: true), to: out)
+    }
+    // one line each time the stack changes, until Ctrl-C
+    var last: [Layer]?
+    let clock = DateFormatter()
+    clock.dateFormat = "HH:mm:ss"
+    while true {
+        if let (c, _) = compute(), c.layers != last {
+            last = c.layers
+            print("\(clock.string(from: Date())) \(DebugInfo.stack(c))" + c.layers.compactMap { l in l.reason.map { "  [\(l.name): \($0)]" } }.joined())
+            fflush(stdout)
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(max(0.25, config.pollInterval)))
+    }
 }
 
 func dumpMenus(_ bundleID: String, out: String?) {
@@ -72,11 +97,12 @@ func dumpAX(_ bundleID: String, out: String?) {
     emit(AXReader.dump(pid: app.processIdentifier), to: out)
 }
 
-for flag in ["--dump-menus", "--dump-ax", "--out"] where CommandLine.arguments.contains(flag) {
+for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay"] where CommandLine.arguments.contains(flag) {
     if arg(after: flag)?.hasPrefix("--") ?? true {
         FileHandle.standardError.write(Data("""
             \(flag) needs a value
-            usage: Sanketa [--dump-context | --dump-menus <bundleID> | --dump-ax <bundleID>] [--out FILE]
+            usage: Sanketa [--dump-context [--watch] [--pack FILE] [--delay S] | --dump-menus <bundleID> | --dump-ax <bundleID>] [--out FILE]
+                   Sanketa --lint-pack FILE|FOLDER...
 
             """.utf8))
         exit(2)
