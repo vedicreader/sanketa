@@ -95,6 +95,17 @@ func titled(_ t: String?) -> TerminalContext {
         #expect(ls[0].kind == .remote && ls[0].host == "gpubox")
     }
 
+    /// the layer shows the host the user reached, not a remote command's last argument or the login user
+    @Test func resolveSshNamesHostFromDestination() {
+        let r = LayerResolver(library: lib(["fish"]), tmux: FakeTmux(), remote: nil)
+        for argv in [["ssh", "me@gpubox", "nvidia-smi", "-l", "1"], ["ssh", "-At", "gpubox", "htop"],
+                     ["ssh", "ssh://me@gpubox:2222"]] {
+            let ls = r.resolve(sshSnapshot(argv), terminal: conterm)
+            #expect(ls.map(\.name) == ["gpubox", "fish", "Conterm"], "\(argv)")
+            #expect(ls[0].host == "gpubox")
+        }
+    }
+
     @Test func resolveSshUsesRemotePaneCommand() {
         let r = LayerResolver(library: lib(["fish", "htop"]), tmux: FakeTmux(), remote: FakeRemote(cmd: "htop"))
         let ls = r.resolve(sshSnapshot(["ssh", "gpubox"]), terminal: conterm)

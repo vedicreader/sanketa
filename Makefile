@@ -1,6 +1,6 @@
 APP := build/Sanketa.app
 
-.PHONY: test app run install verify
+.PHONY: test app run install verify remote-setup
 
 test:
 	swift test
@@ -23,3 +23,7 @@ install:
 
 verify:
 	@python3 -c "import plistlib,sys,os; a=sys.argv[1]; p=plistlib.load(open(a+'/Contents/Info.plist','rb')); assert p['CFBundleIdentifier']=='dev.sanketa.Sanketa'; assert os.access(a+'/Contents/MacOS/Sanketa',os.X_OK); assert os.path.isdir(a+'/Contents/Resources/Packs'); print('bundle ok (unsigned by design)')" $(APP)
+
+remote-setup:
+	@if [ -z "$(HOST)" ]; then echo "usage: make remote-setup HOST=<ssh destination, e.g. me@gpubox>"; exit 2; fi
+	scripts/remote-setup.sh "$(HOST)"

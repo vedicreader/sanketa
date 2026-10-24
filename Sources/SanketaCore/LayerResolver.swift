@@ -88,7 +88,11 @@ public struct LayerResolver {
             return tag.layers.reversed().map { layer($0, argv: [$0], host: tag.host) }
                 + [Layer(kind: .remote, name: tag.host, host: tag.host)]
         }
-        let host = p.argv.dropFirst().last { !$0.hasPrefix("-") } ?? p.name
+        guard p.name == "ssh" else {
+            let host = p.argv.dropFirst().last { !$0.hasPrefix("-") } ?? p.name
+            return [Layer(kind: .remote, name: host, host: host)]
+        }
+        let host = SSHArgs.parse(p.argv)?.host ?? p.name
         if let cmd = remote?.paneCommand(sshArgv: p.argv) {
             return [layer(cmd, argv: [cmd], host: host), Layer(kind: .remote, name: host, host: host)]
         }

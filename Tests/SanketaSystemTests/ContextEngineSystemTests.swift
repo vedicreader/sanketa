@@ -54,6 +54,31 @@ import Testing
         #expect(t.prefix == "C-b")
     }
 
+    /// fish in a terminal runs ssh; the title carries the remote host's tag; layers resolve against the real bundled packs.
+    /// The process tree is described as data: copying a binary to run it under the name `ssh` trips the endpoint
+    /// threat detector (process masquerading), so no fake `ssh` is ever spawned.
+    @Test func remoteTagOverSSHResolvesBundledPacks() throws {
+        let lib = PackLibrary.load(bundled: Self.packs, user: nil)
+        let procs = [
+            ProcInfo(pid: 100, ppid: 1, pgid: 100, tty: nil, tpgid: -1, name: "TestTerm", argv: [], start: 0, path: nil),
+            ProcInfo(pid: 200, ppid: 100, pgid: 200, tty: "ttys050", tpgid: 300, name: "fish",
+                     argv: ["-fish"], start: 1, path: "/opt/homebrew/bin/fish"),
+            ProcInfo(pid: 300, ppid: 200, pgid: 300, tty: "ttys050", tpgid: 300, name: "ssh",
+                     argv: ["ssh", "me@gpubox"], start: 2, path: "/usr/bin/ssh"),
+        ]
+        let res = LayerResolver(library: lib, tmux: TmuxQuery(runner: r, socket: "sanketa-test-none"), remote: nil)
+        let layers = res.resolve(ProcessSnapshot(procs), terminal: TerminalContext(
+            pid: 100, bundleID: "test.terminal", appName: "TestTerm",
+            windowTitle: "⟦sanketa host=gpubox layers=fish,tmux,htop⟧ htop"))
+        func label(_ l: Layer) -> String {
+            guard let h = l.host, l.kind != .remote else { return l.name }
+            return "\(l.name)@\(h)"
+        }
+        #expect(layers.map(label) == ["htop@gpubox", "tmux@gpubox", "fish@gpubox", "gpubox", "fish", "TestTerm"])
+        #expect(layers.map(\.packID) == ["htop", "tmux", "fish", nil, "fish", "app:test.terminal"])
+        #expect(layers.map(\.kind) == [.program, .multiplexer, .shell, .remote, .shell, .terminal])
+    }
+
     @Test func contextEngineNonTerminalApp() throws {
         let finder = try #require(NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
         let lib = PackLibrary.load(bundled: Self.packs, user: nil)

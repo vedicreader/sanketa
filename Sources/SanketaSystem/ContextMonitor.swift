@@ -33,6 +33,7 @@ public struct ContextEngine: @unchecked Sendable {
     public var config: Config
     public var library: PackLibrary
     let tmux: TmuxQuery
+    let remote = RemoteQuery(runner: ProcessRunner())
     let menus = TTLCache<pid_t, [MenuShortcut]>(ttl: 60)
     let live = TTLCache<String, (prefix: String?, keys: [KeyEntry])>(ttl: 30)
 
@@ -43,7 +44,7 @@ public struct ContextEngine: @unchecked Sendable {
 
     public func compute(pid: pid_t, bundleID: String, appName: String) -> Context {
         let trusted = AXReader.isTrusted
-        let resolver = LayerResolver(library: library, tmux: tmux, remote: nil)
+        let resolver = LayerResolver(library: library, tmux: tmux, remote: remote)
         var snap: ProcessSnapshot?
         let layers: [Layer]
         if config.terminals.contains(bundleID) {
