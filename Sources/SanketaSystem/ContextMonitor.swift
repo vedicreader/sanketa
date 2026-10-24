@@ -47,7 +47,7 @@ public struct ContextEngine: @unchecked Sendable {
         var snap: ProcessSnapshot?
         let layers: [Layer]
         if config.terminals.contains(bundleID) {
-            let s = SysctlProcesses.snapshot()
+            let s = SysctlProcesses.snapshot(under: [pid])
             snap = s
             let title = trusted ? AXReader.focusedWindowTitle(pid: pid) : nil
             layers = resolver.resolve(s, terminal: TerminalContext(pid: pid, bundleID: bundleID, appName: appName, windowTitle: title))
