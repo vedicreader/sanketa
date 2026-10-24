@@ -75,8 +75,19 @@ for flag in ["--dump-menus", "--dump-ax", "--out"] where CommandLine.arguments.c
     }
 }
 
+/// Asks other running Sanketa instances to quit (used to restart after a rebuild; `kill` isn't available to agents).
+func quitRunning() {
+    let others = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.sanketa.Sanketa").filter { $0 != .current }
+    for a in others { a.terminate() }
+    let end = Date().addingTimeInterval(5)
+    while others.contains(where: { !$0.isTerminated }) && Date() < end { RunLoop.main.run(until: Date().addingTimeInterval(0.1)) }
+    print("quit \(others.filter(\.isTerminated).map(\.processIdentifier)), still running \(others.filter { !$0.isTerminated }.map(\.processIdentifier))")
+}
+
 let out = arg(after: "--out")
-if CommandLine.arguments.contains("--dump-context") {
+if CommandLine.arguments.contains("--quit-running") {
+    quitRunning()
+} else if CommandLine.arguments.contains("--dump-context") {
     dumpContext(out: out)
 } else if let b = arg(after: "--dump-menus") {
     dumpMenus(b, out: out)
@@ -86,9 +97,8 @@ if CommandLine.arguments.contains("--dump-context") {
     MainActor.assumeIsolated {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
-        if !AXReader.isTrusted { AXReader.promptForTrust() }
-        let monitor = ContextMonitor(config: loadConfig(), library: loadLibrary())
-        monitor.start()
-        app.run()
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        withExtendedLifetime(delegate) { app.run() }
     }
 }

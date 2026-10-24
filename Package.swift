@@ -14,9 +14,11 @@ let package = Package(
                 dependencies: [.product(name: "TOMLDecoder", package: "TOMLDecoder")],
                 swiftSettings: v5),
         .target(name: "SanketaSystem", dependencies: ["SanketaCore"], swiftSettings: v5),
-        .executableTarget(name: "Sanketa", dependencies: ["SanketaCore", "SanketaSystem"], swiftSettings: v5),
+        .target(name: "SanketaUI", dependencies: ["SanketaCore", "SanketaSystem"], swiftSettings: v5),
+        .executableTarget(name: "Sanketa", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI"], swiftSettings: v5),
         .testTarget(name: "SanketaCoreTests", dependencies: ["SanketaCore"],
                     resources: [.copy("Fixtures")], swiftSettings: v5),
         .testTarget(name: "SanketaSystemTests", dependencies: ["SanketaCore", "SanketaSystem"], swiftSettings: v5),
+        .testTarget(name: "SanketaUITests", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI"], swiftSettings: v5),
     ]
 )
