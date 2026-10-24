@@ -8,6 +8,10 @@ public enum Theme {
     static let text = Font.system(size: 14, weight: .medium)
     static let small = Font.system(size: 12.5, weight: .medium)
     static let keys = Font.system(size: 15, weight: .semibold, design: .monospaced)
+    static let keySymbols = Font.system(size: 15, weight: .semibold)
+    /// Keys never truncate or squeeze the action text below this.
+    static let keyColumn: CGFloat = 64
+    static let rowPad: CGFloat = 2.5
     static let snippet = Font.system(size: 13, weight: .medium, design: .monospaced)
     static let header = Font.system(size: 11.5, weight: .semibold).smallCaps()
     static let pad: CGFloat = 14

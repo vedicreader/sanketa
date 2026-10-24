@@ -98,7 +98,7 @@ struct ResultRow: View {
                 else { Text(item.detail).font(Theme.snippet).foregroundStyle(.primary).lineLimit(3) }
             }
         }
-        .padding(.vertical, 5).padding(.trailing, 6)
+        .padding(.vertical, 5 + Theme.rowPad).padding(.trailing, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }

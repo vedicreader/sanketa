@@ -150,3 +150,22 @@ import Testing
         #expect(failures.isEmpty, "\(failures)")
     }
 }
+
+@MainActor struct KeyLabelTests {
+    func width<V: View>(_ v: V) -> Int {
+        let r = ImageRenderer(content: v.fixedSize())
+        r.scale = 2
+        return r.cgImage!.width
+    }
+
+    @Test func keyLabelAddsSpace() {
+        for keys in ["⌥→", "⌃B"] {
+            let plain = width(Text(keys).font(Theme.keys))
+            let label = width(KeyLabel(text: keys))
+            #expect(label > plain, "\(keys): KeyLabel \(label)px vs plain \(plain)px")
+        }
+        // chord steps get the wider gap
+        #expect(width(KeyLabel(text: "⌃B  %")) >= width(KeyLabel(text: "⌃B")) + width(KeyLabel(text: "%")) + Int(KeyLabel.stepGap * 2) - 2)
+        #expect(KeyLabel.tokens("🌐⌃⇧←") == ["🌐", "⌃", "⇧", "←"] && KeyLabel.tokens("⌃PgUp") == ["⌃", "PgUp"])
+    }
+}

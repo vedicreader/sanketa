@@ -14,7 +14,9 @@ struct TipCard: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(item.title).font(Theme.text).foregroundStyle(.primary)
                     Spacer(minLength: 8)
-                    if item.kind == .key { KeyChip(keys: item.detail, prefix: prefix) }
+                    if item.kind == .key {
+                        KeyChip(keys: item.detail, prefix: prefix).frame(minWidth: Theme.keyColumn, alignment: .trailing).layoutPriority(1)
+                    }
                 }
                 if item.kind != .key { Text(item.detail).font(Theme.snippet).foregroundStyle(.primary).textSelection(.enabled) }
                 if let e = item.explain, !e.isEmpty { Text(e).font(Theme.small).foregroundStyle(Theme.secondary) }

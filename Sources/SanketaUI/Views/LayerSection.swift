@@ -30,7 +30,9 @@ struct LayerSection: View {
                             Text(k.action).font(Theme.text).foregroundStyle(k.enabled == false ? Theme.secondary : .primary).lineLimit(2)
                             Spacer(minLength: 10)
                             KeyChip(keys: k.keys, prefix: data.pack.prefix, dimmed: k.enabled == false)
+                                .frame(minWidth: Theme.keyColumn, alignment: .trailing).layoutPriority(1)
                         }
+                        .padding(.vertical, Theme.rowPad)
                     }
                 }
                 if !data.pack.tips.isEmpty {
