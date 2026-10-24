@@ -13,7 +13,7 @@ public struct Coaching: Hashable, Sendable {
 
     public var item: SearchItem {
         SearchItem(packID: "coach", packName: "Better ways", kind: .suggestion, title: title, detail: after,
-                   explain: "Instead of \(before) · \(count)× in your history. \(explain)", tags: ["coach", detectorID, shell.rawValue])
+                   explain: "Instead of \(before) · seen in \(count == 1 ? "1 command" : "\(count) commands") in your history. \(explain)", tags: ["coach", detectorID, shell.rawValue])
     }
 }
 

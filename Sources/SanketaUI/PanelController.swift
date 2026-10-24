@@ -33,6 +33,8 @@ public final class SanketaPanel: NSPanel {
     public var openFile: (String) -> Void = { _ in }
     /// makes a first pack for a program with none, then opens it
     public var makePack: (Layer) -> Void = { _ in }
+    /// called when search starts, so the model can load before the first request; the app throttles it
+    public var prewarm: () -> Void = {}
 
     public init(model: PanelModel, search: SearchModel, hotkeyLabel: String? = nil) {
         self.model = model; self.search = search
@@ -108,6 +110,7 @@ public final class SanketaPanel: NSPanel {
         searching = true
         model.listFocused = false
         self.previousApp = previousApp
+        prewarm()
         show()
         panel.makeKey()
         panel.makeFirstResponder(field)
@@ -180,6 +183,7 @@ public final class SanketaPanel: NSPanel {
         guard !searching else { return }
         searching = true
         previousApp = Self.frontmostOther
+        prewarm()
     }
 
     func pick(_ i: Int) {

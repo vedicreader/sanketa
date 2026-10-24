@@ -6,11 +6,12 @@ import AppKit
     static func title(host: String) -> String { host == "api.openai.com" ? "OpenAI Key" : "API key for \(host)" }
 
     /// Shows the box and gives the typed text, or nil on Cancel. Focus goes back to the previous app after.
-    public static func ask(host: String) -> String? {
+    /// `note` is one more sentence for the box, such as "Your shell sets OPENAI_API_KEY".
+    public static func ask(host: String, note: String? = nil) -> String? {
         let previous = NSWorkspace.shared.frontmostApplication.flatMap { $0 == .current ? nil : $0 }
         let alert = NSAlert()
         alert.messageText = title(host: host)
-        alert.informativeText = "Paste your API key for \(host). Sanketa keeps it in your Keychain."
+        alert.informativeText = "Paste your API key for \(host). Sanketa keeps it in your Keychain." + (note.map { "\n\n" + $0 } ?? "")
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
@@ -20,5 +21,16 @@ import AppKit
         let answer = alert.runModal()
         previous?.activate()
         return answer == .alertFirstButtonReturn ? field.stringValue : nil
+    }
+
+    /// One message with an OK button, after the user chose "OpenAI Key…".
+    public static func tell(_ title: String, _ text: String) {
+        let previous = NSWorkspace.shared.frontmostApplication.flatMap { $0 == .current ? nil : $0 }
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = text
+        NSApp.activate()
+        alert.runModal()
+        previous?.activate()
     }
 }

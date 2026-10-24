@@ -57,7 +57,7 @@ import Testing
                             after: "grep -c y b", explain: "grep -c counts matching lines itself.", count: 4, lastSeen: nil).item
         m.coachItems = [more]
         #expect(m.seed == seed && m.tipCards.count == 1 && m.tipCards[0].id == item.id)
-        #expect(m.tipCards[0].explain?.contains("4×") == true && m.tipCards[0].detail == "grep -c y b")
+        #expect(m.tipCards[0].explain?.contains("seen in 4 commands") == true && m.tipCards[0].detail == "grep -c y b")
         m.update(c)
         #expect(m.seed == seed && m.tipCards == [more])
         more.title = "Something else"

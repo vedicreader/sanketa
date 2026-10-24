@@ -84,7 +84,7 @@ NOTES := dist/notes-$(VERSION).md
 publish: release
 	printf '%s\n\n%s\n\n%s\n' "Sanketa $(VERSION) for macOS 26 on Apple Silicon. The app has a Developer ID signature, and Apple notarized it." \
 		"To install it, unzip the file and move Sanketa.app to Applications. Then open it and allow Accessibility." \
-		"Sanketa needs only the Accessibility permission. It does not monitor input, and it does not use the network." > $(NOTES)
+		"Sanketa needs only the Accessibility permission. It does not monitor input. It uses the network only if you turn on OpenAI search or download the on-device model." > $(NOTES)
 	gh release create v$(VERSION) "$$ZIP" --title "Sanketa $(VERSION)" --notes-file $(NOTES)
 
 # an old zip goes to /tmp/sanketa-trash, because rm is not allowed here

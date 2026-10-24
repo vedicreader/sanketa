@@ -26,12 +26,30 @@ public enum DebugInfo {
     /// Version, macOS, config and pack state and the context. No file contents and no pack file names (only their count),
     /// ssh hosts show as `remote host`, and the home folder shows as `~`.
     public static func report(version: String, context c: Context, library: PackLibrary, configPath: String, configError: String?,
-                              home: String = NSHomeDirectory()) -> String {
+                              home: String = NSHomeDirectory(), llm: [String] = []) -> String {
         let os = ProcessInfo.processInfo.operatingSystemVersion
         let lines = ["Sanketa \(version) on macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
                      "config: \(configPath)" + (configError.map { " (did not load: \($0))" } ?? ""),
-                     "packs loaded: \(library.packs.count), pack files that did not load: \(library.errors.count)"] + context(c, redact: true)
+                     "packs loaded: \(library.packs.count), pack files that did not load: \(library.errors.count)"] + context(c, redact: true) + llm
         return tilde(lines.joined(separator: "\n"), home: home) + "\n"
+    }
+
+    /// The model tiers: `on-device: <status>`, `Apple Intelligence: <status>`, then `openai: off`, or `openai: on
+    /// provider=openai|custom model=<id or auto>` and where the key came from. It never takes the key, and it never
+    /// shows the address of a custom server.
+    public static func llmLines(config: LLMConfig, statuses: [(String, ModelStatus)], keySource: KeySource? = nil) -> [String] {
+        func text(_ s: ModelStatus) -> String {
+            switch s {
+            case .available: "available"
+            case .off: "off"
+            case .unavailable(let why): "unavailable (\(why))"
+            }
+        }
+        let tiers = statuses.map { "\($0.0): \(text($0.1))" }
+        guard config.openai else { return tiers + ["openai: off"] }
+        let openAI = URL(string: config.baseURL).map(OpenAIModels.isOpenAI) ?? false
+        return tiers + ["openai: on provider=\(openAI ? "openai" : "custom") model=\(config.openaiModel.isEmpty ? "auto" : config.openaiModel)",
+                        "OpenAI key: " + (keySource.map { "found (\($0.rawValue))" } ?? "missing")]
     }
 
     static func tilde(_ s: String, home: String) -> String {

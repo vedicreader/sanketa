@@ -19,7 +19,7 @@ struct CoachTests {
         #expect(g.count == 3 && g.lastSeen == at(3) && g.before == "grep y b.log | wc -l" && g.after == "grep -c y b.log")
         #expect(g.item.kind == .suggestion && g.item.detail == g.after && g.item.packID == "coach" && g.item.packName == "Better ways")
         #expect(g.item.tags == ["coach", "grep-count", "fish"])
-        #expect(g.item.explain == "Instead of grep y b.log | wc -l · 3× in your history. grep -c counts matching lines itself. It exits with status 1 when no line matches.")
+        #expect(g.item.explain == "Instead of grep y b.log | wc -l · seen in 3 commands in your history. grep -c counts matching lines itself. It exits with status 1 when no line matches.")
     }
 
     @Test func analyzeSplitsByShell() {

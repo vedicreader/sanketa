@@ -94,7 +94,8 @@ struct PanelView: View {
 
     /// Results use the list's grammar, on the panel's own tint: no box.
     var results: some View {
-        ResultsList(results: search.results, selection: search.selection, prefix: search.prefix(for:), pick: pick, query: search.query)
+        ResultsList(results: search.results, selection: search.selection, prefix: search.prefix(for:), pick: pick, query: search.query,
+                    picked: search.picked, note: search.note)
     }
 }
 
@@ -104,6 +105,10 @@ struct ResultsList: View {
     let prefix: (String) -> String?
     let pick: (Int) -> Void
     var query = ""
+    /// ids the model chose: a small saffron dot
+    var picked: Set<String> = []
+    /// one muted line under the results
+    var note: String?
 
     static func noResult(_ q: String) -> String { "No result for \u{201C}\(q.trimmingCharacters(in: .whitespaces))\u{201D}." }
     static let noResultHelp = "Search finds keys and tips in all packs. Press esc to close."
@@ -115,7 +120,7 @@ struct ResultsList: View {
                     Text(r.packName).font(Theme.header).foregroundStyle(Theme.secondary)
                         .padding(.top, i == 0 ? 0 : 8).padding(.leading, 6)
                 }
-                ResultRow(item: r, prefix: prefix(r.packID), selected: i == selection).onTapGesture { pick(i) }
+                ResultRow(item: r, prefix: prefix(r.packID), selected: i == selection, picked: picked.contains(r.id)).onTapGesture { pick(i) }
             }
             if results.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
@@ -123,6 +128,9 @@ struct ResultsList: View {
                     Text(Self.noResultHelp).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, 6)
+            }
+            if let note {
+                Text(note).font(Theme.small).foregroundStyle(Theme.secondary).lineLimit(2).padding(.top, 6).padding(.horizontal, 6)
             }
         }
     }
@@ -134,10 +142,15 @@ struct ResultRow: View {
     let item: SearchItem
     var prefix: String?
     let selected: Bool
+    var picked = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
             RoundedRectangle(cornerRadius: 1).fill(selected ? Theme.accent : .clear).frame(width: 2.5, height: 14).padding(.trailing, 3.5)
+            if picked {
+                Circle().fill(Theme.accent).frame(width: 5, height: 5).padding(.trailing, 5).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+                    .accessibilityLabel("Chosen by the model")
+            }
             if item.kind == .key {
                 Text(item.title).font(Theme.text).foregroundStyle(.primary).lineLimit(2)
                 Spacer(minLength: 10)

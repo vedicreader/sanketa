@@ -25,6 +25,8 @@ public final class TipStore {
 
     public func mark(_ id: String) -> TipMark? { marks[id] }
 
+    public func ids(marked m: TipMark) -> Set<String> { Set(marks.filter { $0.value == m }.keys) }
+
     public func set(_ id: String, _ mark: TipMark?) {
         marks[id] = mark
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

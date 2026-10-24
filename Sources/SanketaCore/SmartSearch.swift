@@ -209,3 +209,24 @@ public enum SmartSuggest {
         return Grounding.resolve(picks, refs.filter { used.refs.contains($0.key) }, order: used.refs, max: maxPicks)
     }
 }
+
+/// Where the API key came from. Copy Debug Info shows only this, never the key.
+public enum KeySource: String, Sendable { case environment, shell, keychain = "Keychain" }
+
+/// Lets a call through at most once per `interval` seconds, such as the model prewarm when the panel opens.
+public final class Throttle: @unchecked Sendable {
+    let interval: TimeInterval
+    private let lock = NSLock()
+    private var last: Date?
+
+    public init(_ interval: TimeInterval) { self.interval = interval }
+
+    /// True, and the clock restarts, when `interval` has passed since the last true.
+    public func ready(now: Date = Date()) -> Bool {
+        lock.withLock {
+            if let l = last, now.timeIntervalSince(l) < interval { return false }
+            last = now
+            return true
+        }
+    }
+}

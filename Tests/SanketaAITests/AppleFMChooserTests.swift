@@ -52,6 +52,23 @@ private func liveSearch(_ query: String, context: [String]) async -> (SmartResul
         #expect(r.note?.contains("Apple Intelligence is off") == true)
     }
 
+    @Test func guardrailAndRefusalAreNotAllowed() async {
+        typealias E = LanguageModelSession.GenerationError
+        let ctx = E.Context(debugDescription: "test")
+        #expect(AppleFMChooser.mapped(E.guardrailViolation(ctx)) as? ChoiceError == .notAllowed)
+        #expect(AppleFMChooser.mapped(E.refusal(E.Refusal(transcriptEntries: []), ctx)) as? ChoiceError == .notAllowed)
+        #expect(AppleFMChooser.mapped(E.exceededContextWindowSize(ctx)) as? ChoiceError == .contextExceeded)
+        #expect(AppleFMChooser.mapped(E.rateLimited(ctx)) as? ChoiceError == nil)
+        // the user sees one muted note that names the reason
+        struct Refusing: Choosing {
+            let name = "Apple Intelligence", isRemote = false
+            func status() -> ModelStatus { .available }
+            func choose(_ p: ChoicePrompt) async throws -> [String] { throw AppleFMChooser.mapped(E.guardrailViolation(.init(debugDescription: ""))) }
+        }
+        let r = await SmartSearch(router: fmRouter(Refusing()), timeout: 5).results("how do I split the window side by side", bundled, context: [])
+        #expect(r.note == "Plain search: Apple Intelligence refused the request")
+    }
+
     @Test func emptyRefsGiveNoPicks() async throws {
         let p = ChoicePrompt(task: .search("anything at all"), refs: [], lines: [], maxPicks: 5)
         #expect(try await AppleFMChooser(availability: { .available }).choose(p).isEmpty)

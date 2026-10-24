@@ -46,8 +46,18 @@ public struct AppleFMChooser: Choosing {
                                               options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 64))
             try Task.checkCancellation()
             return try r.content.value([String].self, forProperty: "picks")
-        } catch LanguageModelSession.GenerationError.exceededContextWindowSize {
-            throw ChoiceError.contextExceeded
+        } catch {
+            throw Self.mapped(error)
+        }
+    }
+
+    /// A too-long prompt gives `.contextExceeded`, so the router retries with fewer entries; a guardrail or a refusal
+    /// gives `.notAllowed` ("refused the request"). Other errors stay as they are.
+    static func mapped(_ e: Error) -> Error {
+        switch e as? LanguageModelSession.GenerationError {
+        case .exceededContextWindowSize: return ChoiceError.contextExceeded
+        case .guardrailViolation, .refusal: return ChoiceError.notAllowed
+        default: return e
         }
     }
 

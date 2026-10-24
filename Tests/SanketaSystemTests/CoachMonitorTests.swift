@@ -36,14 +36,14 @@ import Testing
         let m = CoachMonitor(config: config(fish: fish, bash: d.appendingPathComponent("missing_bash_history")))
         await m.refreshNow()
         let a = try #require(m.items.first { $0.id == Self.grepID })
-        #expect(a.explain?.contains("1×") == true)
+        #expect(a.explain?.contains("seen in 1 command in") == true)
         #expect(a.tags.contains("fish"))
         // a different line for the same detector: when fish rewrites the whole file on save, it keeps only the
         // newest copy of a repeated command, so a second identical line is not always in the file
         fishAppend(["cat b.log | grep 500 | wc -l"], in: d)
         await m.refreshNow()
         let b = try #require(m.items.first { $0.id == Self.grepID })
-        #expect(b.explain?.contains("2×") == true)
+        #expect(b.explain?.contains("seen in 2 commands") == true)
     }
 
     @Test func monitorUnchangedFileKeepsGeneration() async throws {

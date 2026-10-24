@@ -10,7 +10,7 @@ In a terminal, Sanketa finds each program in the stack. The stack starts at the 
 
 The panel does not take the keyboard focus from your terminal. It takes the focus only when you start a search.
 
-Sanketa needs macOS 26 on Apple Silicon. It needs the Accessibility permission and no other permission. It does not monitor input, it does not record keystrokes, and it does not use the network.
+Sanketa needs macOS 26 on Apple Silicon. It needs the Accessibility permission and no other permission. It does not monitor input, and it does not record keystrokes. It uses the network only if you turn on OpenAI search or download the on-device model.
 
 ## Download
 
@@ -56,6 +56,9 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Show or Hide Panel
 - Search (with the hotkey)
 - Translucency: Low, Medium or High
+- OpenAI Model: the model for OpenAI search
+- OpenAI Key…: save an API key in your Keychain
+- On-Device Model: download or remove the on-device model
 - Reload Packs
 - Open Packs Folder
 - Open Config
@@ -63,7 +66,7 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Copy Debug Info
 - Quit Sanketa
 
-Copy Debug Info copies a short report for a bug report. It has the version, the app in front, the layers, the packs and the Accessibility state. It has no file contents.
+Copy Debug Info copies a short report for a bug report. It has the version, the app in front, the layers, the packs and the Accessibility state. It also tells which models are on, and if Sanketa found an API key. It has no file contents, and it never has the key.
 
 ### Search
 
@@ -92,6 +95,41 @@ The panel shows one tip card. It shows one key or one snippet from the current p
 - "I know this" removes a card for good.
 - "Show less" makes a card come back less often.
 
+### Better ways
+
+Sanketa reads your fish and bash history on this Mac. It looks for commands that have a shorter or safer form. An example is `grep x f | wc -l`, which can be `grep -c x f`. At a local shell prompt, the tip card can then show the better way, such as "Instead of grep x f | wc -l · seen in 3 commands in your history". fish keeps each command only one time, so the number counts different commands, not runs.
+
+Sanketa looks at the history file one time each minute. It reads the end of the file only. It never writes to it, and it never sends it to a server. The cards are also in search. To turn this off, set `enabled = false` in `[coach]`.
+
+### Natural-language search
+
+You can type a question, such as "how do I split the window side by side". When the search has three words or more, Sanketa waits until you stop typing for 0.6 seconds. Then it asks a language model to choose the best entries from your packs. The plain results show at once. When the model answers, its picks move to the top, each with a small orange dot. The model can only choose entries that Sanketa loaded. It cannot make up a key.
+
+Sanketa tries these models in this order, and it uses the first one that works:
+
+1. The on-device model. It runs on this Mac, after you download it from the On-Device Model menu. Qwen3.5-4B is a 3.1 GB download and uses about 3.7 GB of memory while it runs. Qwen3.5-2B is a 1.7 GB download and uses about 2.3 GB. Sanketa frees the memory after one minute with no search. The download needs a build of Sanketa with MLX. This build does not have it yet, so the download items are off.
+2. Apple Intelligence. Sanketa uses it if you turned it on in System Settings. You do not have to.
+3. An OpenAI server. This is off until you set `openai = true` in `[llm]`.
+4. Plain search, when no model works. One gray line under the results then tells why, such as "Plain search: Apple Intelligence is off". Sanketa shows no popup and makes no sound.
+
+With OpenAI on, the OpenAI Model menu lists the models of the server. "Cheapest" is the default. It uses the model with the lowest price, such as gpt-5-nano. Sanketa keeps the list for 10 minutes. To use a different server that works like OpenAI, set `base_url`. The menu then shows the host of that server.
+
+Sanketa finds the API key in this order: the variable in `api_key_env` (`OPENAI_API_KEY` by default) in its environment, then the same variable in your login shell, then the Keychain. To save a key in the Keychain, use OpenAI Key… in the menu. A server on this Mac, such as `http://localhost:1234/v1`, needs no key. Sanketa refuses a plain `http` address to a different computer.
+
+On device, a model can also add up to two tips to the tip card, for the commands that you ran last. Their text is "Related to what you just ran". This happens at most one time in 10 minutes. Sanketa never sends your history to OpenAI for this.
+
+### Privacy
+
+Your shell history, the "better ways" results, window and document titles, and the names of layers and programs never leave this Mac. The menu keys of other apps never leave it either, because they can hold window and document names.
+
+This is all that Sanketa sends, and only in these cases:
+
+- With OpenAI on, for each search of three words or more: one HTTPS request to the server. It holds the model name, the fixed instructions, your search text and up to 40 entries from the packs and your live tmux keys. Each entry has a short ref, the pack name, the title and the keys or snippet. The API key goes in the request header. To OpenAI, Sanketa also asks the server not to store the request.
+- With OpenAI on, when the OpenAI Model menu opens or Sanketa needs the cheapest model: one request for the model list, with the API key. Sanketa keeps the list for 10 minutes, so it does not ask for each search.
+- When you start a model download: plain requests to `huggingface.co` and its download servers, over HTTPS. They have no key and no data about you. Sanketa checks the size and the SHA-256 hash of each file.
+
+The API key stays in your Keychain or your shell. Sanketa never writes it to a log, and Copy Debug Info never shows it.
+
 ## Settings
 
 The settings file is `~/.config/sanketa/config.toml`. Open Config makes the file with the default values in comments. These are the settings:
@@ -104,13 +142,30 @@ pollInterval = 1.0           # seconds between checks while a terminal is in fro
 tipRotateSeconds = 120       # how often the tip cards change
 translucency = "medium"      # low, medium or high
 hyper_label = "Caps"         # how Leela's Hyper key (⌃⌥⇧⌘) shows
+
+[coach]                      # better ways from your shell history, on this Mac only
+enabled = true
+fish_history = "~/.local/share/fish/fish_history"
+bash_history = "~/.bash_history"
+max_entries = 5000           # read at most this many of the last commands
+
+[llm]                        # natural-language search
+on_device = true             # the downloaded on-device model
+mlx_model = "qwen3.5-4b"     # or "qwen3.5-2b"
+apple_fm = true              # Apple Intelligence, when it is on
+suggest = true               # on-device tips for the commands that you ran last
+openai = false               # turn on to use an OpenAI server
+openai_model = ""            # empty: the cheapest model
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+timeout_seconds = 5          # Sanketa stops waiting for the model after this
 ```
 
 The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. If another app uses the same keys, the footer tells you.
 
 Sanketa applies the file when you save it. You do not have to restart Sanketa. Open Config opens the file in the app that you set for `.toml` files. If you set no app, it opens in your default text editor.
 
-You can also set the translucency in the menu-bar menu. The change shows at once, and Sanketa writes only that line to the file. If the file has an error, Sanketa uses the default values.
+You can also set the translucency and the OpenAI model in the menu-bar menu. The change shows at once, and Sanketa writes only that line to the file. If the file has an error, Sanketa uses the default values.
 
 ## Terminals
 
@@ -187,6 +242,8 @@ make test        # swift test; FILTER=<name> runs the tests with that name
 make lint        # check the bundled packs; PACKS=<file or folder> checks yours
 make shots       # draw the panel to PNG files; SHOTS=<folder> keeps them
 make app         # build and sign build/Sanketa.app
+Sanketa --ask "how do I split the window side by side"   # natural-language search from the command line
+Sanketa --install-model 2b   # download the small on-device model
 make verify      # check the bundle and its signature
 make release     # sign with Developer ID and make dist/Sanketa-<version>.zip
 make gatekeeper  # ask Gatekeeper if it accepts the bundle
@@ -221,10 +278,11 @@ Releases are signed and notarized only on the maintainer's Mac. GitHub has no si
 
 The GitHub Actions job builds and tests each push to main and each pull request. It uploads a bundle with an ad-hoc signature as `Sanketa-<sha>.zip`. The job does not make or change a release.
 
-The code has three libraries and the app:
+The code has four libraries and the app:
 
-- `SanketaCore` has the logic: packs, settings and layers.
-- `SanketaSystem` reads processes, tmux, Accessibility and ssh.
+- `SanketaCore` has the logic: packs, settings, layers, the better-ways rules and the model choice rules.
+- `SanketaSystem` reads processes, tmux, Accessibility, ssh and shell history.
+- `SanketaAI` talks to Apple Intelligence and OpenAI servers, finds the API key and downloads the on-device model.
 - `SanketaUI` draws the panel.
 - `Sources/Sanketa` is the app.
 

@@ -3,21 +3,33 @@ import Combine
 import SanketaCore
 import SanketaSystem
 
-/// Query → ranked results over the library plus context packs, with a clamped selection.
+/// Query → ranked results over the library plus context packs, with a clamped selection. For 3 or more words, a model
+/// may move its picks to the top after the user stops typing for `debounce` seconds.
 @MainActor public final class SearchModel: ObservableObject {
     @Published public var query = "" { didSet { if query != oldValue { refresh() } } }
     @Published public private(set) var results: [SearchItem] = []
     @Published public private(set) var selection = 0
+    /// ids of the results that the model chose
+    @Published public private(set) var picked: Set<String> = []
+    /// one muted line under the results, such as why plain search was used
+    @Published public private(set) var note: String?
     let provider: SearchProviding
     let pasteboard: NSPasteboard
+    var smart: SmartSearch?
+    let debounce: TimeInterval
+    var smartTask: Task<Void, Never>?
     var library = PackLibrary()
     var context = Context()
     /// items from outside the packs, such as coaching from shell history
     var extra: [SearchItem] = []
 
-    public init(provider: SearchProviding = LocalSearch(), pasteboard: NSPasteboard = .general) {
-        self.provider = provider; self.pasteboard = pasteboard
+    public init(provider: SearchProviding = LocalSearch(), pasteboard: NSPasteboard = .general, smart: SmartSearch? = nil,
+                debounce: TimeInterval = 0.6) {
+        self.provider = provider; self.pasteboard = pasteboard; self.smart = smart; self.debounce = debounce
     }
+
+    /// A new router (config change); the next query uses it.
+    public func setSmart(_ s: SmartSearch?) { smart = s }
 
     public func setSource(library: PackLibrary? = nil, context: Context? = nil, extra: [SearchItem]? = nil) {
         if let library { self.library = library }
@@ -41,9 +53,32 @@ import SanketaSystem
     }
 
     func refresh() {
-        results = query.trimmingCharacters(in: .whitespaces).isEmpty ? []
-            : Self.byPack(provider.results(query, items, context: context.layers.compactMap(\.packID)))
+        smartTask?.cancel()
+        smartTask = nil
+        let ctx = context.layers.compactMap(\.packID)
+        results = query.trimmingCharacters(in: .whitespaces).isEmpty ? [] : Self.byPack(provider.results(query, items, context: ctx))
         selection = 0
+        picked = []
+        note = nil
+        guard let smart, query.split(whereSeparator: \.isWhitespace).count >= 3 else { return }
+        let (q, all, wait) = (query, items, debounce)
+        smartTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled else { return }
+            let r = await smart.results(q, all, context: ctx)
+            guard !Task.isCancelled, let self, self.query == q else { return }
+            self.apply(r)
+        }
+    }
+
+    /// The model's picks first, then the rest by pack. The selected row stays selected when it is still there.
+    func apply(_ r: SmartResult) {
+        let keep = selected?.id
+        let picks = r.items.filter { r.picked.contains($0.id) }
+        results = picks + Self.byPack(r.items.filter { !r.picked.contains($0.id) })
+        selection = selection == 0 ? 0 : keep.flatMap { id in results.firstIndex { $0.id == id } } ?? 0
+        picked = r.picked
+        note = r.note
     }
 
     /// Results of one pack together, under one heading; packs in the order of their best result.

@@ -73,9 +73,12 @@ public actor KeyLookup {
         self.varName = varName; self.env = env; self.shell = shell; self.runner = runner; self.store = store; self.account = account
     }
 
-    public func key() async -> String? {
+    public func key() async -> String? { await lookup()?.key }
+
+    /// The key and where it came from: the environment, the login shell, else the Keychain.
+    public func lookup() async -> (key: String, source: KeySource)? {
         guard APIKey.validName(varName) else { return nil }
-        if let k = APIKey.nonEmpty(env[varName]) { return k }
+        if let k = APIKey.nonEmpty(env[varName]) { return (k, .environment) }
         if let shell {
             if shellAnswer == nil {
                 let (name, runner) = (varName, runner)
@@ -85,8 +88,8 @@ public actor KeyLookup {
                     }
                 }
             }
-            if let k = await shellAnswer?.value { return k }
+            if let k = await shellAnswer?.value { return (k, .shell) }
         }
-        return APIKey.nonEmpty(store.read(account: account))
+        return APIKey.nonEmpty(store.read(account: account)).map { ($0, .keychain) }
     }
 }

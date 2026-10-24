@@ -1,8 +1,12 @@
 import AppKit
 import SanketaCore
 import SanketaSystem
+import SanketaAI
 
-let configDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/sanketa")
+/// `$HOME` when it is an absolute path (tests set it to a temp folder), else the account's home folder.
+let homeDir = ProcessInfo.processInfo.environment["HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0, isDirectory: true) : nil }
+    ?? FileManager.default.homeDirectoryForCurrentUser
+let configDir = homeDir.appendingPathComponent(".config/sanketa")
 let configURL = configDir.appendingPathComponent("config.toml")
 let packsDir = configDir.appendingPathComponent("packs")
 
@@ -111,13 +115,88 @@ func dumpCoach(out: String?) {
     emit(CoachMonitor.dumpLines(Coach.analyze(es), full: full), to: out)
 }
 
-for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay"] where CommandLine.arguments.contains(flag) {
+/// The on-device slot. It stays empty until the MLX build (Tasks 10 and 12) gives an `OnDeviceChooser`; the router then
+/// goes on to Apple Intelligence, OpenAI and plain search.
+func makeOnDevice(_ llm: LLMConfig) -> (any OnDeviceChooser)? { nil }
+
+/// True when this build can run the on-device model; the "On-Device Model" menu enables downloads only then.
+let mlxReady = false
+
+/// The model tiers for the app and `--ask`. The key comes from the environment, the login shell or the Keychain;
+/// `previous` keeps the key lookup and the model list when the server stays the same.
+func makeLLM(_ llm: LLMConfig, previous: LLMSetup? = nil) -> LLMSetup {
+    let env = ProcessInfo.processInfo.environment
+    return LLMSetup(config: llm, previous: previous, makeKeys: { account in
+        KeyLookup(varName: llm.apiKeyEnv, env: env, shell: APIKey.loginShell(env: env, passwdShell: APIKey.passwdShell()),
+                  runner: ProcessRunner(), store: KeychainStore(), account: account)
+    }, onDevice: makeOnDevice(llm), appleFM: AppleFMChooser())
+}
+
+/// `--ask "<query>"`: natural-language search over the packs, as the panel does it. Prints the backend, then the top 5
+/// results; a `*` marks the model's picks.
+func ask(_ query: String, out: String?) {
+    let config = loadConfig()
+    let lib = loadLibrary(config: config)
+    let llm = makeLLM(config.llm)
+    let items = lib.packs.values.sorted { $0.id < $1.id }.flatMap { SearchItem.items(from: $0) }
+    let timeout = config.llm.timeoutSeconds
+    Task.detached {
+        let r = await SmartSearch(router: llm.router, timeout: timeout).results(query, items, context: [])
+        let short = query.split(whereSeparator: \.isWhitespace).count < 3
+        let backend = r.note ?? (short ? "plain search (fewer than 3 words)" : llm.router.searchChooser()?.name ?? "plain search")
+        emit(["backend: \(backend)"] + r.items.prefix(5).map { "\(r.picked.contains($0.id) ? "*" : "")\($0.packID): \($0.title) — \($0.detail)" },
+             to: out)
+        exit(0)
+    }
+    dispatchMain()
+}
+
+/// `--install-model [4b|2b]`: downloads and checks the on-device model (the `[llm] mlx_model` one by default).
+func installModel(_ which: String?) {
+    let choice: MLXModelChoice
+    switch which {
+    case nil: choice = loadConfig().llm.mlxModel
+    case "4b": choice = .qwen4b
+    case "2b": choice = .qwen2b
+    default:
+        FileHandle.standardError.write(Data("usage: Sanketa --install-model [4b|2b]\n".utf8))
+        exit(2)
+    }
+    let spec = ModelCatalog.spec(choice), installer = ModelInstaller(root: ModelCatalog.defaultRoot)
+    if installer.isInstalled(spec) { print("installed \(installer.directory(spec).path)"); exit(0) }
+    print("downloading \(spec.repo) (\(String(format: "%.1f GB", Double(spec.downloadSize) / 1e9)))")
+    if !mlxReady { FileHandle.standardError.write(Data("This build cannot run the model yet. It needs the MLX build.\n".utf8)) }
+    /// The last 5 % step printed.
+    final class Step: @unchecked Sendable {
+        private let lock = NSLock()
+        private var last = -1
+        func passes(_ p: Int) -> Bool { lock.withLock { guard p > last else { return false }; last = p; return true } }
+    }
+    let step = Step()
+    Task.detached {
+        do {
+            try await installer.install(spec) { done, total in
+                let p = Int(done * 100 / max(total, 1)) / 5 * 5
+                if step.passes(p) { print("\(p) %"); fflush(stdout) }
+            }
+            print("installed \(installer.directory(spec).path)")
+            exit(0)
+        } catch {
+            FileHandle.standardError.write(Data("cannot install \(spec.folder): \((error as? InstallError)?.message ?? error.localizedDescription)\n".utf8))
+            exit(1)
+        }
+    }
+    dispatchMain()
+}
+
+for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay", "--ask"] where CommandLine.arguments.contains(flag) {
     if arg(after: flag)?.hasPrefix("--") ?? true {
         FileHandle.standardError.write(Data("""
             \(flag) needs a value
             usage: Sanketa [--dump-context [--watch] [--pack FILE] [--delay S] | --dump-menus <bundleID> | --dump-ax <bundleID>
-                           | --dump-coach [--full]] [--out FILE]
+                           | --dump-coach [--full] | --ask "<query>"] [--out FILE]
                    Sanketa --lint-pack FILE|FOLDER...
+                   Sanketa --install-model [4b|2b]
 
             """.utf8))
         exit(2)
@@ -149,6 +228,10 @@ if CommandLine.arguments.contains("--lint-pack") {
     exit(r.status)
 } else if CommandLine.arguments.contains("--quit-running") {
     quitRunning()
+} else if let q = arg(after: "--ask") {
+    ask(q, out: out)
+} else if CommandLine.arguments.contains("--install-model") {
+    installModel(args(after: "--install-model").first)
 } else if CommandLine.arguments.contains("--dump-coach") {
     dumpCoach(out: out)
 } else if CommandLine.arguments.contains("--dump-context") {

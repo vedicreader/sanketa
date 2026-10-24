@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SanketaCore
 @testable import SanketaSystem
+import SanketaAI
 
 /// Copy Debug Info and `--dump-context`: the facts that help a bug report, and nothing from the user's files.
 @Suite struct DebugInfoTests {
@@ -40,6 +41,30 @@ import Testing
         #expect(r.contains("  remote remote host pack=- host=remote host") && !r.contains("gpubox"))
         // pack contents (actions, snippets) stay out
         for p in c.packs { for k in p.keys { #expect(!r.contains(k.action), "\(k.action)") } }
+    }
+
+    @Test func keyNeverInDebugInfo() async throws {
+        let (c, lib) = try context()
+        var llm = LLMConfig()
+        llm.openai = true; llm.baseURL = "http://10.0.0.5:1234/v1"
+        let env = ["OPENAI_API_KEY": "sk-secret-123"]
+        #expect(APIKey.resolve(varName: llm.apiKeyEnv, env: env, shell: nil, runner: ProcessRunner(), store: MemoryKeyStore(),
+                               account: "10.0.0.5") == "sk-secret-123")
+        let found = await KeyLookup(varName: llm.apiKeyEnv, env: env, shell: nil, runner: ProcessRunner(), store: MemoryKeyStore(),
+                                    account: "10.0.0.5").lookup()
+        #expect(found?.source == .environment)
+        let lines = DebugInfo.llmLines(config: llm, statuses: [("on-device", .unavailable("needs the MLX build")),
+                                                               ("Apple Intelligence", .available)], keySource: found?.source)
+        let r = DebugInfo.report(version: "1.2.3", context: c, library: lib, configPath: "/tmp/config.toml", configError: nil,
+                                 home: Self.home, llm: lines)
+        #expect(r.contains("\non-device: unavailable (needs the MLX build)\nApple Intelligence: available\n"))
+        #expect(r.contains("openai: on provider=custom model=auto\nOpenAI key: found (environment)\n"))
+        #expect(!r.contains("10.0.0.5") && !r.contains("sk-secret-123") && !r.contains("secret"))
+        // OpenAI with a chosen model and no key
+        var o = LLMConfig()
+        o.openai = true; o.openaiModel = "gpt-4.1"
+        #expect(DebugInfo.llmLines(config: o, statuses: []) == ["openai: on provider=openai model=gpt-4.1", "OpenAI key: missing"])
+        #expect(DebugInfo.llmLines(config: LLMConfig(), statuses: [("Apple Intelligence", .off)]) == ["Apple Intelligence: off", "openai: off"])
     }
 }
 

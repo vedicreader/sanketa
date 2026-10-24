@@ -13,6 +13,19 @@ public enum InstallError: Error, Equatable, Sendable {
     /// The download stopped without an HTTP answer (offline, connection lost, timeout).
     case network(String, String)
 
+    /// One line for the user.
+    public var message: String {
+        switch self {
+        case .busy: "A download is already running."
+        case .badSize(let f): "\(f) has the wrong size. Nothing was installed."
+        case .badHash(let f): "\(f) has the wrong contents. Nothing was installed."
+        case .http(let f, let n): "\(f): the server sent HTTP \(n)."
+        case .noSpace(let need, let free): "Not enough disk space: the download needs \(need / 1_000_000) MB, and \(free / 1_000_000) MB is free."
+        case .redirectRefused(let h): "The download tried to go to \(h). Sanketa stopped it."
+        case .network(let f, let why): "\(f): \(why)"
+        }
+    }
+
     /// A short reason for a network error, in plain words.
     static func reason(_ e: URLError) -> String {
         switch e.code {
