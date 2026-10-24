@@ -42,6 +42,7 @@ if [ $# -ne 1 ] || [ -z "$1" ]; then
     exit 2
 fi
 host=$1
+case "$host" in -*) echo "HOST must not start with -" >&2; exit 2 ;; esac
 src=$(cd "$(dirname "$0")/remote" && pwd)
 
 if [ -n "${SANKETA_SETUP_LOCAL_HOME-}" ]; then
@@ -50,8 +51,8 @@ if [ -n "${SANKETA_SETUP_LOCAL_HOME-}" ]; then
     echo "copied     ~/.config/sanketa/remote/{sanketa.fish,sanketa.bash,tmux.conf} (local test home)"
     HOME=$SANKETA_SETUP_LOCAL_HOME SANKETA_INSTALL_HERE=1 sh "$0" --install-here
 else
-    ssh "$host" 'mkdir -p ~/.config/sanketa/remote'
-    scp -q "$src/sanketa.fish" "$src/sanketa.bash" "$src/tmux.conf" "$host:.config/sanketa/remote/"
+    ssh -- "$host" 'mkdir -p ~/.config/sanketa/remote'
+    scp -q -- "$src/sanketa.fish" "$src/sanketa.bash" "$src/tmux.conf" "$host:.config/sanketa/remote/"
     echo "copied     $host:~/.config/sanketa/remote/{sanketa.fish,sanketa.bash,tmux.conf}"
-    ssh "$host" env SANKETA_INSTALL_HERE=1 sh -s -- --install-here < "$0"
+    ssh -- "$host" env SANKETA_INSTALL_HERE=1 sh -s -- --install-here < "$0"
 fi
