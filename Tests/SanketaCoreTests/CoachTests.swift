@@ -19,7 +19,7 @@ struct CoachTests {
         #expect(g.count == 3 && g.lastSeen == at(3) && g.before == "grep y b.log | wc -l" && g.after == "grep -c y b.log")
         #expect(g.item.kind == .suggestion && g.item.detail == g.after && g.item.packID == "coach" && g.item.packName == "Better ways")
         #expect(g.item.tags == ["coach", "grep-count", "fish"])
-        #expect(g.item.explain == "Instead of grep y b.log | wc -l · 3× in your history. grep -c counts matching lines itself.")
+        #expect(g.item.explain == "Instead of grep y b.log | wc -l · 3× in your history. grep -c counts matching lines itself. It exits with status 1 when no line matches.")
     }
 
     @Test func analyzeSplitsByShell() {
@@ -41,7 +41,7 @@ struct CoachTests {
     }
 
     @Test func analyzeRealFishHistoryFile() throws {
-        let lines = [positive[0].input, positive[8].input, positive[24].input, "echo hi"]
+        let lines = ["cat a.log | grep 404 | wc -l", "sort names.txt | uniq", "expr 3 + 4", "echo hi"]
         let url = writeFishHistory(lines, in: try tempDir())
         let es = HistoryCache().entries(fish: url, bash: nil, maxEntries: 1000)
         #expect(es.count == 4)

@@ -41,6 +41,17 @@ struct DetectorTests {
         #expect(normalise(a, e.check) == normalise(b, e.check), "\(rewritten)")
     }
 
+    @Test(arguments: unsafe) func naiveRewriteChangesOutput(_ u: Unsafe) throws {
+        // the status line keeps a failing command's (empty) output comparable
+        let prefix = u.setup.isEmpty ? "" : u.setup + "; ", status = u.shell == .fish ? "; echo status $status" : "; echo status $?"
+        let a = run(prefix + u.input + status, u.shell, in: try makeFixtureDir()).map { normalise($0, u.check) }
+        let n = run(prefix + u.naive + status, u.shell, in: try makeFixtureDir()).map { normalise($0, u.check) }
+        #expect(a != nil && n != nil)
+        #expect(a != n, "\(String(describing: a)) == \(String(describing: n))")
+        let afters = Coach.rewrites(u.input, shell: u.shell).map(\.rewrite.after)
+        #expect(u.declined ? afters.isEmpty : !afters.isEmpty && !afters.contains(u.naive), "\(afters)")
+    }
+
     @Test func pgrepSuggestionFindsSpawnedProcess() throws {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/sleep")

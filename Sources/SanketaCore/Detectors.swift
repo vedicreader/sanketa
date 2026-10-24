@@ -25,7 +25,7 @@ public enum Detectors {
         Detector(id: "find-xargs", title: "Run a command on found files", shells: [.fish, .bash], rewrite: findXargs),
         Detector(id: "find-glob", title: "Find files with a glob", shells: [.fish], rewrite: findGlob),
         Detector(id: "ls-grep", title: "Pick names with a glob", shells: [.fish, .bash], rewrite: lsGrep),
-        Detector(id: "glob-loop", title: "Loop over a glob, not ls", shells: [.fish, .bash], rewrite: globLoop),
+        Detector(id: "glob-loop", title: "Loop over a glob, not ls", shells: [.fish], rewrite: globLoop),
         Detector(id: "math", title: "Do arithmetic in the shell", shells: [.fish, .bash], rewrite: math),
         Detector(id: "string-split", title: "Split text with string split", shells: [.fish], rewrite: stringSplit),
         Detector(id: "string-replace", title: "Replace text with string replace", shells: [.fish], rewrite: stringReplace),
@@ -45,7 +45,7 @@ public enum Detectors {
             target = s[1].value
         }
         guard let t = target, skips <= 1 else { return nil }
-        return Rewrite(before: c.text, after: "pgrep -fl \(t)", explain: "pgrep -f matches full command lines and never lists itself.")
+        return Rewrite(before: c.text, after: "pgrep -fl \(t)", explain: "pgrep -f matches full command lines and never lists itself. ps aux cuts long lines, so the results can differ.")
     }
 
     static func grepCount(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -57,7 +57,7 @@ public enum Detectors {
         var head = Array(st[..<i]), args = Array(g.dropFirst())
         if i == 1, a.operands.count == 1, let f = catFile(st) { head = []; args.append(f) }
         return Rewrite(before: c.text, after: join(head + [[Word(raw: "grep", value: "grep"), Word(raw: "-c", value: "-c")] + args]),
-                       explain: "grep -c counts matching lines itself.")
+                       explain: "grep -c counts matching lines itself. It exits with status 1 when no line matches.")
     }
 
     static func grepAwk(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -98,14 +98,15 @@ public enum Detectors {
               st[1].allSatisfy({ $0.value != "{}" }) else { return nil }
         let cmd = emit(st[1].dropFirst())
         if sh == .fish {
-            return Rewrite(before: c.text, after: "\(cmd) \(f.glob)", explain: "** expands to the matching files; names with spaces stay intact.")
+            guard let glob = f.glob else { return nil }
+            return Rewrite(before: c.text, after: "\(cmd) \(glob)", explain: "** expands to the matching files; names with spaces stay intact. It skips hidden files and folders.")
         }
         return Rewrite(before: c.text, after: "\(emit(st[0])) -exec \(cmd) {} +", explain: "-exec … {} + batches files like xargs and copes with spaces.")
     }
 
     static func findGlob(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
-        guard sh == .fish, c.stages.count == 1, let f = findParts(c.stages[0]) else { return nil }
-        return Rewrite(before: c.text, after: "printf '%s\\n' \(f.glob)", explain: "fish's ** walks subdirectories (it skips hidden ones).")
+        guard sh == .fish, c.stages.count == 1, let glob = findParts(c.stages[0])?.glob else { return nil }
+        return Rewrite(before: c.text, after: "printf '%s\\n' \(glob)", explain: "fish's ** walks subdirectories (it skips hidden ones).")
     }
 
     static func lsGrep(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -123,51 +124,67 @@ public enum Detectors {
     }
 
     static func globLoop(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
-        guard c.stages.count == 1 else { return nil }
+        // bash keeps a glob that matches nothing as literal text, so the loop would run once; fish runs it zero times
+        guard sh == .fish, c.stages.count == 1 else { return nil }
         let s = c.stages[0]
-        guard s.count == 4, s[0].raw == "for", matches(s[1].raw, #"^[A-Za-z_][A-Za-z0-9_]*$"#), s[2].raw == "in" else { return nil }
-        let open = sh == .fish ? "(" : "$("
-        guard s[3].raw.hasPrefix(open), s[3].raw.hasSuffix(")") else { return nil }
-        let inner = String(s[3].raw.dropFirst(open.count).dropLast())
-        let cs = ShellLex.commands(inner, shell: sh)
+        guard s.count == 4, s[0].raw == "for", matches(s[1].raw, #"^[A-Za-z_][A-Za-z0-9_]*$"#), s[2].raw == "in",
+              s[3].raw.hasPrefix("("), s[3].raw.hasSuffix(")") else { return nil }
+        let cs = ShellLex.commands(String(s[3].raw.dropFirst().dropLast()), shell: sh)
         guard cs.count == 1, cs[0].stages.count == 1, name(cs[0].stages[0]) == "ls" else { return nil }
         let args = cs[0].stages[0].dropFirst()
         guard args.allSatisfy({ $0.globbed && !$0.isFlag && !$0.raw.contains(where: { "$`(){}".contains($0) }) }) else { return nil }
         return Rewrite(before: c.text, after: "for \(s[1].raw) in \(args.isEmpty ? "*" : emit(args))",
-                       explain: "Loop over the glob; parsing ls breaks on spaces.")
+                       explain: "Loop over the glob; parsing ls breaks on spaces. If a folder matches, ls lists what is in it, but the glob gives the folder name.")
+    }
+
+    /// Operands and operators that expr, math, bc and `$(( ))` all compute the same way: whole numbers without a
+    /// leading zero (bash reads `010` as octal), `/` or `%` only as the single operation (math -s0 and bc cut only
+    /// the final result), and with `*` no variable and at most 15 digits in total (math and bc lose whole numbers above 2^53).
+    static func isSafeArithmetic(_ t: [String]) -> Bool {
+        guard t.count >= 3, t.count % 2 == 1 else { return false }
+        let operands = stride(from: 0, to: t.count, by: 2).map { t[$0] }, ops = stride(from: 1, to: t.count, by: 2).map { t[$0] }
+        guard operands.allSatisfy({ matches($0, #"^(0|[1-9][0-9]{0,8})$"#) || isVariable($0) }),
+              ops.allSatisfy({ ["+", "-", "*", "/", "%"].contains($0) }) else { return false }
+        if (ops.contains("/") || ops.contains("%")) && ops.count > 1 { return false }
+        if ops.contains("*") {
+            guard !operands.contains(where: { $0.hasPrefix("$") }), operands.reduce(0, { $0 + $1.count }) <= 15 else { return false }
+        }
+        return true
     }
 
     static func math(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
         let st = c.stages
+        let status = " expr exits with status 1 when the result is 0, but this does not."
         let fishNote = "fish's math builtin; -s0 keeps integer division.", bashNote = "Shell arithmetic, no extra process."
         if st.count == 1, name(st[0]) == "expr" {
             let args = Array(st[0].dropFirst())
-            guard args.count >= 3, args.count % 2 == 1 else { return nil }
-            for (n, w) in args.enumerated() {
-                let ok = n % 2 == 0 ? w.raw == w.value && (matches(w.value, #"^[0-9]{1,9}$"#) || isVariable(w.value))
-                                    : !w.globbed && ["+", "-", "*", "/", "%"].contains(w.value)
-                guard ok else { return nil }
-            }
+            guard args.allSatisfy({ !$0.globbed }), args.enumerated().allSatisfy({ $0.offset % 2 == 1 || $0.element.raw == $0.element.value }),
+                  isSafeArithmetic(args.map(\.value)) else { return nil }
             let ops = stride(from: 1, to: args.count, by: 2).map { args[$0].value }
             if sh == .bash {
                 let expr = args.enumerated().map { $0.offset % 2 == 0 ? $0.element.raw : $0.element.value }.joined(separator: " ")
-                if c.substitution != nil, let w = c.wrappedText { return Rewrite(before: w, after: "$(( \(expr) ))", explain: bashNote) }
-                return Rewrite(before: c.text, after: "echo $(( \(expr) ))", explain: bashNote)
+                if c.substitution != nil, let w = c.wrappedText { return Rewrite(before: w, after: "$(( \(expr) ))", explain: bashNote + status) }
+                return Rewrite(before: c.text, after: "echo $(( \(expr) ))", explain: bashNote + status)
             }
             let scale = ops.contains("/") || ops.contains("%") ? "-s0 " : ""
-            if ops.contains("*") {
-                // a single-quoted expression would not expand a variable
-                guard !args.contains(where: { $0.value.hasPrefix("$") }) else { return nil }
-                return Rewrite(before: c.text, after: "math \(scale)'\(args.map(\.value).joined(separator: " "))'", explain: fishNote)
-            }
-            return Rewrite(before: c.text, after: "math \(scale)\(emit(args))", explain: fishNote)
+            // `*` would glob unquoted; isSafeArithmetic allows no variable with it, so single quotes are safe
+            let expr = ops.contains("*") ? "'\(args.map(\.value).joined(separator: " "))'" : emit(args)
+            return Rewrite(before: c.text, after: "math \(scale)\(expr)", explain: fishNote + status)
         }
         guard sh == .fish, st.count == 2, st[0].count == 2, name(st[0]) == "echo", st[1].map(\.raw) == ["bc"],
-              matches(st[0][1].value, #"^ *[0-9]{1,9}( *[-+*/%] *[0-9]{1,9})+ *$"#) else { return nil }
+              matches(st[0][1].value, #"^ *[0-9]+( *[-+*/%] *[0-9]+)+ *$"#) else { return nil }
         let e = st[0][1].value
+        var tokens: [String] = []
+        for ch in e where ch != " " {
+            if ch.isNumber, let last = tokens.last, last.allSatisfy(\.isNumber) { tokens[tokens.count - 1].append(ch) } else { tokens.append(String(ch)) }
+        }
+        guard isSafeArithmetic(tokens) else { return nil }
         let scale = e.contains("/") || e.contains("%") ? "-s0 " : ""
         return Rewrite(before: c.text, after: "math \(scale)'\(e)'", explain: fishNote)
     }
+
+    /// `"$VAR"`: a list variable stays one argument, as `echo` joins it into one line.
+    static func quoted(_ v: Word) -> String { "\"\(v.value)\"" }
 
     static func stringSplit(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
         let st = c.stages
@@ -186,9 +203,10 @@ public enum Detectors {
             else { return nil }
             i += 1
         }
-        guard let d = delim, d.count == 1, let f = field, matches(f, #"^[0-9]+$"#), d != "-", d != "'", d != "\\" else { return nil }
+        // only field 1: on a line without the delimiter, cut prints the whole line and string split -fN (N > 1) prints nothing
+        guard let d = delim, d.count == 1, field == "1", d != "-", d != "'", d != "\\" else { return nil }
         let shown = matches(d, #"^[A-Za-z0-9,:._=/@+%]$"#) ? d : "'\(d)'"
-        return Rewrite(before: c.text, after: "string split -f\(f) \(shown) \(v.raw)", explain: "fish's string split -fN picks one field.")
+        return Rewrite(before: c.text, after: "string split -f1 \(shown) -- \(quoted(v))", explain: "fish's string split -f1 picks the first field. It exits with status 1 when the text has no delimiter.")
     }
 
     static func stringReplace(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -200,7 +218,7 @@ public enum Detectors {
         let cls = #"^[A-Za-z0-9_:@,=+]+$"#
         guard parts.count == 3, ["", "g"].contains(parts[2]), matches(parts[0], cls), parts[1].isEmpty || matches(parts[1], cls) else { return nil }
         let all = parts[2] == "g" ? "-a " : ""
-        return Rewrite(before: c.text, after: "string replace \(all)\(parts[0]) \(parts[1].isEmpty ? "''" : parts[1]) \(v.raw)",
+        return Rewrite(before: c.text, after: "string replace \(all)\(parts[0]) \(parts[1].isEmpty ? "''" : parts[1]) \(quoted(v))",
                        explain: "fish's string replace works on variables directly.")
     }
 
@@ -213,7 +231,7 @@ public enum Detectors {
         if lower.contains(a), upper.contains(b) { fn = "upper" }
         else if upper.contains(a), lower.contains(b) { fn = "lower" }
         else { return nil }
-        return Rewrite(before: c.text, after: "string \(fn) \(v.raw)", explain: "fish's string upper/lower.")
+        return Rewrite(before: c.text, after: "string \(fn) \(quoted(v))", explain: "fish's string upper/lower. It also changes non-ASCII letters.")
     }
 
     static func uselessCat(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -286,8 +304,10 @@ public enum Detectors {
 
     static func isVariable(_ s: String) -> Bool { matches(s, #"^\$[A-Za-z_][A-Za-z0-9_]*$"#) }
 
-    /// `find DIR [-type f] -name '*SUFFIX'` and the fish glob that names the same files.
-    static func findParts(_ s: [Word]) -> (dir: Word, glob: String)? {
+    /// `find DIR [-type f] -name '*SUFFIX'`, and the fish glob that names the same files. The glob is nil when it
+    /// would differ in a way we can see: fish has no glob for files only (`-type f`), and `**` skips hidden entries,
+    /// so a hidden folder in DIR or a name pattern that is not `*.ext` (`*rc` also finds `.zshrc`) gives nil.
+    static func findParts(_ s: [Word]) -> (dir: Word, glob: String?)? {
         guard name(s) == "find", s.count == 4 || s.count == 6 else { return nil }
         let dir = s[1], tail = s.dropFirst(2).map(\.raw)
         guard dir.raw == dir.value, matches(dir.raw, #"^[A-Za-z0-9._~/-]+$"#), !dir.isFlag else { return nil }
@@ -297,6 +317,8 @@ public enum Detectors {
         var d = dir.raw
         while d.count > 1, d.hasSuffix("/") { d.removeLast() }
         guard d != "/" else { return nil }
+        let hidden = d.split(separator: "/").contains { $0.hasPrefix(".") && $0 != "." && $0 != ".." }
+        guard tail.count == 2, !hidden, matches(pat.value, #"^\*\.[A-Za-z0-9]+$"#) else { return (dir, nil) }
         return (dir, (d == "." ? "" : d + "/") + "**" + pat.value.dropFirst())
     }
 

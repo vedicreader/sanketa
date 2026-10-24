@@ -38,27 +38,32 @@ let positive: [Example] = [
     Example(.bash, "cat a.log | grep GET | awk '{print $1}'", "grep-awk", "awk '/GET/ {print $1}' a.log", .exact),
     Example(.fish, "grep 404 a.log | awk -F/ '{print $2}'", "grep-awk", "awk -F/ '/404/ {print $2}' a.log", .exact),
     Example(.fish, "find . -name '*.py'", "find-glob", #"printf '%s\n' **.py"#, .sortedNoDotSlash),
-    Example(.fish, #"find src -type f -name "*.py""#, "find-glob", #"printf '%s\n' src/**.py"#, .sortedLines),
+    Example(.fish, "find src -name '*.py'", "find-glob", #"printf '%s\n' src/**.py"#, .sortedLines),
     Example(.fish, "find . -name '*.py' | xargs wc -l", "find-xargs", "wc -l **.py", .sortedNoDotSlash),
     Example(.bash, "find . -name '*.py' | xargs wc -l", "find-xargs", "find . -name '*.py' -exec wc -l {} +", .sortedLines),
     Example(.fish, "ls | grep log", "ls-grep", "ls -d *log*", .sortedLines),
     Example(.bash, #"ls | grep '\.txt$'"#, "ls-grep", "ls -d *.txt", .sortedLines),
     Example(.fish, "for f in (ls *.log); echo $f; end", "glob-loop", before: "for f in (ls *.log)", "for f in *.log", .sortedLines),
-    Example(.bash, #"for f in $(ls *.txt); do echo "$f"; done"#, "glob-loop", before: "for f in $(ls *.txt)", "for f in *.txt", .sortedLines),
     Example(.fish, "for f in (ls); echo $f; end", "glob-loop", before: "for f in (ls)", "for f in *", .sortedLines),
     Example(.fish, "expr 3 + 4", "math", "math 3 + 4", .exact),
     Example(.fish, "set n (expr $n + 1); echo $n", "math", before: "expr $n + 1", "math $n + 1", .exact, setup: "set n 5"),
     Example(.fish, "expr 7 / 2", "math", "math -s0 7 / 2", .exact),
     Example(.fish, #"expr 3 \* 4"#, "math", "math '3 * 4'", .exact),
     Example(.fish, "echo '7 / 2' | bc", "math", "math -s0 '7 / 2'", .exact),
+    Example(.fish, #"expr 2 \* 3 + 1"#, "math", "math '2 * 3 + 1'", .exact),
+    Example(.fish, "echo '9 % 4' | bc", "math", "math -s0 '9 % 4'", .exact),
     Example(.bash, "expr 3 + 4", "math", "echo $(( 3 + 4 ))", .exact),
     Example(.bash, "n=$(expr $n + 1); echo $n", "math", before: "$(expr $n + 1)", "$(( $n + 1 ))", .exact, setup: "n=5"),
-    Example(.fish, "echo $row | cut -d, -f2", "string-split", "string split -f2 , $row", .exact, setup: "set row a,b,c"),
-    Example(.fish, "echo $row | cut -d ':' -f1", "string-split", "string split -f1 : $row", .exact, setup: "set row x:y"),
-    Example(.fish, "echo $name | sed 's/foo/bar/g'", "string-replace", "string replace -a foo bar $name", .exact, setup: "set name foo-foo"),
-    Example(.fish, "echo $name | sed 's/foo//'", "string-replace", "string replace foo '' $name", .exact, setup: "set name foo-foo"),
-    Example(.fish, "echo $name | tr a-z A-Z", "string-case", "string upper $name", .exact, setup: "set name Ada"),
-    Example(.fish, "echo $name | tr '[:upper:]' '[:lower:]'", "string-case", "string lower $name", .exact, setup: "set name Ada"),
+    Example(.fish, "echo $row | cut -d, -f1", "string-split", #"string split -f1 , -- "$row""#, .exact, setup: "set row a,b,c"),
+    Example(.fish, "echo $row | cut -d, -f1", "string-split", #"string split -f1 , -- "$row""#, .exact, setup: "set row a,b c,d"),
+    // no delimiter: same output, but string split exits with status 1, so `; true` lets the runner keep the output
+    Example(.fish, "echo $row | cut -d, -f1; true", "string-split", before: "echo $row | cut -d, -f1", #"string split -f1 , -- "$row""#, .exact,
+            setup: "set row abc"),
+    Example(.fish, "echo $row | cut -d ':' -f1", "string-split", #"string split -f1 : -- "$row""#, .exact, setup: "set row x:y"),
+    Example(.fish, "echo $name | sed 's/foo/bar/g'", "string-replace", #"string replace -a foo bar "$name""#, .exact, setup: "set name foo x foo"),
+    Example(.fish, "echo $name | sed 's/foo//'", "string-replace", #"string replace foo '' "$name""#, .exact, setup: "set name foo x foo"),
+    Example(.fish, "echo $name | tr a-z A-Z", "string-case", #"string upper "$name""#, .exact, setup: "set name Ada Bo"),
+    Example(.fish, "echo $name | tr '[:upper:]' '[:lower:]'", "string-case", #"string lower "$name""#, .exact, setup: "set name Ada Bo"),
     Example(.fish, "ps aux | grep sleep", "pgrep", "pgrep -fl sleep", .none),
     Example(.bash, "ps aux | grep node | grep -v grep", "pgrep", "pgrep -fl node", .none),
     Example(.fish, "ps -ef | grep -v grep | grep ssh", "pgrep", "pgrep -fl ssh", .none),
@@ -73,7 +78,46 @@ let negative: [Example] = [
     (.fish, "for f in (ls src); echo $f; end"), (.fish, "echo $name | sed 's/a.b/c/g'"), (.fish, "echo $row | cut -d, -f1,3"),
     (.fish, #"printf 'a,b\n' | cut -d, -f2"#), (.fish, "ps aux | grep -i node"), (.fish, "echo 'oops | grep x"),
     (.bash, #"expr length "$s""#), (.bash, "echo '1/3' | bc -l"),
-].map { Example($0.0, $0.1, "", "", .none) }
+].map { Example($0.0, $0.1, "", "", .none) } + unsafe.filter(\.declined).map { Example($0.shell, $0.input, "", "", .none) }
+
+/// Inputs where an earlier, looser rule gave `naive`, which real fish or bash shows to be wrong. A declined input must
+/// give no rewrite; the others must give a rewrite other than `naive`.
+struct Unsafe: Sendable, CustomTestStringConvertible {
+    var shell: Shell
+    var setup: String
+    var input: String
+    var naive: String
+    var check: Check
+    var declined: Bool
+    var testDescription: String { "\(shell.rawValue): \(input)" }
+}
+
+let unsafe: [Unsafe] = [
+    // math -s0 and bc cut only the final result
+    Unsafe(shell: .fish, setup: "", input: #"expr 7 / 2 \* 2"#, naive: "math -s0 '7 / 2 * 2'", check: .exact, declined: true),
+    Unsafe(shell: .fish, setup: "", input: "expr 7 / 2 + 7 / 2", naive: "math -s0 7 / 2 + 7 / 2", check: .exact, declined: true),
+    Unsafe(shell: .fish, setup: "", input: "echo '7 / 2 + 7 / 2' | bc", naive: "math -s0 '7 / 2 + 7 / 2'", check: .exact, declined: true),
+    // math loses whole numbers above 2^53; bash wraps where expr stops with an overflow error
+    Unsafe(shell: .fish, setup: "", input: #"expr 999999999 \* 999999999"#, naive: "math '999999999 * 999999999'", check: .exact, declined: true),
+    Unsafe(shell: .bash, setup: "", input: #"expr 999999999 \* 999999999 \* 999"#, naive: "echo $(( 999999999 * 999999999 * 999 ))", check: .exact, declined: true),
+    // bash reads a leading zero as octal
+    Unsafe(shell: .bash, setup: "", input: "expr 010 + 1", naive: "echo $(( 010 + 1 ))", check: .exact, declined: true),
+    // bash keeps a glob with no match as literal text
+    Unsafe(shell: .bash, setup: "", input: #"for f in $(ls *.zzz); do echo "$f"; done"#, naive: #"for f in *.zzz; do echo "$f"; done"#, check: .exact, declined: true),
+    // cut prints a line without the delimiter; string split -f2 prints nothing
+    Unsafe(shell: .fish, setup: "set row abc", input: "echo $row | cut -d, -f2", naive: "string split -f2 , $row", check: .exact, declined: true),
+    // fish has no glob for files only: ** also gives folders
+    Unsafe(shell: .fish, setup: "mkdir d.py", input: "find . -type f -name '*.py'", naive: #"printf '%s\n' **.py"#, check: .sortedNoDotSlash, declined: true),
+    Unsafe(shell: .fish, setup: "mkdir d.py", input: "find . -type f -name '*.py' | xargs wc -l", naive: "wc -l **.py", check: .sortedNoDotSlash, declined: true),
+    // ** skips hidden entries
+    Unsafe(shell: .fish, setup: "touch .zshrc", input: "find . -name '*rc'", naive: #"printf '%s\n' **rc"#, check: .sortedNoDotSlash, declined: true),
+    Unsafe(shell: .fish, setup: "mkdir -p .h/.i; touch .h/a.py .h/.i/z.py", input: "find .h -name '*.py'", naive: #"printf '%s\n' .h/**.py"#,
+           check: .sortedLines, declined: true),
+    // a list variable: echo joins it into one line, an unquoted $VAR gives one argument per element
+    Unsafe(shell: .fish, setup: "set row a,b c,d", input: "echo $row | cut -d, -f1", naive: "string split -f1 , $row", check: .exact, declined: false),
+    Unsafe(shell: .fish, setup: "set name foo x foo", input: "echo $name | sed 's/foo/bar/'", naive: "string replace foo bar $name", check: .exact, declined: false),
+    Unsafe(shell: .fish, setup: "set name a b", input: "echo $name | tr a-z A-Z", naive: "string upper $name", check: .exact, declined: false),
+]
 
 /// A fresh folder with the files the examples read. No hidden files.
 func makeFixtureDir() throws -> URL {
