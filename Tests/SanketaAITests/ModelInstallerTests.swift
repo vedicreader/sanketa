@@ -15,6 +15,9 @@ private let spec = ModelSpec(choice: .qwen2b, repo: "test/tiny", revision: rev, 
 private func path(_ name: String) -> String { "/test/tiny/resolve/\(rev)/\(name)" }
 private func good() -> [String: [(Int, Data)]] { [path("model.safetensors"): [(200, weights)], path("config.json"): [(200, config)]] }
 
+/// Short waits between tries, so tests of failures stay fast.
+private let fast: [TimeInterval] = [0.01, 0.01, 0.01, 0.01]
+
 private func modelTempDir() throws -> URL {
     let d = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-models-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
@@ -39,7 +42,7 @@ private final class Seen: @unchecked Sendable {
     @Test func installVerifiesAndMarks() async throws {
         let root = try modelTempDir()
         let stub = Stub(data: good())
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         #expect(!inst.isInstalled(spec))
         let seen = Seen()
         try await inst.install(spec) { seen.add($0, $1) }
@@ -71,10 +74,11 @@ private final class Seen: @unchecked Sendable {
         var answers = good()
         answers[path("model.safetensors")] = [(200, bad)]
         let stub = Stub(data: answers)
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         #expect(await installError { try await inst.install(spec) { _, _ in } } == .badHash("model.safetensors"))
         #expect(!inst.isInstalled(spec))
-        #expect(!exists(root.appendingPathComponent("Tiny")) && !exists(root.appendingPathComponent("Tiny.partial")))
+        // the bad file goes; the folder stays for the next try
+        #expect(!exists(root.appendingPathComponent("Tiny")) && !exists(root.appendingPathComponent("Tiny.partial/model.safetensors")))
     }
 
     @Test func badSizeIsRefused() async throws {
@@ -82,24 +86,120 @@ private final class Seen: @unchecked Sendable {
         var answers = good()
         answers[path("config.json")] = [(200, config + Data("x".utf8))]
         let stub = Stub(data: answers)
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         #expect(await installError { try await inst.install(spec) { _, _ in } } == .badSize("config.json"))
-        #expect(!inst.isInstalled(spec) && !exists(root.appendingPathComponent("Tiny.partial")))
+        #expect(!inst.isInstalled(spec) && !exists(root.appendingPathComponent("Tiny.partial/config.json")))
     }
 
-    @Test func interruptedDownloadIsNotInstalled() async throws {
+    @Test func serverErrorIsTriedAgain() async throws {
         let root = try modelTempDir()
         var answers = good()
         answers[path("config.json")] = [(500, Data("oops".utf8)), (200, config)]
         let stub = Stub(data: answers)
-        let inst = ModelInstaller(root: root, session: stub.session)
-        #expect(await installError { try await inst.install(spec) { _, _ in } } == .http("config.json", 500))
-        #expect(!inst.isInstalled(spec))
-        #expect(!exists(root.appendingPathComponent("Tiny")) && !exists(root.appendingPathComponent("Tiny.partial")))
-        // a later run starts clean and downloads every file again
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         try await inst.install(spec) { _, _ in }
         #expect(inst.isInstalled(spec))
-        #expect(stub.requests.count == 4)
+        #expect(stub.requests.map { $0.url?.lastPathComponent } == ["model.safetensors", "config.json", "config.json"])
+    }
+
+    @Test func notFoundIsNotTriedAgain() async throws {
+        let root = try modelTempDir()
+        var answers = good()
+        answers[path("config.json")] = [(404, Data("no".utf8))]
+        let stub = Stub(data: answers)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
+        #expect(await installError { try await inst.install(spec) { _, _ in } } == .http("config.json", 404))
+        #expect(!inst.isInstalled(spec) && stub.requests.count == 2)
+        // the whole first file stays; a later run checks it again and asks only for the second
+        let fixed = Stub(data: good())
+        try await ModelInstaller(root: root, session: fixed.session, backoff: fast).install(spec) { _, _ in }
+        #expect(fixed.requests.map { $0.url?.lastPathComponent } == ["config.json"])
+    }
+
+    @Test func stallMidFileGoesOnWithRange() async throws {
+        let root = try modelTempDir()
+        let stub = Stub(data: good())
+        let cut = 100_000
+        stub.respond = { r in
+            guard r.url?.lastPathComponent == "model.safetensors" else { return nil }
+            guard let range = r.header("Range") else {
+                return StubReply(status: 200, body: weights.prefix(cut), fail: URLError(.timedOut))
+            }
+            #expect(range == "bytes=\(cut)-")
+            return StubReply(status: 206, headers: ["Content-Range": "bytes \(cut)-\(weights.count - 1)/\(weights.count)"],
+                             body: weights.suffix(from: cut))
+        }
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
+        let seen = Seen()
+        try await inst.install(spec) { seen.add($0, $1) }
+        #expect(inst.isInstalled(spec))
+        #expect(try Data(contentsOf: inst.directory(spec).appendingPathComponent("model.safetensors")) == weights)
+        let w = stub.requests.filter { $0.url?.lastPathComponent == "model.safetensors" }
+        #expect(w.map { $0.header("Range") } == [nil, "bytes=\(cut)-"])
+        #expect(seen.all.contains { $0.0 == Int64(cut) } && zip(seen.all, seen.all.dropFirst()).allSatisfy { $0.0 <= $1.0 })
+        #expect(!exists(root.appendingPathComponent("Tiny.partial")))
+    }
+
+    @Test func serverThatIgnoresRangeStartsTheFileAgain() async throws {
+        let root = try modelTempDir()
+        let stub = Stub(data: good())
+        stub.respond = { r in
+            guard r.url?.lastPathComponent == "model.safetensors" else { return nil }
+            if r.header("Range") == nil { return StubReply(status: 200, body: weights.prefix(50_000), fail: URLError(.networkConnectionLost)) }
+            return StubReply(status: 200, body: weights)   // the whole file, not the rest
+        }
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
+        try await inst.install(spec) { _, _ in }
+        #expect(inst.isInstalled(spec))
+        #expect(try Data(contentsOf: inst.directory(spec).appendingPathComponent("model.safetensors")) == weights)
+    }
+
+    @Test func wrongRangeStartsTheFileAgain() async throws {
+        let root = try modelTempDir()
+        let stub = Stub(data: good())
+        let first = Seen()
+        stub.respond = { r in
+            guard r.url?.lastPathComponent == "model.safetensors" else { return nil }
+            switch r.header("Range") {
+            case nil where first.all.isEmpty:
+                first.add(0, 0)
+                return StubReply(status: 200, body: weights.prefix(50_000), fail: URLError(.timedOut))
+            case "bytes=50000-": return StubReply(status: 206, headers: ["Content-Range": "bytes 10-99/300000"], body: weights[10..<100])
+            default: return StubReply(status: 200, body: weights)
+            }
+        }
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
+        try await inst.install(spec) { _, _ in }
+        #expect(try Data(contentsOf: inst.directory(spec).appendingPathComponent("model.safetensors")) == weights)
+        #expect(stub.requests.filter { $0.url?.lastPathComponent == "model.safetensors" }.map { $0.header("Range") } == [nil, "bytes=50000-", nil])
+    }
+
+    @Test func fiveFailedTriesGiveUpAndKeepTheBytes() async throws {
+        let root = try modelTempDir()
+        let stub = Stub(data: good())
+        stub.respond = { r in
+            guard r.url?.lastPathComponent == "model.safetensors" else { return nil }
+            // 10,000 bytes more on each try, then the bytes stop
+            let from = r.header("Range").flatMap { Int($0.dropFirst(6).dropLast()) } ?? 0
+            return from == 0 ? StubReply(status: 200, body: weights.prefix(10_000), fail: URLError(.timedOut))
+                : StubReply(status: 206, headers: ["Content-Range": "bytes \(from)-\(weights.count - 1)/\(weights.count)"],
+                            body: weights[from..<(from + 10_000)], fail: URLError(.timedOut))
+        }
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
+        let e = await installError { try await inst.install(spec) { _, _ in } }
+        #expect(e == .gaveUp("model.safetensors", "The server did not answer in time.", tries: 5))
+        #expect(e?.message == "model.safetensors: The server did not answer in time. Sanketa tried 5 times. Download again to go on from where it stopped.")
+        #expect(stub.requests.count == 5 && !inst.isInstalled(spec))
+        let part = root.appendingPathComponent("Tiny.partial/model.safetensors.partial")
+        #expect(try Data(contentsOf: part) == weights.prefix(50_000))
+        // the next install goes on from byte 50,000
+        stub.respond = { r in
+            guard r.url?.lastPathComponent == "model.safetensors" else { return nil }
+            return StubReply(status: 206, headers: ["Content-Range": "bytes 50000-299999/300000"], body: weights.suffix(from: 50_000))
+        }
+        try await inst.install(spec) { _, _ in }
+        #expect(inst.isInstalled(spec))
+        #expect(stub.requests.last { $0.url?.lastPathComponent == "model.safetensors" }?.header("Range") == "bytes=50000-")
     }
 
     @Test func stalePartialFolderIsReplaced() async throws {
@@ -109,7 +209,7 @@ private final class Seen: @unchecked Sendable {
         try Data("junk".utf8).write(to: partial.appendingPathComponent("model.safetensors"))
         try rev.write(to: partial.appendingPathComponent(".verified"), atomically: true, encoding: .utf8)
         let stub = Stub(data: good())
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         try await inst.install(spec) { _, _ in }
         #expect(inst.isInstalled(spec))
         #expect(try Data(contentsOf: inst.directory(spec).appendingPathComponent("model.safetensors")) == weights)
@@ -119,7 +219,7 @@ private final class Seen: @unchecked Sendable {
     @Test func reinstallReplacesOldFolder() async throws {
         let root = try modelTempDir()
         let stub = Stub(data: good())
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         let dir = inst.directory(spec)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try Data("old".utf8).write(to: dir.appendingPathComponent("leftover.bin"))
@@ -133,7 +233,7 @@ private final class Seen: @unchecked Sendable {
     @Test func wrongSizeIsNotInstalled() async throws {
         let root = try modelTempDir()
         let stub = Stub(data: good())
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         try await inst.install(spec) { _, _ in }
         #expect(inst.isInstalled(spec))
         let h = try FileHandle(forWritingTo: inst.directory(spec).appendingPathComponent("model.safetensors"))
@@ -145,7 +245,7 @@ private final class Seen: @unchecked Sendable {
     @Test func otherRevisionIsNotInstalled() async throws {
         let root = try modelTempDir()
         let stub = Stub(data: good())
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         try await inst.install(spec) { _, _ in }
         let newer = ModelSpec(choice: spec.choice, repo: spec.repo, revision: String(repeating: "f", count: 40),
                               folder: spec.folder, files: spec.files)
@@ -155,7 +255,7 @@ private final class Seen: @unchecked Sendable {
     @Test func removeDeletesFolder() async throws {
         let root = try modelTempDir()
         let stub = Stub(data: good())
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         try await inst.install(spec) { _, _ in }
         try inst.remove(spec)
         #expect(!inst.isInstalled(spec))
@@ -166,7 +266,7 @@ private final class Seen: @unchecked Sendable {
     @Test func tooLittleSpaceDownloadsNothing() async throws {
         let root = try modelTempDir()
         let stub = Stub(data: good())
-        let inst = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in 1000 })
+        let inst = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in 1000 }, backoff: fast)
         #expect(await installError { try await inst.install(spec) { _, _ in } } == .noSpace(need: ModelInstaller.needed(spec.downloadSize), free: 1000))
         #expect(stub.requests.isEmpty && !inst.isInstalled(spec) && !exists(root.appendingPathComponent("Tiny.partial")))
     }
@@ -176,7 +276,7 @@ private final class Seen: @unchecked Sendable {
         let stub = Stub(data: good())
         let entered = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
         stub.hold = { p in if p.hasSuffix("/config.json") { entered.signal(); release.wait() } }
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         let first = Task { try await inst.install(spec) { _, _ in } }
         // wait off the cooperative pool until the second file's request is open
         await withCheckedContinuation { c in DispatchQueue.global().async { entered.wait(); c.resume() } }
@@ -201,11 +301,11 @@ private final class Seen: @unchecked Sendable {
         answers[path("model.safetensors")] = [(302, Data(to.utf8))]
         answers["/w"] = [(200, weights)]
         let stub = Stub(data: answers)
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         let u = try #require(URL(string: to))
         #expect(await installError { try await inst.install(spec) { _, _ in } } == .redirectRefused("\(u.scheme!)://\(u.host!)"))
         #expect(!inst.isInstalled(spec))
-        #expect(!exists(root.appendingPathComponent("Tiny")) && !exists(root.appendingPathComponent("Tiny.partial")))
+        #expect(!exists(root.appendingPathComponent("Tiny")) && !exists(root.appendingPathComponent("Tiny.partial/model.safetensors")))
         #expect(stub.requests.allSatisfy { $0.url?.host == "huggingface.co" })
     }
 
@@ -215,7 +315,7 @@ private final class Seen: @unchecked Sendable {
         answers[path("model.safetensors")] = [(302, Data("https://cas-bridge.xethub.hf.co/xet/w".utf8))]
         answers["/xet/w"] = [(200, weights)]
         let stub = Stub(data: answers)
-        let inst = ModelInstaller(root: root, session: stub.session)
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
         try await inst.install(spec) { _, _ in }
         #expect(inst.isInstalled(spec))
         #expect(stub.requests.contains { $0.url?.absoluteString == "https://cas-bridge.xethub.hf.co/xet/w" })
@@ -227,7 +327,7 @@ private final class Seen: @unchecked Sendable {
         let root = try modelTempDir()
         let stub = Stub(data: good())
         let free = spec.downloadSize + 1000   // fits the files, not the headroom
-        let inst = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in free })
+        let inst = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in free }, backoff: fast)
         #expect(await installError { try await inst.install(spec) { _, _ in } }
                 == .noSpace(need: spec.downloadSize + 256 << 20, free: free))
         #expect(stub.requests.isEmpty)
@@ -236,9 +336,9 @@ private final class Seen: @unchecked Sendable {
     @Test func noSpaceForReinstallKeepsOldInstall() async throws {
         let root = try modelTempDir()
         let stub = Stub(data: good())
-        try await ModelInstaller(root: root, session: stub.session).install(spec) { _, _ in }
+        try await ModelInstaller(root: root, session: stub.session, backoff: fast).install(spec) { _, _ in }
         // the old folder stays until the new one is in place, so it frees nothing
-        let inst = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in 100 << 20 })
+        let inst = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in 100 << 20 }, backoff: fast)
         #expect(await installError { try await inst.install(spec) { _, _ in } } == .noSpace(need: spec.downloadSize + 256 << 20, free: 100 << 20))
         #expect(inst.isInstalled(spec))
         #expect(try Data(contentsOf: inst.directory(spec).appendingPathComponent("model.safetensors")) == weights)
@@ -249,17 +349,19 @@ private final class Seen: @unchecked Sendable {
         let root = try modelTempDir()
         let stub = Stub(data: good())
         stub.failure = { $0.hasSuffix("/config.json") ? URLError(.networkConnectionLost) : nil }
-        let inst = ModelInstaller(root: root, session: stub.session)
-        #expect(await installError { try await inst.install(spec) { _, _ in } } == .network("config.json", "The connection stopped."))
-        #expect(!inst.isInstalled(spec) && !exists(root.appendingPathComponent("Tiny.partial")))
+        let inst = ModelInstaller(root: root, session: stub.session, backoff: fast)
+        #expect(await installError { try await inst.install(spec) { _, _ in } } == .gaveUp("config.json", "The connection stopped.", tries: 5))
+        #expect(!inst.isInstalled(spec) && !exists(root.appendingPathComponent("Tiny.partial/config.json")))
         // a cancel that did not come from us is not a CancellationError
         stub.failure = { _ in URLError(.cancelled) }
-        #expect(await installError { try await inst.install(spec) { _, _ in } } == .network("model.safetensors", "The download stopped."))
+        #expect(await installError { try await ModelInstaller(root: try modelTempDir(), session: stub.session, backoff: fast)
+            .install(spec) { _, _ in } } == .gaveUp("model.safetensors", "The download stopped.", tries: 5))
     }
 
     @Test func defaultSessionKeepsNothing() {
         let c = ModelInstaller.makeSession().configuration
         #expect(c.httpCookieStorage == nil && c.urlCredentialStorage == nil && c.urlCache == nil && !c.httpShouldSetCookies)
+        #expect(c.timeoutIntervalForRequest == 60 && c.timeoutIntervalForResource == 7200)
     }
 
     @Test func catalogPinsMatchHFLayout() throws {

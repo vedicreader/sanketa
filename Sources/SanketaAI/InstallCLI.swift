@@ -38,7 +38,9 @@ public enum InstallCLI {
         out("downloading \(spec.repo) (\(String(format: "%.1f GB", Double(spec.downloadSize) / 1e9)))")
         let steps = ProgressSteps()
         do {
-            try await installer.install(spec) { done, total in if let p = steps.next(done: done, total: total) { out("\(p) %") } }
+            try await installer.install(spec) { done, total in
+                if let p = steps.next(done: done, total: total) { out("\(p) %  \(done / 1_000_000) MB of \(total / 1_000_000) MB") }
+            }
             out("installed \(installer.directory(spec).path)")
             return 0
         } catch {

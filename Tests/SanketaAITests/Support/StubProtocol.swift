@@ -37,6 +37,17 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
         }
         stub.hold?(url.path)
         if let e = stub.failure?(url.path) { client?.urlProtocol(self, didFailWithError: e); return }
+        if let reply = stub.reply(request) {
+            let resp = HTTPURLResponse(url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: reply.headers)!
+            client?.urlProtocol(self, didReceive: resp, cacheStoragePolicy: .notAllowed)
+            if !reply.body.isEmpty { client?.urlProtocol(self, didLoad: reply.body) }
+            // a short pause before the error, as on a real stall, so the session hands the bytes on first
+            if let e = reply.fail {
+                let client = client
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { client?.urlProtocol(self, didFailWithError: e) }
+            } else { client?.urlProtocolDidFinishLoading(self) }
+            return
+        }
         let (status, body) = stub.answer(request)
         var headers = ["Content-Type": "application/json"]
         // a 3xx answer's body is the Location; the session asks its delegate whether to follow it
@@ -56,6 +67,14 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
+/// What `Stub.respond` sends: a status, headers, a body, then the end or `fail`.
+struct StubReply: Sendable {
+    var status: Int
+    var headers: [String: String] = [:]
+    var body: Data
+    var fail: URLError?
+}
+
 /// Canned `(status, body)` answers per path, used in turn (the last one repeats), and every request seen.
 final class Stub: @unchecked Sendable {
     let id = UUID().uuidString
@@ -67,6 +86,8 @@ final class Stub: @unchecked Sendable {
     var hold: (@Sendable (String) -> Void)?
     /// An error to fail the request with instead of answering, by path.
     var failure: (@Sendable (String) -> URLError?)?
+    /// A full answer for a request, such as part of a body and then an error; nil gives the canned answers.
+    var respond: (@Sendable (StubRequest) -> StubReply?)?
 
     convenience init(_ answers: [String: [(Int, String)]]) {
         self.init(data: answers.mapValues { $0.map { ($0.0, Data($0.1.utf8)) } })
@@ -87,6 +108,16 @@ final class Stub: @unchecked Sendable {
     }
 
     var requests: [StubRequest] { lock.withLock { seen } }
+
+    /// The `respond` answer, recorded like the others; nil when `respond` gives none.
+    fileprivate func reply(_ r: URLRequest) -> StubReply? {
+        guard let respond else { return nil }
+        let req = StubRequest(url: r.url, method: r.httpMethod, headers: r.allHTTPHeaderFields ?? [:], body: Data(),
+                              timeout: r.timeoutInterval)
+        guard let a = respond(req) else { return nil }
+        lock.withLock { seen.append(req) }
+        return a
+    }
 
     fileprivate func answer(_ r: URLRequest) -> (Int, Data) {
         var body = r.httpBody ?? Data()
