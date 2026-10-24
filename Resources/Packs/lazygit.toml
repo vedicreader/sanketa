@@ -7,22 +7,22 @@ processes = ["lazygit"]
 
 [[keys]]
 keys = "1 / 2 / 3 / 4 / 5"
-action = "Go to a panel: status, files, branches, commits, stash"
+action = "Go to panel 1 to 5"
 group = "Panels"
 
 [[keys]]
 keys = "h / l"
-action = "Go to the previous or next panel"
+action = "Previous or next panel"
 group = "Panels"
 
 [[keys]]
 keys = "j / k"
-action = "Go to the next or previous item"
+action = "Next or previous item"
 group = "Panels"
 
 [[keys]]
 keys = "Enter"
-action = "Open the item (files, lines or commits)"
+action = "Open the selected item"
 group = "Panels"
 
 [[keys]]
@@ -57,7 +57,7 @@ group = "Files"
 
 [[keys]]
 keys = "A"
-action = "Add the staged changes to the last commit"
+action = "Amend the last commit"
 group = "Files"
 
 [[keys]]
@@ -112,12 +112,12 @@ group = "Branches"
 
 [[keys]]
 keys = "r"
-action = "Rebase the current branch onto this branch"
+action = "Rebase onto this branch"
 group = "Branches"
 
 [[keys]]
 keys = "M"
-action = "Merge this branch into the current branch"
+action = "Merge this branch"
 group = "Branches"
 
 [[keys]]
@@ -132,7 +132,7 @@ group = "Branches"
 
 [[keys]]
 keys = "s"
-action = "Squash the commit into the commit below"
+action = "Squash into the commit below"
 group = "Commits"
 
 [[keys]]

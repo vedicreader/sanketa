@@ -6,77 +6,77 @@ processes = ["nvidia-smi"]
 [[tips]]
 title = "Refresh every second"
 snippet = "nvidia-smi -l 1"
-explain = "-l N reprints the summary every N seconds until ⌃C"
+explain = "-l N reprints the summary every N seconds until ⌃C."
 tags = ["monitor"]
 
 [[tips]]
 title = "List the GPUs"
 snippet = "nvidia-smi -L"
-explain = "One line per GPU with its index, model and UUID"
+explain = "One line per GPU with its index, model and UUID."
 tags = ["info"]
 
 [[tips]]
 title = "Just the numbers you care about"
 snippet = "nvidia-smi --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu --format=csv"
-explain = "--query-gpu picks fields; --format=csv makes it easy to read and parse"
+explain = "--query-gpu picks fields. --format=csv makes it easy to read and parse."
 tags = ["query", "csv"]
 
 [[tips]]
 title = "Plain values for scripts"
 snippet = "nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits"
-explain = "noheader drops the title row, nounits drops MiB and %"
+explain = "noheader drops the title row, nounits drops MiB and %."
 tags = ["query", "scripting"]
 
 [[tips]]
 title = "Which processes use GPU memory"
 snippet = "nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv"
-explain = "Find the job holding the VRAM before you kill anything"
+explain = "Find the job holding the VRAM before you kill anything."
 tags = ["query", "processes"]
 
 [[tips]]
 title = "Log usage over time"
 snippet = "nvidia-smi --query-gpu=timestamp,utilization.gpu,memory.used --format=csv -l 5 > gpu.csv"
-explain = "A CSV row per GPU every 5 s; plot it after the run"
+explain = "Writes one CSV row for each GPU every 5 seconds. Plot the data after the run."
 tags = ["monitor", "csv"]
 
 [[tips]]
 title = "Per-second device stats"
 snippet = "nvidia-smi dmon"
-explain = "Scrolling power, temperature, SM and memory use, one line per tick"
+explain = "Shows power, temperature, SM and memory use. It adds one line at each interval."
 tags = ["monitor"]
 
 [[tips]]
 title = "Per-process stats"
 snippet = "nvidia-smi pmon"
-explain = "Scrolling SM and memory use for each process"
+explain = "Scrolling SM and memory use for each process."
 tags = ["monitor", "processes"]
 
 [[tips]]
 title = "One GPU only"
 snippet = "nvidia-smi -i 0"
-explain = "-i takes an index, UUID or PCI bus id"
+explain = "-i takes an index, UUID or PCI bus id."
 tags = ["info"]
 
 [[tips]]
 title = "Full detail on one topic"
 snippet = "nvidia-smi -q -d MEMORY,TEMPERATURE"
-explain = "-q is the long report; -d limits it to sections"
+explain = "-q is the long report. -d limits it to sections."
 tags = ["info"]
 
 [[tips]]
 title = "How GPUs connect"
 snippet = "nvidia-smi topo -m"
-explain = "Matrix of NVLink and PCIe paths between GPUs and CPUs"
+explain = "Matrix of NVLink and PCIe paths between GPUs and CPUs."
 tags = ["info"]
 
 [[tips]]
 title = "Every field you can query"
 snippet = "nvidia-smi --help-query-gpu"
-explain = "Names to use with --query-gpu"
+explain = "Names to use with --query-gpu."
 tags = ["query"]
 
 [[tips]]
 title = "Run on a chosen GPU"
 snippet = "CUDA_VISIBLE_DEVICES=1 python train.py"
-explain = "The program sees only GPU 1, as device 0"
+explain = "The program sees only GPU 1, as device 0."
 tags = ["cuda"]

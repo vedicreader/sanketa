@@ -7,119 +7,119 @@ processes = ["find", "fd", "mdfind"]
 [[tips]]
 title = "Find files by name"
 snippet = "find . -name '*.py'"
-explain = "Quote the pattern so the shell doesn't expand it first"
+explain = "Quote the pattern so the shell doesn't expand it first."
 tags = ["files", "name"]
 
 [[tips]]
 title = "Ignore case"
 snippet = "find . -iname '*readme*'"
-explain = "-iname matches README.md, Readme.txt and readme alike"
+explain = "-iname matches README.md, Readme.txt and readme alike."
 tags = ["files", "name"]
 
 [[tips]]
 title = "Changed in the last day"
 snippet = "find . -type f -mtime -1"
-explain = "-mtime -1 is under 24 h old, +30 over 30 days; -mmin -30 counts minutes"
+explain = "-mtime -1 finds files less than 24 hours old, and +30 finds files more than 30 days old. -mmin -30 counts minutes."
 tags = ["files", "time"]
 
 [[tips]]
 title = "Old downloads"
 snippet = "find ~/Downloads -type f -mtime +30 -print"
-explain = "Check the list first; add -delete only when it looks right"
+explain = "Look at the list first. Add -delete only when the list is correct."
 tags = ["files", "time", "cleanup"]
 
 [[tips]]
 title = "Big files"
 snippet = "find . -type f -size +100M"
-explain = "Suffixes k, M, G; + means larger than"
+explain = "Use the suffixes k, M and G. + means larger than."
 tags = ["files", "size"]
 
 [[tips]]
 title = "Delete matches"
 snippet = "find . -name '*.pyc' -delete"
-explain = "Put -delete last: it acts on whatever the tests before it matched"
+explain = "Put -delete last. It deletes all files that the tests before it found."
 tags = ["files", "cleanup"]
 
 [[tips]]
 title = "Run a command on matches"
 snippet = "find . -name '*.log' -exec gzip {} +"
-explain = "{} is the file; + passes many files per run, \\; runs once per file"
+explain = "{} is the file. + gives many files to each run, and \\; runs once for each file."
 tags = ["files", "exec"]
 
 [[tips]]
 title = "Which files contain a string"
 snippet = "find . -type f -name '*.md' -exec grep -l 'draft' {} +"
-explain = "find narrows by name and type, grep by content"
+explain = "find narrows by name and type, grep by content."
 tags = ["files", "search", "exec"]
 
 [[tips]]
 title = "Skip a directory"
 snippet = "find . -name node_modules -prune -o -name '*.js' -print"
-explain = "-prune stops descent; -o -print handles everything else"
+explain = "-prune stops at that folder. -o -print prints all other paths."
 tags = ["files"]
 
 [[tips]]
 title = "Paths with a folder in them"
 snippet = "find . -path '*/tests/*' -name '*.py'"
-explain = "-path matches the whole path, not just the file name"
+explain = "-path matches the whole path, not just the file name."
 tags = ["files", "name"]
 
 [[tips]]
 title = "Only a few levels deep"
 snippet = "find . -maxdepth 2 -type d"
-explain = "-maxdepth 1 is the current folder's direct children"
+explain = "-maxdepth 1 is the current folder's direct children."
 tags = ["files"]
 
 [[tips]]
 title = "Empty files and folders"
 snippet = "find . -empty"
-explain = "Add -type d for empty directories only"
+explain = "Add -type d for empty directories only."
 tags = ["files", "cleanup"]
 
 [[tips]]
 title = "Newer than another file"
 snippet = "find src -newer build/app -type f"
-explain = "What changed since the last build"
+explain = "Finds the files that changed after the last build."
 tags = ["files", "time"]
 
 [[tips]]
 title = "Broken symlinks"
 snippet = "find . -type l ! -exec test -e {} \\; -print"
-explain = "test -e follows the link; ! keeps the ones whose target is gone"
+explain = "test -e follows the link. ! keeps the links whose target does not exist."
 tags = ["files", "cleanup"]
 
 [[tips]]
 title = "Safe with spaces in names"
 snippet = "find . -name '*.txt' -print0 | xargs -0 wc -l"
-explain = "NUL-separated names survive spaces and newlines"
+explain = "NUL-separated names survive spaces and newlines."
 tags = ["files", "pipes"]
 
 [[tips]]
 title = "Count files by extension"
 snippet = "find . -type f -name '*.*' | sed 's/.*\\.//' | sort | uniq -c | sort -rn"
-explain = "Strip everything up to the last dot, then count"
+explain = "Removes all text up to the last dot. Then counts the extensions."
 tags = ["files", "count"]
 
 [[tips]]
 title = "fd: the quick way"
 snippet = "fd -e py"
-explain = "Recursive, skips hidden and .gitignore'd files, coloured output"
+explain = "fd searches all folders below. It skips hidden files and the files in .gitignore, and it shows colours."
 tags = ["files", "fd"]
 
 [[tips]]
 title = "fd by pattern and age"
 snippet = "fd -t f --changed-within 1d 'log'"
-explain = "The pattern is a regex; -t f files only"
+explain = "The pattern is a regex. -t f finds only files."
 tags = ["files", "fd", "time"]
 
 [[tips]]
 title = "fd including hidden files"
 snippet = "fd -H -I '^\\.env'"
-explain = "-H shows dotfiles, -I ignores .gitignore"
+explain = "-H shows dotfiles, -I ignores .gitignore."
 tags = ["files", "fd"]
 
 [[tips]]
 title = "Spotlight search"
 snippet = "mdfind -name invoice -onlyin ~/Documents"
-explain = "Uses the macOS index, so it is instant even across the whole disk"
+explain = "Uses the macOS index. Thus it is fast, also on the full disk."
 tags = ["files", "macos"]

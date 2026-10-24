@@ -72,7 +72,7 @@ group = "Select"
 
 [[keys]]
 keys = "Esc"
-action = "Stop visual mode or clear the selection"
+action = "Stop visual mode or clear selection"
 group = "Select"
 
 [[keys]]
@@ -82,7 +82,7 @@ group = "Files"
 
 [[keys]]
 keys = "O"
-action = "Open the selected files with a chosen program"
+action = "Open files with a chosen program"
 group = "Files"
 
 [[keys]]
@@ -107,7 +107,7 @@ group = "Files"
 
 [[keys]]
 keys = "d"
-action = "Move the selected files to the trash"
+action = "Move the files to the trash"
 group = "Files"
 
 [[keys]]
@@ -117,7 +117,7 @@ group = "Files"
 
 [[keys]]
 keys = "a"
-action = "Make a file (end the name with / for a folder)"
+action = "Make a file or folder"
 group = "Files"
 
 [[keys]]
@@ -172,7 +172,7 @@ group = "Copy path"
 
 [[keys]]
 keys = "t t"
-action = "Open a new tab in this folder"
+action = "Open a new tab here"
 group = "Tabs and tools"
 
 [[keys]]

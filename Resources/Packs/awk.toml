@@ -6,119 +6,119 @@ processes = ["awk", "gawk", "mawk", "nawk"]
 [[tips]]
 title = "Print one column"
 snippet = "ps aux | awk '{print $2}'"
-explain = "Fields split on runs of spaces; $2 is the second (here the PID)"
+explain = "awk splits each line at runs of spaces. $2 is the second field, here the PID."
 tags = ["columns"]
 
 [[tips]]
 title = "Pick columns from a CSV"
 snippet = "awk -F, '{print $1, $3}' data.csv"
-explain = "-F sets the separator; the comma in print puts a space between fields"
+explain = "-F sets the separator. The comma in print puts a space between fields."
 tags = ["columns", "csv"]
 
 [[tips]]
 title = "The last column"
 snippet = "awk '{print $NF}' access.log"
-explain = "NF is the number of fields, so $NF is the last one, however many there are"
+explain = "NF is the number of fields, so $NF is the last one, however many there are."
 tags = ["columns"]
 
 [[tips]]
 title = "Sum a column"
 snippet = "awk '{s += $5} END {print s}' sizes.txt"
-explain = "Variables start at 0; END runs after the last line"
+explain = "Variables start at 0. END runs after the last line."
 tags = ["math"]
 
 [[tips]]
 title = "Average a column"
 snippet = "awk '{s += $2; n++} END {if (n) print s / n}' data.txt"
-explain = "Count rows with n++ and guard against empty input"
+explain = "n++ counts the rows. The test prevents a division by zero on empty input."
 tags = ["math"]
 
 [[tips]]
 title = "Total disk use of a listing"
 snippet = "ls -l | awk '{s += $5} END {printf \"%.1f MB\\n\", s / 1048576}'"
-explain = "Column 5 of ls -l is the size in bytes"
+explain = "Column 5 of ls -l is the size in bytes."
 tags = ["math", "files"]
 
 [[tips]]
 title = "Sum per group"
 snippet = "awk -F, '{t[$1] += $2} END {for (k in t) print k, t[k]}' sales.csv"
-explain = "An array keyed by column 1 is a one-line group-by"
+explain = "An array with column 1 as the key groups the rows in one line."
 tags = ["math", "csv"]
 
 [[tips]]
 title = "Filter rows by a number"
 snippet = "dscl . list /Users UniqueID | awk '$2 >= 500 {print $1}'"
-explain = "A condition before { } picks the lines; here real users on macOS (ids from 500)"
+explain = "A condition before { } selects the lines. Here it selects the real users on macOS, with ids from 500."
 tags = ["filter"]
 
 [[tips]]
 title = "Skip the header row"
 snippet = "awk -F, 'NR > 1 {print $2}' data.csv"
-explain = "NR is the line number across all input"
+explain = "NR is the line number across all input."
 tags = ["filter", "csv"]
 
 [[tips]]
 title = "A range of lines"
 snippet = "awk 'NR == 10, NR == 20' big.txt"
-explain = "A pattern pair prints from the first match through the second"
+explain = "A pattern pair prints from the first match through the second."
 tags = ["filter"]
 
 [[tips]]
 title = "Between two markers"
 snippet = "awk '/BEGIN CERT/, /END CERT/' bundle.pem"
-explain = "Same pair trick with regexes; markers are included"
+explain = "Two regexes make the range. The output includes the marker lines."
 tags = ["filter"]
 
 [[tips]]
 title = "Remove duplicate lines, keep order"
 snippet = "awk '!seen[$0]++' list.txt"
-explain = "Prints a line only the first time it appears; sort -u would reorder"
+explain = "Prints each line only the first time it appears. sort -u changes the order."
 tags = ["dedupe"]
 
 [[tips]]
 title = "Long lines"
 snippet = "awk 'length > 120 {print FILENAME\": \"FNR}' *.py"
-explain = "length is the line length; FNR the line number within each file"
+explain = "length is the line length. FNR the line number within each file."
 tags = ["filter", "files"]
 
 [[tips]]
 title = "Tidy aligned output"
 snippet = "awk '{printf \"%-20s %10.2f\\n\", $1, $2}' prices.txt"
-explain = "printf pads: %-20s left-aligns text, %10.2f right-aligns numbers"
+explain = "printf pads: %-20s left-aligns text, %10.2f right-aligns numbers."
 tags = ["format"]
 
 [[tips]]
 title = "TSV to CSV"
 snippet = "awk -F'\\t' -v OFS=, '{$1 = $1; print}' data.tsv"
-explain = "Reassigning a field rebuilds the line with OFS between fields"
+explain = "Reassigning a field rebuilds the line with OFS between fields."
 tags = ["csv", "format"]
 
 [[tips]]
 title = "Drop a column"
 snippet = "awk '{$2 = \"\"; print}' data.txt"
-explain = "Blanks the field but keeps its place, so two spaces remain where it was"
+explain = "Empties the field but keeps its place. Thus two spaces stay where it was."
 tags = ["columns"]
 
 [[tips]]
 title = "Pass a shell value in"
 snippet = "awk -v limit=100 '$3 > limit' data.txt"
-explain = "-v sets an awk variable; safer than splicing shell variables into the program"
+explain = "-v sets an awk variable. Safer than splicing shell variables into the program."
 tags = ["scripting"]
 
 [[tips]]
 title = "Count lines and words"
 snippet = "awk '{w += NF} END {print NR, w}' essay.txt"
-explain = "NR at END is the line count; summing NF counts words"
+explain = "NR at END is the line count. Summing NF counts words."
 tags = ["count"]
 
 [[tips]]
 title = "Disks over 80% full"
 snippet = "df -h | awk 'NR > 1 && $5 + 0 > 80 {print $NF, $5}'"
-explain = "$5 + 0 turns 85% into the number 85"
+explain = "$5 + 0 turns 85% into the number 85."
 tags = ["filter", "system"]
 
 [[tips]]
 title = "First line of each file"
 snippet = "awk 'FNR == 1 {print FILENAME \": \" $0}' *.csv"
-explain = "FNR resets per file, NR does not: handy for headers"
+explain = "FNR starts again in each file, but NR does not. Use this to find headers."
 tags = ["files", "csv"]

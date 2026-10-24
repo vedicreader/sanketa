@@ -71,119 +71,119 @@ group = "Interactive add (git add -p)"
 [[tips]]
 title = "History as a graph"
 snippet = "git log --oneline --graph --decorate --all"
-explain = "Every branch at once, one line per commit"
+explain = "Every branch at once, one line per commit."
 tags = ["history"]
 
 [[tips]]
 title = "Find the commit that added a string"
 snippet = "git log -S 'parseConfig' --oneline"
-explain = "Pickaxe: commits where the number of occurrences changed"
+explain = "Shows the commits that changed the number of times the string occurs."
 tags = ["history", "search"]
 
 [[tips]]
 title = "A file's full history with diffs"
 snippet = "git log -p --follow -- src/app.py"
-explain = "--follow keeps going across renames"
+explain = "--follow keeps going across renames."
 tags = ["history", "files"]
 
 [[tips]]
 title = "Who changed these lines"
 snippet = "git blame -L 10,30 src/app.py"
-explain = "Blame just a range instead of the whole file"
+explain = "Shows the author of a range of lines, not of the full file."
 tags = ["history"]
 
 [[tips]]
 title = "Search tracked files only"
 snippet = "git grep -n 'TODO' -- '*.py'"
-explain = "Skips build output and untracked files; faster than grep -r"
+explain = "Skips build output and untracked files. Faster than grep -r."
 tags = ["search"]
 
 [[tips]]
 title = "See what you staged"
 snippet = "git diff --staged"
-explain = "Plain git diff shows only unstaged changes"
+explain = "Plain git diff shows only unstaged changes."
 tags = ["diff"]
 
 [[tips]]
 title = "What a branch changes"
 snippet = "git diff --stat main...HEAD"
-explain = "Three dots diff against the merge base, so main's newer commits don't show"
+explain = "Three dots diff against the merge base, so main's newer commits don't show."
 tags = ["diff", "branches"]
 
 [[tips]]
 title = "Fix the last commit"
 snippet = "git commit --amend --no-edit"
-explain = "Folds staged changes in and keeps the message; only before pushing"
+explain = "Adds the staged changes to the last commit and keeps the message. Do this only before you push."
 tags = ["commits"]
 
 [[tips]]
 title = "Unstage or discard"
 snippet = "git restore --staged notes.md; git restore notes.md"
-explain = "The first unstages; the second throws away working-tree edits"
+explain = "The first command unstages the file. The second removes your changes in the working tree."
 tags = ["undo"]
 
 [[tips]]
 title = "New branch, and back again"
 snippet = "git switch -c feature/login; git switch -"
-explain = "- returns to the previous branch, like cd -"
+explain = "- returns to the previous branch, like cd -."
 tags = ["branches"]
 
 [[tips]]
 title = "Park work in progress"
 snippet = "git stash push -m 'half done'; git stash list; git stash pop"
-explain = "-m names the stash so stash list stays readable"
+explain = "-m names the stash so stash list stays readable."
 tags = ["stash"]
 
 [[tips]]
 title = "Recover a lost commit"
 snippet = "git reflog; git reset --hard 'HEAD@{2}'"
-explain = "reflog records where HEAD has been, even after a bad reset or rebase"
+explain = "reflog records where HEAD has been, even after a bad reset or rebase."
 tags = ["undo"]
 
 [[tips]]
 title = "Squash or reword recent commits"
 snippet = "git rebase -i HEAD~3"
-explain = "Change pick to squash, fixup or reword in the editor"
+explain = "Change pick to squash, fixup or reword in the editor."
 tags = ["commits", "history"]
 
 [[tips]]
 title = "Find the commit that broke a test"
 snippet = "git bisect start; git bisect bad; git bisect good v1.0; git bisect run make test"
-explain = "Binary search; bisect run judges each step by the command's exit code"
+explain = "git does a binary search. bisect run uses the exit code of the command to judge each step."
 tags = ["debugging"]
 
 [[tips]]
 title = "Second checkout without stashing"
 snippet = "git worktree add ../hotfix main"
-explain = "Another branch in another folder, sharing one repository"
+explain = "Puts another branch in another folder. Both folders use the same repository."
 tags = ["branches"]
 
 [[tips]]
 title = "Delete untracked files, carefully"
 snippet = "git clean -nd; git clean -fd"
-explain = "-n shows what would go; -f does it, -d includes folders"
+explain = "-n shows what git will delete. -f deletes, and -d also deletes folders."
 tags = ["undo", "files"]
 
 [[tips]]
 title = "A file as it was"
 snippet = "git show HEAD~5:src/app.py > old_app.py"
-explain = "rev:path prints any file at any commit"
+explain = "rev:path prints any file at any commit."
 tags = ["files", "history"]
 
 [[tips]]
 title = "Branches by last activity"
 snippet = "git branch --sort=-committerdate"
-explain = "Most recently used branches first"
+explain = "Most recently used branches first."
 tags = ["branches"]
 
 [[tips]]
 title = "Who commits most"
 snippet = "git shortlog -sn --no-merges HEAD"
-explain = "Commit counts per author, highest first"
+explain = "Commit counts per author, highest first."
 tags = ["history"]
 
 [[tips]]
 title = "Copy one commit to this branch"
 snippet = "git cherry-pick a1b2c3d"
-explain = "Applies that commit's change as a new commit here"
+explain = "Applies that commit's change as a new commit here."
 tags = ["commits", "branches"]

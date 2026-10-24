@@ -331,47 +331,47 @@ group = "Commands"
 [[tips]]
 title = "Continue where you left off"
 snippet = "claude -c"
-explain = "Loads the most recent conversation in this directory"
+explain = "Loads the most recent conversation in this directory."
 tags = ["sessions"]
 
 [[tips]]
 title = "Resume a named session"
 snippet = "claude -r \"auth-refactor\" \"Finish this PR\""
-explain = "Resume by ID or name; bare -r opens a picker"
+explain = "Give an ID or a name. Without a value, -r shows a list to select from."
 tags = ["sessions"]
 
 [[tips]]
 title = "One-shot, non-interactive"
 snippet = "claude -p \"explain this function\""
-explain = "Prints the response and exits"
+explain = "Prints the response and exits."
 tags = ["headless"]
 
 [[tips]]
 title = "Start in plan mode"
 snippet = "claude --permission-mode plan"
-explain = "Also accepts default, acceptEdits, auto, dontAsk, bypassPermissions"
+explain = "Also accepts default, acceptEdits, auto, dontAsk, bypassPermissions."
 tags = ["permissions"]
 
 [[tips]]
 title = "Work in an isolated worktree"
 snippet = "claude -w my-feature"
-explain = "Starts in <repo>/.claude/worktrees/<name>"
+explain = "Starts in <repo>/.claude/worktrees/<name>."
 tags = ["git"]
 
 [[tips]]
 title = "Give access to another folder"
 snippet = "claude --add-dir ../shared"
-explain = "Adds a working directory Claude may read and edit"
+explain = "Adds a working directory Claude may read and edit."
 tags = ["folders"]
 
 [[tips]]
 title = "Pick a model at launch"
 snippet = "claude --model sonnet"
-explain = "Alias such as sonnet, opus, haiku, fable, or a full model name"
+explain = "Alias such as sonnet, opus, haiku, fable, or a full model name."
 tags = ["models"]
 
 [[tips]]
-title = "Ask without derailing"
+title = "Ask a side question"
 snippet = "/btw what was that config file called?"
-explain = "Side question that isn't added to conversation history"
+explain = "Asks a side question. Claude does not add it to the conversation history."
 tags = ["sessions"]

@@ -248,77 +248,77 @@ command = "show-messages"
 [[tips]]
 title = "Named sessions"
 snippet = "tmux new -s work    # later: tmux attach -t work"
-explain = "A name makes it easy to come back after prefix d or a dropped ssh"
+explain = "With a name, you can easily go back after prefix d or a lost ssh connection."
 tags = ["sessions"]
 
 [[tips]]
 title = "List and kill sessions"
 snippet = "tmux ls; tmux kill-session -t work"
-explain = "See what is still running, then end one session without touching others"
+explain = "Shows what still runs. Then it stops one session and keeps the others."
 tags = ["sessions"]
 
 [[tips]]
 title = "Run a job that outlives the terminal"
 snippet = "tmux new -d -s train 'python train.py 2>&1 | tee train.log'"
-explain = "-d starts it detached; attach later with tmux a -t train"
+explain = "-d starts it detached. Attach later with tmux a -t train."
 tags = ["sessions", "jobs"]
 
 [[tips]]
 title = "Copy mode, emacs keys (default)"
 snippet = "prefix [   ⌃Space mark   ⌥W copy   ⌃S / ⌃R search   q quit"
-explain = "Default mode-keys is emacs; prefix ] pastes what you copied"
+explain = "Default mode-keys is emacs. Prefix ] pastes what you copied."
 tags = ["copy"]
 
 [[tips]]
 title = "Copy mode, vi keys"
 snippet = "tmux set -g mode-keys vi    # then: Space select, Enter copy, / search, v block, q quit"
-explain = "Put set -g mode-keys vi in ~/.tmux.conf to keep it"
+explain = "Put set -g mode-keys vi in ~/.tmux.conf to keep it."
 tags = ["copy", "config"]
 
 [[tips]]
 title = "Save a pane's scrollback to a file"
 snippet = "tmux capture-pane -p -S - > pane.txt"
-explain = "-S - starts at the oldest history line; -p prints instead of buffering"
+explain = "-S - starts at the oldest history line. -p prints instead of buffering."
 tags = ["copy", "files"]
 
 [[tips]]
 title = "Type into another pane"
 snippet = "tmux send-keys -t work:1.0 'make test' Enter"
-explain = "Target is session:window.pane; Enter is the key name, not text"
+explain = "Target is session:window.pane. Enter is the key name, not text."
 tags = ["scripting"]
 
 [[tips]]
 title = "Type in every pane at once"
 snippet = "tmux setw synchronize-panes on   # off to stop"
-explain = "Handy for running the same command on several ssh hosts"
+explain = "Use this to run the same command on many ssh hosts."
 tags = ["panes"]
 
 [[tips]]
 title = "Split in the current directory"
 snippet = "bind '\"' split-window -c '#{pane_current_path}'"
-explain = "In ~/.tmux.conf; new panes start where you are instead of where tmux started"
+explain = "Put this in ~/.tmux.conf. New panes then start in your current folder."
 tags = ["config", "panes"]
 
 [[tips]]
 title = "Turn on the mouse"
 snippet = "tmux set -g mouse on"
-explain = "Click panes, drag borders, wheel-scroll into copy mode"
+explain = "You can click panes, move borders and scroll into copy mode."
 tags = ["config"]
 
 [[tips]]
 title = "Reload your config"
 snippet = "tmux source-file ~/.tmux.conf"
-explain = "Applies edits without restarting the server"
+explain = "Applies your changes without a restart of the server."
 tags = ["config"]
 
 [[tips]]
 title = "Move a pane between windows"
 snippet = "tmux join-pane -s :2    # bring window 2's pane here"
-explain = "The opposite of prefix !, which breaks a pane out"
+explain = "The opposite of prefix !, which breaks a pane out."
 tags = ["panes", "windows"]
 
 [[tips]]
 title = "Ask tmux about the current pane"
 snippet = "tmux display -p '#{pane_current_path} #{pane_current_command}'"
-explain = "Formats expose pane, window and session state for scripts"
+explain = "Formats expose pane, window and session state for scripts."
 tags = ["scripting"]

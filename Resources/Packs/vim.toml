@@ -201,41 +201,41 @@ group = "Macros & marks"
 [[tips]]
 title = "Run a command on matching lines"
 snippet = ":g/TODO/d"
-explain = ":g/pattern/cmd runs cmd on every match; :v does the non-matching lines"
+explain = ":g/pattern/cmd runs cmd on every match. :v does the non-matching lines."
 tags = ["search", "editing"]
 
 [[tips]]
 title = "Filter lines through a shell command"
 snippet = ":%!sort -u"
-explain = "Replaces the buffer with the command's output; works on a visual range too"
+explain = "Replaces the buffer with the command's output. Works on a visual range too."
 tags = ["shell"]
 
 [[tips]]
 title = "Insert a command's output"
 snippet = ":r !date"
-explain = "Reads the output in below the cursor"
+explain = "Reads the output in below the cursor."
 tags = ["shell"]
 
 [[tips]]
 title = "Type on many lines at once"
 snippet = "⌃V, move down, I, type, ⎋"
-explain = "Block insert: the text appears on every selected line after ⎋"
+explain = "This is a block insert. The text shows on each selected line after you press esc."
 tags = ["visual", "editing"]
 
 [[tips]]
 title = "Replace only inside a selection"
 snippet = ":'<,'>s/foo/bar/g"
-explain = "Press : after selecting and Vim fills in the '<,'> range"
+explain = "Press : after selecting and Vim fills in the '<,'> range."
 tags = ["search", "visual"]
 
 [[tips]]
 title = "Open two files as a diff"
 snippet = "vim -d old.txt new.txt"
-explain = "]c and [c jump between changes; do and dp pull or push one"
+explain = "]c and [c jump between changes. Do and dp pull or push one."
 tags = ["files", "diff"]
 
 [[tips]]
 title = "Start without your config"
 snippet = "vim --clean file.txt"
-explain = "Rules out your vimrc and plugins when something misbehaves"
+explain = "Use this to find out if your vimrc or plugins cause a problem."
 tags = ["config"]

@@ -97,23 +97,23 @@ group = "App"
 [[tips]]
 title = "Paste an image for an agent"
 snippet = "⌘V with an image on the clipboard"
-explain = "Pastes its file path, so agents like Claude Code can read it"
+explain = "Pastes the file path, so that agents such as Claude Code can read the image."
 tags = ["agents", "images"]
 
 [[tips]]
 title = "Search a fullscreen Claude session"
 snippet = "⌘F → Conversation scope"
-explain = "Searches the session transcript, which never reaches scrollback"
+explain = "Searches the session transcript, which never reaches scrollback."
 tags = ["agents", "find"]
 
 [[tips]]
 title = "Review what an agent changed"
 snippet = "⌘K → Review Changes"
-explain = "Commits, uncommitted files and diffs since the agent started"
+explain = "Commits, uncommitted files and diffs since the agent started."
 tags = ["agents", "git"]
 
 [[tips]]
 title = "Share Ghostty's config"
 snippet = "config-file = ~/.config/ghostty/config"
-explain = "Add to ~/.config/conterm/config; lines below it override for Conterm"
+explain = "Add this to ~/.config/conterm/config. The lines below it change settings only for Conterm."
 tags = ["config"]

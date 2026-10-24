@@ -117,119 +117,119 @@ group = "Command line"
 [[tips]]
 title = "Strict mode for scripts"
 snippet = "#!/usr/bin/env bash\nset -euo pipefail"
-explain = "-e stops on errors, -u on unset variables, pipefail if any pipe stage fails"
+explain = "-e stops on errors, -u on unset variables, pipefail if any pipe stage fails."
 tags = ["scripting", "safety"]
 
 [[tips]]
 title = "Loop over files"
 snippet = "for f in *.log; do gzip \"$f\"; done"
-explain = "Quote \"$f\" so names with spaces stay one argument"
+explain = "Quote \"$f\" so names with spaces stay one argument."
 tags = ["loops", "files"]
 
 [[tips]]
 title = "Loop over a range"
 snippet = "for i in {1..5}; do echo \"run $i\"; done; for ((i = 0; i < 3; i++)); do echo $i; done"
-explain = "Brace ranges for fixed counts, C-style for computed ones"
+explain = "Use a brace range for a fixed count. Use the C-style loop for a calculated count."
 tags = ["loops"]
 
 [[tips]]
 title = "Read a file line by line"
 snippet = "while IFS= read -r line; do echo \"[$line]\"; done < input.txt"
-explain = "IFS= keeps leading spaces, -r keeps backslashes"
+explain = "IFS= keeps leading spaces, -r keeps backslashes."
 tags = ["loops", "files"]
 
 [[tips]]
 title = "Loop over find results safely"
 snippet = "find . -name '*.tmp' -print0 | while IFS= read -r -d '' f; do echo \"$f\"; done"
-explain = "NUL separators survive spaces and newlines in file names"
+explain = "NUL separators keep names with spaces and newlines whole."
 tags = ["loops", "files"]
 
 [[tips]]
 title = "Tests with [[ ]]"
 snippet = "if [[ -f \"$f\" && $f == *.csv ]]; then echo csv; elif [[ -d $f ]]; then echo dir; fi"
-explain = "[[ ]] allows && and globs on the right of ==; no word splitting inside"
+explain = "[[ ]] accepts && and a glob on the right of ==. It does not split words."
 tags = ["conditions"]
 
 [[tips]]
 title = "Regex match and capture"
 snippet = "v=v4.8; if [[ $v =~ ^v([0-9]+)\\.([0-9]+)$ ]]; then echo \"${BASH_REMATCH[1]}\"; fi"
-explain = "Leave the regex unquoted; groups land in BASH_REMATCH"
+explain = "Do not put quotes around the regex. The groups go into BASH_REMATCH."
 tags = ["conditions", "regex"]
 
 [[tips]]
 title = "Default and required values"
 snippet = "name=${1:-world}; out=${OUT:?set OUT first}; echo \"$name $out\""
-explain = ":- substitutes a default, :? aborts with a message when unset or empty"
+explain = ":- substitutes a default, :? aborts with a message when unset or empty."
 tags = ["variables", "expansion"]
 
 [[tips]]
 title = "Trim prefixes and suffixes"
 snippet = "f=photo.tar.gz; echo \"${f%.gz}\" \"${f%%.*}\" \"${f#*.}\" \"${f##*.}\""
-explain = "photo.tar, photo, tar.gz, gz: % cuts the end, # the start, doubled is greedy"
+explain = "The output is photo.tar, photo, tar.gz and gz. % removes from the end and # from the start. Two of them remove the longest match."
 tags = ["expansion", "strings"]
 
 [[tips]]
 title = "Replace inside a variable"
 snippet = "p=/usr/local/bin; echo \"${p//\\//:}\" \"${#p}\""
-explain = "${var//old/new} replaces every match, ${#var} is the length"
+explain = "${var//old/new} replaces every match, ${#var} is the length."
 tags = ["expansion", "strings"]
 
 [[tips]]
 title = "Command substitution"
 snippet = "today=$(date +%F); mkdir -p \"backup-$today\""
-explain = "$(cmd) nests cleanly, unlike backticks"
+explain = "You can put $(cmd) inside another $(cmd). Backticks do not let you do this."
 tags = ["substitution"]
 
 [[tips]]
 title = "Integer arithmetic"
 snippet = "n=0; n=$((n + 1)); echo $((17 / 4)) $((17 % 4))"
-explain = "Integers only: 4 and 1; use bc or awk for decimals"
+explain = "Shows 4 and 1, because bash uses only integers. Use bc or awk for decimals."
 tags = ["math"]
 
 [[tips]]
 title = "Arrays"
 snippet = "files=(*.txt); echo \"${#files[@]} files, first ${files[0]}\"; for f in \"${files[@]}\"; do wc -l \"$f\"; done"
-explain = "Quote \"${arr[@]}\" to keep each element whole"
+explain = "Quote \"${arr[@]}\" to keep each element whole."
 tags = ["arrays"]
 
 [[tips]]
 title = "Pass arguments through intact"
 snippet = "for arg in \"$@\"; do echo \"[$arg]\"; done"
-explain = "\"$@\" keeps each argument separate; $* glues them together"
+explain = "\"$@\" keeps each argument separate. $* joins them into one."
 tags = ["scripting"]
 
 [[tips]]
 title = "Functions with local variables"
 snippet = "greet() { local who=${1:-you}; echo \"hi $who\"; }; greet Ann"
-explain = "local keeps the variable from leaking into the caller"
+explain = "local keeps the variable in the function. The caller does not see it."
 tags = ["functions"]
 
 [[tips]]
 title = "Clean up on exit"
 snippet = "tmp=$(mktemp -d); trap 'rm -rf \"$tmp\"' EXIT"
-explain = "The trap runs however the script ends, errors included"
+explain = "The trap runs when the script ends for any cause, also after an error."
 tags = ["scripting", "safety"]
 
 [[tips]]
 title = "case for subcommands"
 snippet = "case \"$1\" in start) echo go ;; stop) echo halt ;; *) echo \"usage: $0 start|stop\" ;; esac"
-explain = "Patterns are globs; *) catches the rest"
+explain = "The patterns are globs. *) catches all other values."
 tags = ["conditions", "scripting"]
 
 [[tips]]
 title = "Write a file with a heredoc"
 snippet = "cat > app.ini <<'EOF'\n[server]\nport = $PORT stays literal\nEOF"
-explain = "Quoting 'EOF' stops expansion; drop the quotes to expand variables"
+explain = "Quotes around 'EOF' stop expansion. Remove the quotes to expand variables."
 tags = ["files"]
 
 [[tips]]
 title = "Send output and errors to a file"
 snippet = "make > build.log 2>&1"
-explain = "Order matters: 2>&1 after the file sends stderr there too"
+explain = "The order is important. 2>&1 after the file name sends stderr to the file too."
 tags = ["redirection"]
 
 [[tips]]
 title = "Rerun with sudo, reuse the last argument"
 snippet = "sudo !!\ncd !$"
-explain = "!! is the last command, !$ its last argument (interactive history expansion)"
+explain = "!! is the last command and !$ is its last argument. This works only in an interactive shell."
 tags = ["history"]

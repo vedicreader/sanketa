@@ -191,41 +191,41 @@ group = "Setup"
 [[tips]]
 title = "Watch only some processes"
 snippet = "htop -p 1234,5678"
-explain = "-p limits the list to these PIDs"
+explain = "-p limits the list to these PIDs."
 tags = ["filter"]
 
 [[tips]]
 title = "Start filtered to one user"
 snippet = "htop -u"
-explain = "No name means you; htop -u root for another user"
+explain = "No name means you. htop -u root for another user."
 tags = ["filter"]
 
 [[tips]]
 title = "Start in tree view"
 snippet = "htop -t"
-explain = "See who started what without pressing F5"
+explain = "See who started what without pressing F5."
 tags = ["view"]
 
 [[tips]]
 title = "Start sorted by memory"
 snippet = "htop -s PERCENT_MEM"
-explain = "Any column name works; htop --sort-key help lists them"
+explain = "Any column name works. htop --sort-key help lists them."
 tags = ["sort"]
 
 [[tips]]
 title = "Start filtered by several names"
 snippet = "htop -F 'python|node'"
-explain = "Like F4: fixed strings, case-insensitive, separated by |"
+explain = "This works like F4. It uses fixed text, ignores case and uses | between names."
 tags = ["filter"]
 
 [[tips]]
 title = "Slower updates"
 snippet = "htop -d 20"
-explain = "Delay is in tenths of a second: 20 is every 2 s"
+explain = "Delay is in tenths of a second: 20 is every 2 s."
 tags = ["view"]
 
 [[tips]]
-title = "Look without touching"
+title = "Read-only mode"
 snippet = "htop --readonly"
-explain = "Disables kill and renice, safe on a shared or production box"
+explain = "Turns off kill and renice. Use it on a shared or production computer."
 tags = ["safety"]

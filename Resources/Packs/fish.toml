@@ -40,7 +40,7 @@ group = "Suggestions & history"
 
 [[keys]]
 keys = "⇥"
-action = "Complete; again for the menu"
+action = "Complete, press again for a menu"
 group = "Completion"
 
 [[keys]]
@@ -161,119 +161,119 @@ group = "Editing"
 [[tips]]
 title = "Loop over files"
 snippet = "for f in *.csv; echo $f (wc -l < $f); end"
-explain = "No do/done: the block ends with end, and (cmd) inserts a command's output"
+explain = "fish has no do or done. The block stops at end, and (cmd) puts in the output of a command."
 tags = ["loops", "files"]
 
 [[tips]]
 title = "Branch with if and test"
 snippet = "if test -f config.toml; echo file; else if test -d config; echo dir; else; echo none; end"
-explain = "test -f file, -d dir, -n non-empty, -z empty, = for strings, -gt for numbers"
+explain = "test -f file, -d dir, -n non-empty, -z empty, = for strings, -gt for numbers."
 tags = ["conditions"]
 
 [[tips]]
 title = "Split a string into a list"
 snippet = "set parts (string split , 'red,green,blue'); echo $parts[2]"
-explain = "One item per piece; lists index from 1, $parts[-1] is the last"
+explain = "One item per piece. Lists index from 1, $parts[-1] is the last."
 tags = ["strings", "lists"]
 
 [[tips]]
 title = "Split only at the first separator"
 snippet = "string split -m1 = 'key=a=b'"
-explain = "-m1 gives key and a=b: right for key=value lines"
+explain = "-m1 gives key and a=b. Use it for key=value lines."
 tags = ["strings"]
 
 [[tips]]
 title = "Rename files with string replace"
 snippet = "for f in *.jpeg; mv $f (string replace -r '\\.jpeg$' .jpg $f); end"
-explain = "-r for a regex, -a to replace every match; no sed needed"
+explain = "-r uses a regex, and -a replaces each match. You do not need sed."
 tags = ["strings", "files"]
 
 [[tips]]
 title = "Pull numbers out with string match"
 snippet = "string match -rg 'v(\\d+)\\.(\\d+)' v4.8"
-explain = "-r regex, -g prints only the capture groups (4 then 8); -q just tests"
+explain = "-r uses a regex, and -g prints only the groups, 4 then 8. -q only tests."
 tags = ["strings", "regex"]
 
 [[tips]]
 title = "Test a glob with string match"
 snippet = "string match -q '*.log' $file; and echo log file"
-explain = "Without -r the pattern is a glob; -q prints nothing and only sets $status"
+explain = "Without -r the pattern is a glob. -q prints nothing and only sets $status."
 tags = ["strings", "conditions"]
 
 [[tips]]
 title = "Arithmetic with math"
 snippet = "math 17 / 4; math -s0 17 / 4; math 2 ^ 10; math 'round(3.14159 * 100) / 100'"
-explain = "4.25, 4 (-s0 truncates), 1024, 3.14; quote anything with * or ( )"
+explain = "The output is 4.25, 4, 1024 and 3.14. -s0 removes the decimals. Put quotes around text with * or ( )."
 tags = ["math"]
 
 [[tips]]
 title = "Variable scopes"
 snippet = "set -l tmp (mktemp); set -g count 0; set -U EDITOR nvim"
-explain = "-l lives in this block or function, -g for this session, -U in every fish forever"
+explain = "-l is for this block or function, and -g is for this session. -U is for all fish shells, also after a restart."
 tags = ["variables"]
 
 [[tips]]
 title = "Export to child programs"
 snippet = "set -gx AWS_PROFILE dev; set -e AWS_PROFILE"
-explain = "-x is fish's export; set -e erases the variable again"
+explain = "-x is fish's export. set -e erases the variable again."
 tags = ["variables", "env"]
 
 [[tips]]
 title = "Set a variable for one command"
 snippet = "DEBUG=1 make test"
-explain = "Prefix VAR=value; the rest of the shell never sees it"
+explain = "Put VAR=value before the command. The rest of the shell does not see it."
 tags = ["variables", "env"]
 
 [[tips]]
 title = "Recursive glob instead of find"
 snippet = "grep -n TODO **.swift"
-explain = "** descends into subdirectories; **/*.swift works too"
+explain = "** descends into subdirectories. **/*.swift works too."
 tags = ["files", "globbing"]
 
 [[tips]]
 title = "Command substitution"
 snippet = "set branch (git branch --show-current); echo on $branch"
-explain = "(cmd) or $(cmd); output is split on newlines into a list"
+explain = "(cmd) or $(cmd). Output is split on newlines into a list."
 tags = ["substitution"]
 
 [[tips]]
 title = "Chain on success or failure"
 snippet = "make; and ./run; or echo build failed"
-explain = "and runs if the last command succeeded, or if it failed; && and || work too"
+explain = "and runs if the last command succeeded, or if it failed. && and || work too."
 tags = ["conditions"]
 
 [[tips]]
 title = "Compare two outputs as files"
 snippet = "diff (sort a.txt | psub) (sort b.txt | psub)"
-explain = "psub turns a pipeline into a temp file name, for tools that want files"
+explain = "psub turns a pipeline into a temp file name, for tools that want files."
 tags = ["pipes", "substitution"]
 
 [[tips]]
 title = "Read lines from a pipe"
 snippet = "cat hosts.txt | while read -l host; ping -c1 -t1 $host >/dev/null; and echo up $host; end"
-explain = "read -l keeps $host local to the loop; one line per pass"
+explain = "read -l keeps $host local to the loop. It reads one line in each pass."
 tags = ["loops", "pipes"]
 
 [[tips]]
 title = "Lists, count and contains"
 snippet = "echo $PATH[1]; count $PATH; contains /opt/homebrew/bin $PATH; and echo on PATH"
-explain = "Every variable is a list; count gives its length, contains tests membership"
+explain = "Every variable is a list. count gives its length, contains tests membership."
 tags = ["lists"]
 
 [[tips]]
 title = "Write and keep a function"
 snippet = "function mkcd; mkdir -p $argv[1]; and cd $argv[1]; end; funcsave mkcd"
-explain = "$argv holds the arguments; funcsave writes ~/.config/fish/functions/mkcd.fish"
+explain = "$argv holds the arguments. funcsave writes ~/.config/fish/functions/mkcd.fish."
 tags = ["functions"]
 
 [[tips]]
 title = "Abbreviations that expand"
 snippet = "abbr -a gs git status"
-explain = "Typing gs then space becomes git status, so history keeps the full command"
+explain = "When you type gs and a space, fish changes it to git status. Thus the history keeps the full command."
 tags = ["config"]
 
 [[tips]]
 title = "Add a directory to PATH once"
 snippet = "fish_add_path ~/.local/bin"
-explain = "Persistent and duplicate-free; no editing config.fish"
+explain = "The change stays after a restart and adds no copies. You do not edit config.fish."
 tags = ["config", "env"]

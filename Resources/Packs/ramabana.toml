@@ -337,89 +337,89 @@ group = "Prefixes"
 [[tips]]
 title = "Resume the last session"
 snippet = "ramabana --resume latest"
-explain = "Reopens the newest session; bare --resume lists this folder's sessions"
+explain = "Reopens the newest session. Bare --resume lists this folder's sessions."
 tags = ["sessions"]
 
 [[tips]]
 title = "Pick from every folder's sessions"
 snippet = "ramabana --resume --all-folders"
-explain = "Session picker across all folders, not just this one"
+explain = "Shows the sessions of all folders, not only this folder."
 tags = ["sessions"]
 
 [[tips]]
 title = "Check tmux setup"
 snippet = "ramabana --doctor"
-explain = "Checks tmux, extended keys, config and ramabana-pane"
+explain = "Checks tmux, extended keys, config and ramabana-pane."
 tags = ["tmux", "setup"]
 
 [[tips]]
 title = "Stay out of tmux"
 snippet = "ramabana --tmux off   # or RAMABANA_TMUX=off"
-explain = "Keeps the session in this terminal, without its own tmux or the now pane"
+explain = "Keeps the session in this terminal, without its own tmux or the now pane."
 tags = ["tmux"]
 
 [[tips]]
 title = "Work on several folders"
 snippet = "ramabana --root .,~/notes"
-explain = "Writes and reads stay inside the folders --root names"
+explain = "Writes and reads stay inside the folders --root names."
 tags = ["folders"]
 
 [[tips]]
 title = "Pick the turn model"
 snippet = "ramabana --model sonnet   # or export RAMABANA_MODEL=sonnet"
-explain = "Flag beats env var, env var beats config.toml"
+explain = "The flag wins over the environment variable. The environment variable wins over config.toml."
 tags = ["models"]
 
 [[tips]]
 title = "Override one job's model"
 snippet = "export RAMABANA_MODEL_SUBAGENT=claude-sonnet-5-5"
-explain = "Jobs: ONESHOT, INLINE, COMPLETION, CLASSIFY, SUMMARY, SUBAGENT"
+explain = "Jobs: ONESHOT, INLINE, COMPLETION, CLASSIFY, SUMMARY, SUBAGENT."
 tags = ["models", "env"]
 
 [[tips]]
 title = "One-shot run"
 snippet = "ramabana --approve auto 'PROMPT'"
-explain = "Runs one turn and exits; ask mode would refuse every write"
+explain = "Runs one turn and stops. In ask mode, it refuses each write."
 tags = ["headless"]
 
 [[tips]]
 title = "Pipe a prompt"
 snippet = "cat task.md | ramabana - --json"
-explain = "Reads the prompt from stdin; --json prints the full result"
+explain = "Reads the prompt from stdin. --json prints the full result."
 tags = ["headless"]
 
 [[tips]]
 title = "Start in Python mode"
 snippet = "ramabana --python"
-explain = "Protected Python prompt; /agent hands the line back"
+explain = "Starts a protected Python prompt. /agent gives the line back to the agent."
 tags = ["python"]
 
 [[tips]]
 title = "Write the config template"
 snippet = "ramabana config init && ramabana config show"
-explain = "Every key commented beside its default, then each value's source"
+explain = "Writes each setting in a comment next to its default. Then it shows where each value comes from."
 tags = ["config"]
 
 [[tips]]
 title = "Set up a provider endpoint"
 snippet = "ramabana setup"
-explain = "Asks the endpoint questions and writes a [model] table"
+explain = "Asks the endpoint questions and writes a [model] table."
 tags = ["config", "models"]
 
 [[tips]]
 title = "Read outside the roots"
 snippet = "ramabana --read-outside"
-explain = "Reads reach any path; writes still need --root"
+explain = "Reads reach any path. Writes still need --root."
 tags = ["folders", "safety"]
 
 [[tips]]
 title = "Go offline"
 snippet = "ramabana --no-web"
-explain = "Takes the web tools away from the model"
+explain = "Takes the web tools away from the model."
 tags = ["safety"]
 
 [[tips]]
-title = "Quiet the bell"
+title = "Turn off the bell"
 snippet = "ramabana --no-bell"
-explain = "Silences turn-end and approval bells"
+explain = "Stops the bell at the end of a turn and at approvals."
 tags = ["ui"]

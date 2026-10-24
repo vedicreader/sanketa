@@ -56,11 +56,11 @@ group = "Setup"
 [[tips]]
 title = "Watch a remote GPU box"
 snippet = "ssh -t gpu-box nvtop"
-explain = "-t gives nvtop the terminal it needs to draw"
+explain = "-t gives nvtop the terminal it needs to draw."
 tags = ["remote"]
 
 [[tips]]
 title = "For scripts, use nvidia-smi"
 snippet = "nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv"
-explain = "nvtop is for watching; nvidia-smi queries print plain CSV"
+explain = "nvtop is for watching. nvidia-smi queries print plain CSV."
 tags = ["scripting"]
