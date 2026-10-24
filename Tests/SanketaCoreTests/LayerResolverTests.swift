@@ -146,6 +146,33 @@ func titled(_ t: String?) -> TerminalContext {
         #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: "htop vim") == nil)
     }
 
+    /// native Claude Code's process is named by its version; the title shows what argv[0] says
+    @Test func chooseTTYMatchesDisplayName() {
+        let s = ProcessSnapshot([
+            proc(100, 1, "Conterm"),
+            proc(200, 100, "fish", tty: "ttys001", fg: false),
+            proc(201, 200, "2.1.304", tty: "ttys001", argv: ["claude"]),
+            proc(300, 100, "fish", tty: "ttys002"),
+        ])
+        let r = LayerResolver(library: lib([]), tmux: FakeTmux(), remote: nil)
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "claude") == "ttys001")
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "✳ claude ~/w") == "ttys001")
+    }
+
+    @Test func chooseTTYPrefersWholeWord() {
+        let s = ProcessSnapshot([
+            proc(100, 1, "Conterm"),
+            proc(200, 100, "fish", tty: "ttys001", fg: false),
+            proc(201, 200, "vi", tty: "ttys001"),
+            proc(300, 100, "fish", tty: "ttys002", fg: false),
+            proc(301, 300, "vim", tty: "ttys002"),
+        ])
+        let r = LayerResolver(library: lib([]), tmux: FakeTmux(), remote: nil)
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "vim notes.md") == "ttys002")
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "vi notes.md") == "ttys001")
+        #expect(r.chooseTTY(s, terminalPID: 100, title: "nvim-ish") == nil)
+    }
+
     @Test func foregroundProgramWithoutPackIsALayer() {
         func top(_ name: String, _ argv: [String]) -> Layer? {
             let s = ProcessSnapshot([

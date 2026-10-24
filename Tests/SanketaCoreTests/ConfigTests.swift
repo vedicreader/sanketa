@@ -14,7 +14,7 @@ struct ConfigTests {
         let (c, err) = Config.load(try tempDir().appendingPathComponent("config.toml"))
         #expect(err == nil && c == Config())
         #expect(c.hotkey == "ctrl+opt+k" && c.pollInterval == 1.0 && c.tipRotateSeconds == 120)
-        #expect(c.terminals == ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2"])
+        #expect(c.terminals == ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2", "fun.tw93.kaku"])
     }
 
     @Test func partialConfigKeepsDefaults() throws {

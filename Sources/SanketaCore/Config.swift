@@ -7,7 +7,7 @@ public enum Translucency: String, Codable, CaseIterable { case low, medium, high
 
 public struct Config: Codable, Equatable {
     public var hotkey = "ctrl+opt+k"
-    public var terminals = ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2"]
+    public var terminals = ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2", "fun.tw93.kaku"]
     public var pollInterval = 1.0
     public var tipRotateSeconds = 120.0
     public var translucency = Translucency.medium
