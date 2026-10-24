@@ -31,36 +31,84 @@ final class TTLCache<K: Hashable, V>: @unchecked Sendable {
     }
 }
 
+/// The answer for the last key only, with no age: asked again when the key changes or after `clear()`.
+final class LastAnswer<K: Equatable, V>: @unchecked Sendable {
+    private var last: (K, V)?
+    private let lock = NSLock()
+    func get(_ k: K, _ make: () -> V) -> V {
+        if let (lk, v) = lock.withLock({ last }), lk == k { return v }
+        let v = make()
+        lock.withLock { last = (k, v) }
+        return v
+    }
+    func clear() { lock.withLock { last = nil } }
+}
+
+/// Menu reads by pid for 60 s. A slow read (it may have hit the AX timeout) is kept but read once more.
+final class MenuCache: @unchecked Sendable {
+    private var store: [pid_t: (at: Date, shortcuts: [MenuShortcut], reread: Bool)] = [:]
+    private let lock = NSLock()
+    let ttl: TimeInterval = 60
+
+    /// The shortcuts, and false when this read was empty or the first slow one.
+    func get(_ pid: pid_t, slow: TimeInterval, _ read: () -> [MenuShortcut]) -> (shortcuts: [MenuShortcut], full: Bool) {
+        let e = lock.withLock { store[pid].flatMap { Date().timeIntervalSince($0.at) < ttl ? $0 : nil } }
+        if let e, !e.reread { return (e.shortcuts, true) }
+        let t0 = Date()
+        let m = read()
+        let isSlow = Date().timeIntervalSince(t0) >= slow
+        // the second read is final; an empty read is never kept, so the next compute reads again
+        let first = e == nil
+        if !m.isEmpty { lock.withLock { store[pid] = (Date(), m, isSlow && first) } }
+        return (m.isEmpty ? e?.shortcuts ?? [] : m, !m.isEmpty && !(isSlow && first))
+    }
+}
+
 public struct ContextEngine: @unchecked Sendable {
     public var config: Config
     public var library: PackLibrary
-    let tmux: TmuxQuery
+    let tmuxSocket: String?
     let remote = RemoteQuery(runner: ProcessRunner())
-    let menus = TTLCache<pid_t, [MenuShortcut]>(ttl: 60)
+    let menus = MenuCache()
     let live = TTLCache<String, (prefix: String?, keys: [KeyEntry])>(ttl: 30)
-    /// Kaku's focused tty by pid, title and ttys: a new tab, window or title asks the CLI again, else every 5 s
-    let kakuFocus = TTLCache<String, String?>(ttl: 5)
+    /// Kaku's focused tty for the last (pid, window, title, ttys); `resetChanges()` clears it on activation
+    let kakuFocus = LastAnswer<String, String?>()
+    let tmuxClients = TmuxClientStore()
+    // the outside world; tests put stand-ins here
+    var runner: CommandRunning = ProcessRunner()
+    var isTrusted: () -> Bool = { AXReader.isTrusted }
+    var snapshot: (pid_t) -> ProcessSnapshot = { SysctlProcesses.snapshot(under: [$0]) }
+    var focusedWindow: (pid_t) -> (title: String?, id: Int)? = { AXReader.focusedWindow(pid: $0) }
+    var readMenu: (pid_t) -> [MenuShortcut] = { AXReader.menuShortcuts(pid: $0) }
+    var kakuCLI: (pid_t) -> String? = { KakuQuery.cli(bundle: NSRunningApplication(processIdentifier: $0)?.bundleURL) }
+    /// a menu read this slow may have hit the AX timeout
+    var slowMenu: TimeInterval = AXReader.timeout
 
     public init(config: Config, library: PackLibrary, tmuxSocket: String? = nil) {
-        self.config = config; self.library = library
-        tmux = TmuxQuery(runner: ProcessRunner(), socket: tmuxSocket)
+        self.config = config; self.library = library; self.tmuxSocket = tmuxSocket
     }
 
+    var tmux: TmuxQuery { TmuxQuery(runner: runner, socket: tmuxSocket) }
+
+    /// Forgets the change-driven answers (Kaku's focused tty, tmux clients), so the next compute asks again.
+    public func resetChanges() { kakuFocus.clear(); tmuxClients.clear() }
+
     public func compute(pid: pid_t, bundleID: String, appName: String) -> Context {
-        let trusted = AXReader.isTrusted
-        let resolver = LayerResolver(library: library, tmux: tmux, remote: remote)
+        let trusted = isTrusted()
         var snap: ProcessSnapshot?
         let layers: [Layer], title: String?
         if config.terminals.contains(bundleID) {
-            let s = SysctlProcesses.snapshot(under: [pid])
+            let s = snapshot(pid)
             snap = s
-            title = trusted ? AXReader.focusedWindowTitle(pid: pid) : nil
-            let focused = focusedTTY(pid: pid, bundleID: bundleID, title: title, ttys: s.ttys(under: pid))
-            layers = resolver.resolve(s, terminal: TerminalContext(pid: pid, bundleID: bundleID, appName: appName,
-                                                                   windowTitle: title, focusedTTY: focused))
+            let w = trusted ? focusedWindow(pid) : nil
+            title = w?.title
+            let focused = focusedTTY(pid: pid, bundleID: bundleID, window: w, ttys: s.ttys(under: pid))
+            let tmux = CachedTmux(base: self.tmux, store: tmuxClients, state: CachedTmux.state(s, title: title))
+            layers = LayerResolver(library: library, tmux: tmux, remote: remote)
+                .resolve(s, terminal: TerminalContext(pid: pid, bundleID: bundleID, appName: appName, windowTitle: title, focusedTTY: focused))
         } else {
-            title = trusted && library.readsTitle(bundleID: bundleID) ? AXReader.focusedWindowTitle(pid: pid) : nil
-            layers = resolver.resolveApp(bundleID: bundleID, name: appName, title: title)
+            title = trusted && library.readsTitle(bundleID: bundleID) ? focusedWindow(pid)?.title : nil
+            layers = LayerResolver(library: library, tmux: tmux, remote: remote).resolveApp(bundleID: bundleID, name: appName, title: title)
         }
         var incomplete = false
         let paired = layers.map { l -> Pack? in
@@ -87,15 +135,9 @@ public struct ContextEngine: @unchecked Sendable {
         menuPack(pid: pid, bundleID: bundleID, name: name, trusted: trusted).pack
     }
 
-    /// `appPack`, and false when the menu read was empty or slow enough to have hit the AX timeout (not cached).
+    /// `appPack`, and false when the menu read was empty or the first slow one (the monitor then reads once more).
     func menuPack(pid: pid_t, bundleID: String, name: String, trusted: Bool) -> (pack: Pack, full: Bool) {
-        var full = true
-        let shortcuts = !trusted ? [] : menus.get(pid, keep: { !$0.isEmpty && full }) {
-            let t0 = Date()
-            let m = AXReader.menuShortcuts(pid: pid)
-            full = !m.isEmpty && Date().timeIntervalSince(t0) < AXReader.timeout
-            return m
-        }
+        let (shortcuts, full) = trusted ? menus.get(pid, slow: slowMenu) { readMenu(pid) } : ([], true)
         let menu = MenuKeys.pack(bundleID: bundleID, name: name, shortcuts: shortcuts)
         guard let user = library.pack(bundleID: bundleID) else { return (menu, full) }
         var m = PackLibrary.merge(menu, user)
@@ -103,11 +145,12 @@ public struct ContextEngine: @unchecked Sendable {
         return (m, full)
     }
 
-    /// The tty of Kaku's focused pane from its own CLI, when it has more than one tty; nil if the CLI is missing or fails.
-    func focusedTTY(pid: pid_t, bundleID: String, title: String?, ttys: [String]) -> String? {
-        guard bundleID == "fun.tw93.kaku", ttys.count > 1,
-              let cli = KakuQuery.cli(bundle: NSRunningApplication(processIdentifier: pid)?.bundleURL) else { return nil }
-        return kakuFocus.get("\(pid)|\(title ?? "")|\(ttys.sorted())") { KakuQuery(runner: ProcessRunner(), cli: cli).focusedTTY(pid: pid) }
+    /// The tty of Kaku's focused pane from its own CLI, when it has more than one tty; nil if the CLI is missing or
+    /// fails. Asked again only when the window, its title or the ttys change, or after `resetChanges()`.
+    func focusedTTY(pid: pid_t, bundleID: String, window: (title: String?, id: Int)?, ttys: [String]) -> String? {
+        guard bundleID == "fun.tw93.kaku", ttys.count > 1, let cli = kakuCLI(pid) else { return nil }
+        let key = "\(pid)|\(window?.id ?? 0)|\(window?.title ?? "")|\(ttys.sorted())"
+        return kakuFocus.get(key) { KakuQuery(runner: runner, cli: cli).focusedTTY(pid: pid) }
     }
 
     /// Live keys of the server `server` (`TmuxArgs.server` of the client's argv), merged into `p`.
@@ -219,6 +262,7 @@ public struct ContextEngine: @unchecked Sendable {
         timer?.invalidate()
         timer = nil
         menuRetry?.invalidate(); menuRetry = nil; menuRetried = false
+        engine.resetChanges()
         if engine.config.terminals.contains(app.bundleIdentifier ?? "") {
             let interval = max(0.25, engine.config.pollInterval)
             let t = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in

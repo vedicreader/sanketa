@@ -127,3 +127,37 @@ public struct TmuxQuery: TmuxQuerying {
         return (p.isEmpty ? nil : p, Tmux.parseKeys(k))
     }
 }
+
+/// The last tmux clients of each (binary, server), with the state they were read in.
+public final class TmuxClientStore: @unchecked Sendable {
+    private var store: [String: (state: String, at: Date, clients: [TmuxClient])] = [:]
+    private let lock = NSLock()
+    public init() {}
+    public func clear() { lock.withLock { store = [:] } }
+
+    func clients(_ key: String, state: String, maxAge: TimeInterval, _ read: () -> [TmuxClient]) -> [TmuxClient] {
+        if let e = lock.withLock({ store[key] }), e.state == state, Date().timeIntervalSince(e.at) < maxAge { return e.clients }
+        let c = read()
+        lock.withLock { store[key] = (state, Date(), c) }
+        return c
+    }
+}
+
+/// Asks `base` for clients again only when `state` (the window title and the ttys' foreground groups) changes, or
+/// after `maxAge`: a pane switch inside tmux changes no process, so with tmux titles off only the age shows it.
+public struct CachedTmux: TmuxQuerying {
+    let base: TmuxQuerying, store: TmuxClientStore, state: String, maxAge: TimeInterval
+    public init(base: TmuxQuerying, store: TmuxClientStore, state: String, maxAge: TimeInterval = 5) {
+        self.base = base; self.store = store; self.state = state; self.maxAge = maxAge
+    }
+    public func clients(tmux: String, server: [String]) -> [TmuxClient] {
+        store.clients(([tmux] + server).joined(separator: " "), state: state, maxAge: maxAge) { base.clients(tmux: tmux, server: server) }
+    }
+    public func liveKeys(tmux: String, server: [String]) -> (prefix: String?, keys: [KeyEntry]) { base.liveKeys(tmux: tmux, server: server) }
+
+    /// Each tty's foreground process group, sorted: changes when a program starts or ends in front of any tty.
+    public static func state(_ s: ProcessSnapshot, title: String?) -> String {
+        let fg = Set(s.procs.compactMap { p in p.tty.map { "\($0):\(p.tpgid)" } }).sorted()
+        return (title ?? "") + "|" + fg.joined(separator: ",")
+    }
+}

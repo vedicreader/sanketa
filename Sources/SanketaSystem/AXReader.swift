@@ -44,11 +44,14 @@ public enum AXReader {
         return MenuKeys.walk(Array(items.dropFirst()))
     }
 
-    public static func focusedWindowTitle(pid: pid_t) -> String? {
+    public static func focusedWindowTitle(pid: pid_t) -> String? { focusedWindow(pid: pid)?.title }
+
+    /// The focused window's title and identity (`CFHash` of its element, the same for each read of one window).
+    public static func focusedWindow(pid: pid_t) -> (title: String?, id: Int)? {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, Float(timeout))
         guard let w = AXMenuNode.attr(app, kAXFocusedWindowAttribute) else { return nil }
-        return AXMenuNode.attr(w as! AXUIElement, kAXTitleAttribute) as? String
+        return (AXMenuNode.attr(w as! AXUIElement, kAXTitleAttribute) as? String, Int(bitPattern: CFHash(w)))
     }
 
     /// Attribute names and short values of the focused window and focused element, two levels deep.
