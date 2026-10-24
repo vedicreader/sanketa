@@ -10,22 +10,31 @@ public struct LayerResolver {
         self.library = library; self.tmux = tmux; self.remote = remote
     }
 
+    /// The tty the user is looking at. With several tabs, only a unique window-title match picks one;
+    /// otherwise nil, because a guessed layer is worse than fewer layers.
     public func chooseTTY(_ s: ProcessSnapshot, terminalPID: Int32, title: String?) -> String? {
         let ttys = s.ttys(under: terminalPID)
         if ttys.count <= 1 { return ttys.first }
-        let rest = title.map { RemoteTag.parse($0).rest }
-        func score(_ t: String) -> (Int, Double) {
-            guard let fg = s.foreground(tty: t) else { return (-1, 0) }
-            return ((rest?.contains(fg.name) ?? false) ? 2 : 0, fg.start)
-        }
-        return ttys.max { score($0) < score($1) }
+        guard let rest = title.map({ RemoteTag.parse($0).rest }) else { return nil }
+        let hits = ttys.filter { t in s.foreground(tty: t).map { rest.contains($0.name) } ?? false }
+        return hits.count == 1 ? hits[0] : nil
+    }
+
+    /// chain from the tty's foreground process up to the terminal, innermost first, without `login`
+    func chain(_ s: ProcessSnapshot, tty: String, terminal pid: Int32) -> [ProcInfo] {
+        s.foreground(tty: tty).map { s.chain(from: $0) { $0.pid == pid }.filter { $0.name != "login" } } ?? []
     }
 
     public func resolve(_ s: ProcessSnapshot, terminal: TerminalContext) -> [Layer] {
         var out = [Layer]()
-        if let tty = chooseTTY(s, terminalPID: terminal.pid, title: terminal.windowTitle), let fg = s.foreground(tty: tty) {
-            let chain = s.chain(from: fg) { $0.pid == terminal.pid }.filter { $0.name != "login" }
-            out = chain.flatMap { layers(for: $0, s, title: terminal.windowTitle) }
+        if let tty = chooseTTY(s, terminalPID: terminal.pid, title: terminal.windowTitle) {
+            out = chain(s, tty: tty, terminal: terminal.pid).flatMap { layers(for: $0, s, title: terminal.windowTitle) }
+        } else {
+            // ambiguous tabs: only the login shell, and only when every tab's is the same
+            let shells = s.ttys(under: terminal.pid).map { chain(s, tty: $0, terminal: terminal.pid).last { Self.shells.contains($0.name) } }
+            if let first = shells.first ?? nil, shells.allSatisfy({ $0?.name == first.name }) {
+                out = [layer(first.name, argv: first.argv)]
+            }
         }
         out.append(Layer(kind: .terminal, name: terminal.appName, packID: "app:\(terminal.bundleID)"))
         var seen = Set<String>()

@@ -131,13 +131,43 @@ func titled(_ t: String?) -> TerminalContext {
         let r = LayerResolver(library: lib([]), tmux: FakeTmux(), remote: nil)
         #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: "htop") == "ttys001")
         #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: "⟦sanketa host=vim layers=vim⟧ htop") == "ttys001")
-        #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: "nothing") == "ttys002")
+        #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: "nothing") == nil)
+        #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: "htop vim") == nil)
     }
 
-    @Test func chooseTTYFallsBackToNewest() {
+    @Test func chooseTTYDoesNotGuess() {
         let r = LayerResolver(library: lib([]), tmux: FakeTmux(), remote: nil)
-        #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: nil) == "ttys002")
+        #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: nil) == nil)
         #expect(r.chooseTTY(twoTTYs(), terminalPID: 999, title: nil) == nil)
+    }
+
+    /// The user's Conterm: two tabs run a tmux client, the one they're on runs plain fish; the title is just "Conterm".
+    @Test func ambiguousTabsShowOnlySharedShell() {
+        let s = ProcessSnapshot([
+            proc(100, 1, "Conterm"),
+            proc(200, 100, "login", tty: "ttys000", fg: false),
+            proc(201, 200, "fish", tty: "ttys000", fg: false),
+            proc(202, 201, "tmux", tty: "ttys000", start: 10),
+            proc(300, 100, "fish", tty: "ttys001", fg: false),
+            proc(301, 300, "tmux", tty: "ttys001", start: 20),
+            proc(500, 100, "fish", tty: "ttys005", start: 5),
+            proc(400, 1, "tmux"),
+            proc(410, 400, "fish", tty: "ttys009", fg: false),
+            proc(411, 410, "htop", tty: "ttys009"),
+        ])
+        let client = TmuxClient(clientTTY: "ttys001", paneTTY: "ttys009", paneCommand: "htop")
+        let r = LayerResolver(library: lib(["fish", "tmux", "htop"]), tmux: FakeTmux(list: [client]), remote: nil)
+        for t in [nil, "Conterm"] as [String?] {
+            let ls = r.resolve(s, terminal: titled(t))
+            #expect(ls.map(\.name) == ["fish", "Conterm"])
+            #expect(ls.map(\.kind) == [.shell, .terminal])
+        }
+        // different shells per tab: terminal layer only
+        var mixed = s.procs
+        mixed[mixed.firstIndex { $0.pid == 500 }!].name = "zsh"
+        #expect(r.resolve(ProcessSnapshot(mixed), terminal: conterm).map(\.name) == ["Conterm"])
+        // a unique title match still resolves fully
+        #expect(r.resolve(s, terminal: titled("fish ~/c/p/orgs")).map(\.name) == ["fish", "Conterm"])
     }
 
     @Test func resolveWithoutTitleStillResolves() throws {

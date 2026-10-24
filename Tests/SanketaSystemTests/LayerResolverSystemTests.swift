@@ -72,4 +72,25 @@ import Testing
         #expect(ls.map(\.name) == ["sleep", "TestTerm"])
         #expect(ls.map(\.packID) == [nil, "app:test.terminal"])
     }
+
+    /// Two tabs (outer panes): one runs an inner tmux client, the other plain fish; no title, so no guessed tmux layer.
+    @Test func resolveRealTwoTabsDoesNotGuessTmux() throws {
+        defer {
+            _ = tmux(inner, ["kill-server"])
+            _ = tmux(outer, ["kill-server"])
+        }
+        // the tmux tab is the newer one, so the old newest-process fallback would have picked it
+        let server = try startOuter(["/opt/homebrew/bin/fish", "--no-config"])
+        _ = try #require(tmux(outer, ["new-window", "-d", "-t", "outer:1", "/opt/homebrew/bin/fish", "--no-config"]))
+        _ = try #require(tmux(outer, ["send-keys", "-t", "outer:1",
+            "set -gx SHELL /opt/homebrew/bin/fish; /opt/homebrew/bin/tmux -L \(inner) -f /dev/null new -s inner", "Enter"]))
+        let end = Date().addingTimeInterval(5)
+        while tmux(inner, ["has-session", "-t", "inner"]) == nil && Date() < end { Thread.sleep(forTimeInterval: 0.1) }
+        let s = snapshot { s in s.ttys(under: server).count == 2 && s.procs.contains { $0.name == "tmux" && $0.tty != nil } }
+        try #require(s.ttys(under: server).count == 2)
+        let res = LayerResolver(library: try library(), tmux: TmuxQuery(runner: r, socket: inner), remote: nil)
+        let ls = res.resolve(s, terminal: term(server))
+        #expect(!ls.contains { $0.kind == .multiplexer })
+        #expect(ls.map(\.name) == ["fish", "TestTerm"])
+    }
 }
