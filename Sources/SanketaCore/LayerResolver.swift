@@ -47,7 +47,23 @@ public struct LayerResolver {
 
     func layer(_ name: String, argv: [String], host: String? = nil) -> Layer {
         let kind: LayerKind = Self.shells.contains(name) ? .shell : name == "tmux" ? .multiplexer : .program
-        return Layer(kind: kind, name: name, packID: library.pack(process: name, argv: argv)?.id, host: host)
+        return Layer(kind: kind, name: kind == .program ? Self.displayName(name, argv: argv) : name,
+                     packID: library.pack(process: name, argv: argv)?.id, host: host)
+    }
+
+    static let interpreters: Set = ["node", "python", "python3", "ruby", "perl", "bun", "deno"]
+
+    /// What the user typed: the script for interpreters, else argv[0]'s basename
+    /// (Claude Code's executable is a version-numbered file, but argv[0] is `claude`).
+    static func displayName(_ name: String, argv: [String]) -> String {
+        func base(_ s: String) -> String { (s as NSString).lastPathComponent }
+        if interpreters.contains(name) || name.hasPrefix("python"), let script = argv.dropFirst().first(where: { !$0.hasPrefix("-") }) {
+            let file = (base(script) as NSString).deletingPathExtension
+            let generic: Set = ["cli", "index", "main", "__main__"]
+            return generic.contains(file) ? base((script as NSString).deletingLastPathComponent) : file
+        }
+        let a0 = argv.first.map { base(String($0.drop { $0 == "-" })) } ?? ""
+        return a0.isEmpty ? name : a0
     }
 
     func layers(for p: ProcInfo, _ s: ProcessSnapshot, title: String?, depth: Int = 0) -> [Layer] {

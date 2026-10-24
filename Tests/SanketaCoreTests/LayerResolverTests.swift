@@ -65,7 +65,7 @@ func titled(_ t: String?) -> TerminalContext {
         let rama = Pack(id: "ramabana", name: "ramabana", match: ["ramabana"])
         let r = LayerResolver(library: lib(["fish", "python3"], extra: [rama]), tmux: FakeTmux(), remote: nil)
         let ls = r.resolve(s, terminal: conterm)
-        #expect(ls.first?.packID == "ramabana" && ls.first?.name == "python3" && ls.first?.kind == .program)
+        #expect(ls.first?.packID == "ramabana" && ls.first?.name == "ramabana" && ls.first?.kind == .program)
         #expect(ls.map(\.packID) == ["ramabana", "fish", "app:com.example.Conterm"])
     }
 
@@ -133,6 +133,27 @@ func titled(_ t: String?) -> TerminalContext {
         #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: "⟦sanketa host=vim layers=vim⟧ htop") == "ttys001")
         #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: "nothing") == nil)
         #expect(r.chooseTTY(twoTTYs(), terminalPID: 100, title: "htop vim") == nil)
+    }
+
+    @Test func foregroundProgramWithoutPackIsALayer() {
+        func top(_ name: String, _ argv: [String]) -> Layer? {
+            let s = ProcessSnapshot([
+                proc(100, 1, "Conterm"),
+                proc(200, 100, "fish", tty: "ttys005", fg: false),
+                ProcInfo(pid: 300, ppid: 200, pgid: 300, tty: "ttys005", tpgid: 300, name: name, argv: argv, start: 1, path: nil),
+            ])
+            let ls = LayerResolver(library: lib(["fish"]), tmux: FakeTmux(), remote: nil).resolve(s, terminal: conterm)
+            #expect(ls.count == 3 && ls[1].name == "fish" && ls[2].name == "Conterm")
+            return ls.first
+        }
+        // Claude Code: executable ~/.local/share/claude/versions/2.1.310, argv ["claude"]
+        let c = top("2.1.310", ["claude"])
+        #expect(c?.name == "claude" && c?.kind == .program && c?.packID == nil)
+        #expect(top("node", ["node", "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js"])?.name == "claude-code")
+        #expect(top("node", ["node", "--no-warnings", "/opt/bin/claude"])?.name == "claude")
+        #expect(top("python3", ["python3", "/Users/x/.local/bin/ramabana", "gen"])?.name == "ramabana")
+        #expect(top("python3.12", ["/usr/bin/python3.12"])?.name == "python3.12")
+        #expect(top("vim", ["/usr/bin/vim", "notes.md"])?.name == "vim")
     }
 
     @Test func chooseTTYDoesNotGuess() {
