@@ -25,7 +25,9 @@ func loadConfig() -> Config {
 
 func emit(_ lines: [String], to file: String?) {
     let s = lines.joined(separator: "\n") + "\n"
-    if let file { try? s.write(toFile: file, atomically: true, encoding: .utf8) } else { print(s, terminator: "") }
+    guard let file else { return print(s, terminator: "") }
+    do { try s.write(toFile: file, atomically: true, encoding: .utf8) }
+    catch { FileHandle.standardError.write(Data("cannot write \(file): \(error.localizedDescription)\n".utf8)); exit(1) }
 }
 
 func running(_ bundleID: String) -> NSRunningApplication? {
@@ -60,6 +62,17 @@ func dumpAX(_ bundleID: String, out: String?) {
     guard let app = running(bundleID) else { return emit(["not running: \(bundleID)"], to: out) }
     if !AXReader.isTrusted { FileHandle.standardError.write(Data("Accessibility not granted\n".utf8)) }
     emit(AXReader.dump(pid: app.processIdentifier), to: out)
+}
+
+for flag in ["--dump-menus", "--dump-ax", "--out"] where CommandLine.arguments.contains(flag) {
+    if arg(after: flag)?.hasPrefix("--") ?? true {
+        FileHandle.standardError.write(Data("""
+            \(flag) needs a value
+            usage: Sanketa [--dump-context | --dump-menus <bundleID> | --dump-ax <bundleID>] [--out FILE]
+
+            """.utf8))
+        exit(2)
+    }
 }
 
 let out = arg(after: "--out")

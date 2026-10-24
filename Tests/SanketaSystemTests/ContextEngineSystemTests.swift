@@ -72,3 +72,24 @@ import Testing
         }
     }
 }
+
+@Suite struct TTLCacheTests {
+    @Test func emptyMenuReadIsNotCached() {
+        let c = TTLCache<pid_t, [MenuShortcut]>(ttl: 60)
+        let item = MenuShortcut(path: ["File", "New"], keys: "⌘N")
+        var loads = 0
+        func read(_ v: [MenuShortcut]) -> [MenuShortcut] { c.get(1, keep: { !$0.isEmpty }) { loads += 1; return v } }
+        #expect(read([]).isEmpty)
+        #expect(read([item]) == [item])
+        #expect(read([]) == [item])
+        #expect(loads == 2)
+    }
+
+    @Test func entriesExpireAfterTTL() {
+        let c = TTLCache<String, Int>(ttl: 0.2)
+        #expect(c.get("k") { 1 } == 1)
+        #expect(c.get("k") { 2 } == 1)
+        Thread.sleep(forTimeInterval: 0.3)
+        #expect(c.get("k") { 3 } == 3)
+    }
+}

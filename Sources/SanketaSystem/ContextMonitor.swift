@@ -20,10 +20,11 @@ final class TTLCache<K: Hashable, V>: @unchecked Sendable {
     private let lock = NSLock()
     init(ttl: TimeInterval) { self.ttl = ttl }
 
-    func get(_ k: K, _ make: () -> V) -> V {
+    /// Cached value for `k`, else `make()`; results failing `keep` are returned but not stored.
+    func get(_ k: K, keep: (V) -> Bool = { _ in true }, _ make: () -> V) -> V {
         if let v = lock.withLock({ store[k].flatMap { Date().timeIntervalSince($0.0) < ttl ? $0.1 : nil } }) { return v }
         let v = make()
-        lock.withLock { store[k] = (Date(), v) }
+        if keep(v) { lock.withLock { store[k] = (Date(), v) } }
         return v
     }
 }
@@ -67,7 +68,7 @@ public struct ContextEngine: @unchecked Sendable {
     /// menu shortcuts merged with any user pack whose `apps` lists the bundle id
     func appPack(pid: pid_t, bundleID: String, name: String, trusted: Bool) -> Pack {
         let menu = MenuKeys.pack(bundleID: bundleID, name: name,
-                                 shortcuts: trusted ? menus.get(pid) { AXReader.menuShortcuts(pid: pid) } : [])
+                                 shortcuts: trusted ? menus.get(pid, keep: { !$0.isEmpty }) { AXReader.menuShortcuts(pid: pid) } : [])
         guard let user = library.pack(bundleID: bundleID) else { return menu }
         var m = PackLibrary.merge(menu, user)
         m.id = menu.id
