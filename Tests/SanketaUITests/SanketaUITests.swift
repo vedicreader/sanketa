@@ -257,11 +257,11 @@ func threadCPUSeconds() -> Double {
 }
 
 @MainActor struct PanelModelNavigationTests {
-    @Test func threeTipCardsInnermostFirst() throws {
+    @Test func oneTipCardFromTheInnermostLayer() throws {
         for seed in 0..<20 as Range<UInt64> {
             let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: seed)
             m.update(try context(["htop", "tmux", "fish", "Terminal"]))
-            #expect(m.tipCards.count == 3 && Set(m.tipCards).count == 3)
+            #expect(m.tipCards.count == 1)
             #expect(m.tipCards.first?.packID == "htop")   // htop's only key: the innermost layer leads
         }
     }
@@ -504,6 +504,16 @@ func threadCPUSeconds() -> Double {
     group = "Panes"
 
     [[keys]]
+    keys = "⌘2"
+    action = "Focus editor"
+    group = "Panes"
+
+    [[keys]]
+    keys = "⌘3"
+    action = "Focus terminal"
+    group = "Panes"
+
+    [[keys]]
     keys = "⌘D"
     action = "Select next match"
     group = "Editing"
@@ -511,6 +521,16 @@ func threadCPUSeconds() -> Double {
     [[keys]]
     keys = "⌃C"
     action = "Interrupt shell"
+    group = "Terminal"
+
+    [[keys]]
+    keys = "⌃L"
+    action = "Clear screen"
+    group = "Terminal"
+
+    [[keys]]
+    keys = "⌃D"
+    action = "Close shell"
     group = "Terminal"
 
     [[keys]]
@@ -542,8 +562,8 @@ func threadCPUSeconds() -> Double {
         #expect(s.groups.map(\.name) == ["Editing", "Cells", "Panes", "Terminal"])
         #expect(s.groups.map(\.inContext) == [true, true, false, false])
         #expect(s.groups.map { m.isFolded(s, $0) } == [false, false, true, true])
-        m.toggle(s, s.groups[2]); m.toggle(s, s.groups[0])
-        #expect(s.groups.map { m.isFolded(s, $0) } == [true, false, false, true])
+        m.toggle(s, s.groups[2]); m.toggle(s, s.groups[0])          // Editing has 1 key: it cannot fold
+        #expect(s.groups.map { m.isFolded(s, $0) } == [false, false, false, true])
         #expect(s.pack.tips.first?.title == "Run all cells")
         for seed in 0..<10 as Range<UInt64> {
             let t = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: seed)
@@ -566,19 +586,25 @@ func threadCPUSeconds() -> Double {
         let s = try #require(m.sections.first)
         let unnamed = try #require(s.groups.first { $0.name == nil })
         #expect(!unnamed.inContext && !m.isFolded(s, unnamed))
-        #expect(s.groups.filter { !$0.inContext && $0.name != nil }.allSatisfy { m.isFolded(s, $0) })
+        #expect(s.groups.filter { !$0.inContext && $0.folds }.allSatisfy { m.isFolded(s, $0) })
+        #expect(s.groups.filter { !$0.folds }.allSatisfy { !m.isFolded(s, $0) })
     }
 
     @Test func reseedDropsMarksOfGoneSections() throws {
         let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1)
         m.update(ctx("ide · notebook"))
         let s = try #require(m.sections.first)
-        m.toggle(s, s.groups[0]); m.toggle(s, s.groups[3]); m.toggle(s.id)
-        #expect(m.collapsed.count == 2 && m.expanded.count == 1)
-        m.update(ctx("ide · terminal"))       // same section: the group marks stay; the section opens again
-        #expect(m.collapsed == [PanelModel.groupID(s, s.groups[0])] && m.expanded.count == 1)
-        m.update(try context(["fish", "Terminal"]))           // the section is gone
-        #expect(m.collapsed.isEmpty && m.expanded.isEmpty)
+        let panes = PanelModel.groupID(s, s.groups[2]), terminal = PanelModel.groupID(s, s.groups[3])
+        m.toggle(s, s.groups[2]); m.toggle(s.id)
+        #expect(m.folds == [panes: false] && m.collapsed == [s.id])
+        m.update(ctx("ide · terminal"))       // same stack: the group marks stay; the section opens again
+        #expect(m.folds == [panes: false] && m.collapsed.isEmpty)
+        m.toggle(m.sections[0], m.sections[0].groups[0])
+        #expect(m.folds == [panes: false, terminal: true])
+        m.update(try context(["fish", "Terminal"]))           // another stack starts clean
+        #expect(m.collapsed.isEmpty && m.folds.isEmpty)
+        m.update(ctx("ide · terminal"))       // and coming back finds the marks again
+        #expect(m.folds == [panes: false, terminal: true])
     }
 
     @Test func titleWithoutTokenKeepsTodaysOrder() throws {
@@ -588,7 +614,8 @@ func threadCPUSeconds() -> Double {
             let s = try #require(m.sections.first)
             #expect(s.layer.context == nil && Breadcrumb.label(s.layer) == "IDE")
             #expect(s.groups.map(\.name) == ["Panes", "Editing", "Terminal", "Cells"])
-            #expect(s.groups.allSatisfy { $0.inContext && !m.isFolded(s, $0) })
+            // an index: the first 2 groups open; Terminal folds; Cells has 1 key, so it stays open
+            #expect(s.groups.allSatisfy(\.inContext) && s.groups.map { m.isFolded(s, $0) } == [false, false, true, false])
             #expect(s.pack == Self.pack)
         }
     }

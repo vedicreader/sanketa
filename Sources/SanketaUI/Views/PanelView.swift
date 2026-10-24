@@ -12,6 +12,9 @@ struct PanelView: View {
     let pick: (Int) -> Void
     let clickLayer: (Int) -> Void
     @Environment(\.colorScheme) var scheme
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @State var position = ScrollPosition(edge: .top)
+    @State var fade = 1.0
 
     var showsList: Bool { search.query.isEmpty || model.listFocused }
 
@@ -24,17 +27,22 @@ struct PanelView: View {
             .frame(height: Theme.topRow).padding(.horizontal, Theme.pad)
             SearchField(field: field).padding(.horizontal, Theme.pad - 2).padding(.top, Theme.fieldGap).padding(.bottom, 10)
             ScrollViewReader { proxy in
-                ScrollView {
+                PanelScroll(position: $position, offset: { model.scrollOffset = $0 }) {
                     VStack(alignment: .leading, spacing: Theme.sectionGap) {
-                        Color.clear.frame(height: 0).id("top")
                         if showsList { content } else { results }
                     }
                     .padding(.horizontal, Theme.pad - 6).padding(.bottom, Theme.pad)
                 }
-                .scrollIndicators(.never)
-                .onChange(of: model.scrollToken) { _, _ in proxy.scrollTo("top", anchor: .top) }
+                .opacity(fade)
+                // a new stack: back to where the user left it (the top when new), and a short fade with no slide
+                .onChange(of: model.scrollToken) { _, _ in
+                    position.scrollTo(y: model.scrollTarget)
+                    guard !reduceMotion else { return }
+                    fade = 0
+                    DispatchQueue.main.async { withAnimation(.easeOut(duration: 0.12)) { fade = 1 } }
+                }
                 .onChange(of: model.selectedLayer) { _, id in
-                    if let id { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
+                    if let id { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
                 }
             }
             if model.showsFooter { Footer(model: model, grant: grantAccessibility) }
@@ -167,5 +175,28 @@ struct Footer: View {
         .padding(.horizontal, Theme.pad).padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
+    }
+}
+
+extension EnvironmentValues {
+    /// Draws the list as a clipped stack instead of a scroll view, for `ImageRenderer`, which does not draw scroll content.
+    @Entry var flatList = false
+}
+
+struct PanelScroll<Content: View>: View {
+    @Binding var position: ScrollPosition
+    let offset: (CGFloat) -> Void
+    @ViewBuilder var content: Content
+    @Environment(\.flatList) var flat
+
+    var body: some View {
+        if flat {
+            Color.clear.overlay(alignment: .top) { content.fixedSize(horizontal: false, vertical: true) }.clipped()
+        } else {
+            ScrollView { content }
+                .scrollIndicators(.never)
+                .scrollPosition($position)
+                .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { _, y in offset(y) }
+        }
     }
 }

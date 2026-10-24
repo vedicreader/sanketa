@@ -9,6 +9,8 @@ public struct RowGroup: Identifiable, Equatable {
     /// false for a group outside the layer's active context; such a group starts folded
     public var inContext = true
     public var id: String { name ?? "" }
+    /// A group folds only when it has a heading to click and more than `PanelModel.alwaysOpen` keys.
+    public var folds: Bool { name != nil && keys.count > PanelModel.alwaysOpen }
 }
 
 public struct LayerSectionData: Identifiable, Equatable {
@@ -36,14 +38,22 @@ public enum PanelBlock: Identifiable, Equatable {
     }
 }
 
+/// Fold marks and scroll offset of one layer stack, so a quick switch away and back finds the panel as it was.
+struct StackState {
+    var collapsed: Set<String>
+    var folds: [String: Bool]
+    var scroll: CGFloat
+}
+
 /// What the panel shows for a `Context`: per-layer sections, tip cards, layer selection and footer notes.
 @MainActor public final class PanelModel: ObservableObject {
     @Published public private(set) var context = Context()
     @Published public private(set) var sections: [LayerSectionData] = []
     @Published public private(set) var tipCards: [SearchItem] = []
+    /// sections that the user closed
     @Published public var collapsed: Set<String> = []
-    /// out-of-context groups that the user opened
-    @Published public var expanded: Set<String> = []
+    /// groups that the user opened (false) or closed (true), by `groupID`; other groups take `defaultFolded`
+    @Published public var folds: [String: Bool] = [:]
     @Published public private(set) var selectedLayer: String?
     /// keyboard focus is on the layer list rather than the search field
     @Published public var listFocused = false
@@ -54,11 +64,20 @@ public enum PanelBlock: Identifiable, Equatable {
     @Published public var hotkeyConflict: String?
     /// The list top to bottom: the innermost layer's keys first, then the tip cards, then the outer layers.
     @Published public private(set) var blocks: [PanelBlock] = []
-    /// Changes when the layer stack changes, so the view scrolls back to the top and the new tool's keys show.
+    /// Changes when the layer stack changes; the view then scrolls to `scrollTarget` and fades the list in.
     @Published public private(set) var scrollToken = 0
+    /// where the list was when the user last left this stack; 0 (the top) for a new stack
+    public private(set) var scrollTarget: CGFloat = 0
+    /// the list's scroll offset, written by the view as the user scrolls; not published, so it costs no update
+    public var scrollOffset: CGFloat = 0
+    var memory: [(key: String, state: StackState)] = []
+    public static let rememberedStacks = 8
     public private(set) var seed: UInt64
     let store: TipStore
-    public static let tipCount = 3
+    /// One tip card: tips stay below the keys.
+    public static let tipCount = 1
+    /// Groups with this many keys or fewer never fold: a fold line would save no space.
+    public nonisolated static let alwaysOpen = 2
 
     public init(tips: TipStore, seed: UInt64 = .random(in: 0...UInt64.max)) {
         store = tips; self.seed = seed
@@ -98,20 +117,26 @@ public enum PanelBlock: Identifiable, Equatable {
         return o
     }
 
-    /// Id of group `g` in section `s`, for `collapsed` and `expanded`.
+    /// Id of group `g` in section `s`, for `folds`.
     nonisolated static func groupID(_ s: LayerSectionData, _ g: RowGroup) -> String { s.id + "#" + g.id }
 
-    /// A group is folded when it is out of context and not opened, or in context and closed. A group with no name
-    /// has no heading to click, so it never folds.
+    /// The user's mark, else `defaultFolded`. A group that cannot fold (see `RowGroup.folds`) is always open.
     public func isFolded(_ s: LayerSectionData, _ g: RowGroup) -> Bool {
-        guard g.name != nil else { return false }
-        let id = Self.groupID(s, g)
-        return g.inContext ? collapsed.contains(id) : !expanded.contains(id)
+        guard g.folds else { return false }
+        return folds[Self.groupID(s, g)] ?? defaultFolded(s, g)
+    }
+
+    /// The panel is an index: the first section opens its first 2 groups, the other sections their first group,
+    /// and the rest show as one line each. With an active context, its groups are open and the others folded.
+    public func defaultFolded(_ s: LayerSectionData, _ g: RowGroup) -> Bool {
+        if s.layer.context != nil { return !g.inContext }
+        let open = s.id == sections.first?.id ? 2 : 1
+        return (s.groups.firstIndex(of: g) ?? 0) >= open
     }
 
     public func toggle(_ s: LayerSectionData, _ g: RowGroup) {
-        let id = Self.groupID(s, g)
-        if g.inContext { toggle(id) } else if expanded.remove(id) == nil { expanded.insert(id) }
+        guard g.folds else { return }
+        folds[Self.groupID(s, g)] = !isFolded(s, g)
     }
 
     /// Keys grouped by `group`, groups in order of first appearance.
@@ -124,23 +149,35 @@ public enum PanelBlock: Identifiable, Equatable {
         return out
     }
 
+    /// Key of a layer stack for `memory`; a new pack context in the same stack keeps the key.
+    nonisolated static func stackKey(_ layers: [Layer]) -> String { layers.map(\.id).joined(separator: " › ") }
+
+    /// On a new layer stack: keep this stack's marks and scroll offset, and take back those of the new stack
+    /// (the last `rememberedStacks` stacks). The tip card stays while its pack is in the stack; the timer changes it.
     public func update(_ c: Context) {
-        let reseed = c.layers != context.layers
+        let changed = c.layers != context.layers
+        let old = Self.stackKey(context.layers), new = Self.stackKey(c.layers)
         context = c
         sections = Self.sections(c)
         if let s = selectedLayer, !sections.contains(where: { $0.id == s }) { selectedLayer = nil }
-        if reseed {
-            // open and closed marks of sections that are gone
-            let ids = Set(sections.map(\.id))
-            let live = { (id: String) in ids.contains(String(id.prefix { $0 != "#" })) }
-            collapsed = collapsed.filter(live)
-            expanded = expanded.filter(live)
-            seed &+= 1
+        if changed {
+            if old != new { remember(old) }
+            let st = old == new ? StackState(collapsed: collapsed, folds: folds, scroll: scrollOffset)
+                : memory.first { $0.key == new }?.state ?? StackState(collapsed: [], folds: [:], scroll: 0)
+            collapsed = st.collapsed; folds = st.folds; scrollTarget = st.scroll; scrollOffset = st.scroll
+            if let s = sections.first, s.index == 0 { collapsed.remove(s.id) }   // the tool in front always opens
             scrollToken &+= 1
-            if let s = sections.first, s.index == 0 { collapsed.remove(s.id) }   // the new tool's keys open
         }
-        pickTips()
+        let packs = Set(sections.map(\.pack.id))
+        if tipCards.isEmpty || tipCards.contains(where: { !packs.contains($0.packID) }) { seed &+= 1; pickTips() }
         blocks = Self.blocks(layers: c.layers, sections: sections, tips: !tipCards.isEmpty)
+    }
+
+    func remember(_ key: String) {
+        guard !key.isEmpty else { return }
+        memory.removeAll { $0.key == key }
+        memory.insert((key, StackState(collapsed: collapsed, folds: folds, scroll: scrollOffset)), at: 0)
+        if memory.count > Self.rememberedStacks { memory.removeLast(memory.count - Self.rememberedStacks) }
     }
 
     /// Tool bindings beat tips: when the innermost layer has keys (or is a program with no pack), it leads and

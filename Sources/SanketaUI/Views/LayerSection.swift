@@ -28,16 +28,17 @@ struct LayerSection: View {
             .buttonStyle(.plain)
             if !collapsed {
                 ForEach(data.groups) { g in
-                    let shut = data.layer.context != nil && folded(g)
+                    let shut = folded(g)
                     if let n = g.name {
-                        if data.layer.context != nil {
-                            // with an active context every group folds; the others start folded
+                        if g.folds {
+                            // a folded group is one line: chevron, name and key count, an index of the layer
                             Button { toggleGroup(g) } label: {
                                 HStack(spacing: 4) {
                                     Image(systemName: "chevron.right").font(.system(size: 7, weight: .bold))
                                         .rotationEffect(.degrees(shut ? 0 : 90))
                                     Text(n).font(Theme.small)
                                     Spacer()
+                                    if shut { Text("\(g.keys.count)").font(Theme.small).monospacedDigit() }
                                 }
                                 .foregroundStyle(Theme.secondary).contentShape(Rectangle())
                             }
@@ -56,10 +57,6 @@ struct LayerSection: View {
                         }
                         .padding(.vertical, Theme.rowPad)
                     } }
-                }
-                if !data.pack.tips.isEmpty {
-                    Text("Tips").font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, 2)
-                    ForEach(Array(data.pack.tips.enumerated()), id: \.offset) { TipRow(tip: $0.element) }
                 }
             }
         }
@@ -81,25 +78,4 @@ struct NoPackSection: View {
         }
         .padding(.vertical, 4).padding(.horizontal, 6)
     }
-}
-
-struct TipRow: View {
-    let tip: Tip
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(tip.title).font(Theme.text).foregroundStyle(.primary)
-            HStack(alignment: .firstTextBaseline) {
-                Text(tip.snippet).font(Theme.snippet).foregroundStyle(.primary).textSelection(.enabled).lineLimit(3)
-                Spacer(minLength: 6)
-                Button { copy(tip.snippet) } label: { Image(systemName: "doc.on.doc").font(.system(size: 11)) }
-                    .buttonStyle(.plain).foregroundStyle(Theme.secondary).help("Copy")
-            }
-        }
-    }
-}
-
-func copy(_ s: String) {
-    NSPasteboard.general.clearContents()
-    NSPasteboard.general.setString(s, forType: .string)
 }

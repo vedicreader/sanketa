@@ -7,20 +7,23 @@ public enum Theme {
     public static let accent = Color(red: 0xE8 / 255, green: 0xA3 / 255, blue: 0x3D / 255)
     static let text = Font.system(size: 14, weight: .medium)
     static let small = Font.system(size: 12.5, weight: .medium)
+    /// the tip card's buttons: below the keys in weight
+    static let tiny = Font.system(size: 11.5, weight: .medium)
     static let keys = Font.system(size: 15, weight: .semibold, design: .monospaced)
     static let keySymbols = Font.system(size: 15, weight: .semibold)
     static let keysSmall = Font.system(size: 12.5, weight: .semibold, design: .monospaced)
     static let keySymbolsSmall = Font.system(size: 12.5, weight: .semibold)
     /// Keys never truncate or squeeze the action text below this.
     static let keyColumn: CGFloat = 64
-    static let rowPad: CGFloat = 1.5
+    static let rowPad: CGFloat = 1
     static let snippet = Font.system(size: 13, weight: .medium, design: .monospaced)
     static let header = Font.system(size: 11.5, weight: .semibold).smallCaps()
     static let pad: CGFloat = 14
     /// The top row, in the hidden title bar: the mark and the breadcrumb. The search field is `fieldGap` below it.
     static let topRow: CGFloat = 32
     static let fieldGap: CGFloat = 6
-    static let rowGap: CGFloat = 7
+    /// with 15 pt keys, a row pitch of about 23 pt: compact, and the keys keep their size
+    static let rowGap: CGFloat = 4
     static let sectionGap: CGFloat = 14
     static let hairline = Color.primary.opacity(0.2)
     static let primary = Color.primary

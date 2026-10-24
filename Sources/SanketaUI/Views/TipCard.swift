@@ -24,7 +24,7 @@ struct TipCard: View {
                     Button("I know this") { mark(.known) }
                     Button("Show less") { mark(.less) }
                 }
-                .buttonStyle(.plain).font(Theme.small).foregroundStyle(.primary)
+                .buttonStyle(.plain).font(Theme.tiny).foregroundStyle(Theme.secondary)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
