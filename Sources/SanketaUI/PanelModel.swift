@@ -99,8 +99,10 @@ public enum PanelBlock: Identifiable, Equatable {
     /// Id of group `g` in section `s`, for `collapsed` and `expanded`.
     nonisolated static func groupID(_ s: LayerSectionData, _ g: RowGroup) -> String { s.id + "#" + g.id }
 
-    /// A group is folded when it is out of context and not opened, or in context and closed.
+    /// A group is folded when it is out of context and not opened, or in context and closed. A group with no name
+    /// has no heading to click, so it never folds.
     public func isFolded(_ s: LayerSectionData, _ g: RowGroup) -> Bool {
+        guard g.name != nil else { return false }
         let id = Self.groupID(s, g)
         return g.inContext ? collapsed.contains(id) : !expanded.contains(id)
     }
@@ -126,6 +128,11 @@ public enum PanelBlock: Identifiable, Equatable {
         sections = Self.sections(c)
         if let s = selectedLayer, !sections.contains(where: { $0.id == s }) { selectedLayer = nil }
         if reseed {
+            // open and closed marks of sections that are gone
+            let ids = Set(sections.map(\.id))
+            let live = { (id: String) in ids.contains(String(id.prefix { $0 != "#" })) }
+            collapsed = collapsed.filter(live)
+            expanded = expanded.filter(live)
             seed &+= 1
             scrollToken &+= 1
             if let s = sections.first, s.index == 0 { collapsed.remove(s.id) }   // the new tool's keys open

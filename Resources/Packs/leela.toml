@@ -8,7 +8,10 @@ match = []
 # ` - Google Chrome – <profile>`, so the scope regex allows that tail (no ` · ` in it).
 title_scope = ' · ([a-z]+(?::[a-z0-9]+)?)(?: [-–] [^·]*)?$'
 # Leela in a browser tab (plain `leela`, or `leela --app` in Chrome); title_apps keeps the default browser list.
-titles = ['(^|· )leela( — | · |$)']
+# The whole title must have Leela's shape: optional agent marks, `leela`, an optional folder (with a space only
+# when a scope follows), an optional scope, and Chrome's optional ` - Google Chrome – <profile>`.
+# A tab such as `leela — a review` or `leela - Google Search` does not match.
+titles = ['^(?:(?:\d+⚙)?(?: ?\(!\))? · )?leela(?: — [^\s·]+| — [^·]+(?= · [a-z]))?(?: · [a-z]+(?::[a-z0-9]+)?)?(?: - Google Chrome(?: – [^·]*)?)?$']
 
 # Leela's shipped defaults (leela/core/keys.py), in Leela's chord syntax, with the action id in `command`.
 # At load Sanketa overlays ~/.config/leela/keys.json (or $LEELA_KEYMAP): `keys` overrides win, "" hides the entry,

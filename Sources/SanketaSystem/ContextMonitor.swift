@@ -109,8 +109,18 @@ public struct ContextEngine: @unchecked Sendable {
     var timer: Timer?
     var busy = false
     var observer: NSObjectProtocol?
-    var titles: AXTitleWatcher?
-    var pendingTitle: DispatchWorkItem?
+    /// makes the title watcher for a pid; tests put a fake here
+    public typealias TitleWatcherFactory = (pid_t, @escaping (String?) -> Void) -> AnyObject?
+    var makeWatcher: TitleWatcherFactory = { AXTitleWatcher(pid: $0, onChange: $1) }
+    var isTrusted: () -> Bool = { AXReader.isTrusted }
+    /// what a title change runs after the debounce; nil means `refresh()`
+    var onTitleRefresh: (() -> Void)?
+    var titleDebounce: TimeInterval = 0.1
+    var titles: AnyObject?
+    var watched: (pid: pid_t, bundleID: String)?
+    /// pack id and scope token of the last title; nil inside means the title shows no pack
+    var titleKey: String??
+    var pendingTitle: Timer?
 
     public init(config: Config, library: PackLibrary) { engine = ContextEngine(config: config, library: library) }
 
@@ -126,24 +136,37 @@ public struct ContextEngine: @unchecked Sendable {
 
     public func reload(library: PackLibrary) {
         engine.library = library
-        watchTitle(NSWorkspace.shared.frontmostApplication)
+        if let app = NSWorkspace.shared.frontmostApplication, let bid = app.bundleIdentifier {
+            watchTitle(pid: app.processIdentifier, bundleID: bid)
+        }
         refresh()
     }
 
     /// An app whose title picks a pack context (or hosts a pack) is not polled; its title changes push a refresh.
-    func watchTitle(_ app: NSRunningApplication?) {
-        titles = nil
-        guard let app, let bid = app.bundleIdentifier, bid != Bundle.main.bundleIdentifier,
-              !engine.config.terminals.contains(bid), AXReader.isTrusted, engine.library.readsTitle(bundleID: bid) else { return }
-        titles = AXTitleWatcher(pid: app.processIdentifier) { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.pendingTitle?.cancel()
-                let w = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.refresh() } }
-                self.pendingTitle = w
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: w)
-            }
+    /// With Sanketa itself in front, the watcher of the app behind it stays.
+    func watchTitle(pid: pid_t, bundleID bid: String) {
+        guard bid != Bundle.main.bundleIdentifier else { return }
+        titles = nil; watched = nil; titleKey = nil
+        pendingTitle?.invalidate()
+        guard !engine.config.terminals.contains(bid), engine.library.readsTitle(bundleID: bid), isTrusted() else { return }
+        watched = (pid, bid)
+        titles = makeWatcher(pid) { [weak self] title in
+            MainActor.assumeIsolated { self?.titleChanged(title, bundleID: bid) }
         }
+    }
+
+    /// Refreshes, after the debounce, only when the title gives another pack or scope token. A browser retitles its
+    /// window on each tab switch and some pages tick their title; those changes cost one regex each.
+    func titleChanged(_ title: String?, bundleID: String) {
+        let key = engine.library.titleKey(bundleID: bundleID, title: title)
+        if let k = titleKey, k == key { return }
+        titleKey = .some(key)
+        pendingTitle?.invalidate()
+        let t = Timer(timeInterval: titleDebounce, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { guard let self else { return }; (self.onTitleRefresh ?? { self.refresh() })() }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        pendingTitle = t
     }
 
     func activated(_ app: NSRunningApplication?) {
@@ -158,12 +181,14 @@ public struct ContextEngine: @unchecked Sendable {
             t.tolerance = interval * 0.2
             timer = t
         }
-        watchTitle(app)
+        if let bid = app.bundleIdentifier { watchTitle(pid: app.processIdentifier, bundleID: bid) }
         refresh(app)
     }
 
     func refresh(_ app: NSRunningApplication? = NSWorkspace.shared.frontmostApplication) {
         guard let app, let bid = app.bundleIdentifier, bid != Bundle.main.bundleIdentifier else { return }
+        // Accessibility granted after the app came to the front: start the watcher now
+        if titles == nil { watchTitle(pid: app.processIdentifier, bundleID: bid) }
         busy = true
         let engine = engine, pid = app.processIdentifier, name = app.localizedName ?? bid
         queue.async {

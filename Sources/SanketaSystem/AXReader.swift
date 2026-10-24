@@ -94,39 +94,101 @@ public enum AXReader {
     }
 }
 
-/// Calls `onChange` on the main run loop when the app's focused window changes or that window's title changes.
-/// Accessibility notifications, so nothing polls.
-public final class AXTitleWatcher {
-    let observer: AXObserver
-    let app: AXUIElement
-    let onChange: () -> Void
-    var window: AXUIElement?
+/// One background thread whose run loop delivers Accessibility notifications, so a slow app cannot block the main thread.
+final class AXLoop: Thread, @unchecked Sendable {
+    static let shared: AXLoop = { let t = AXLoop(); t.name = "dev.sanketa.ax"; t.qualityOfService = .utility; t.start(); t.ready.wait(); return t }()
+    let ready = DispatchSemaphore(value: 0)
+    private(set) var loop: CFRunLoop!
 
-    public init?(pid: pid_t, onChange: @escaping () -> Void) {
+    override func main() {
+        loop = CFRunLoopGetCurrent()
+        // a timer in the far future keeps the run loop alive while it has no sources
+        let keep = CFRunLoopTimerCreateWithHandler(nil, .greatestFiniteMagnitude, 0, 0, 0) { _ in }
+        CFRunLoopAddTimer(loop, keep, .defaultMode)
+        ready.signal()
+        CFRunLoopRun()
+    }
+
+    func perform(_ f: @escaping () -> Void) {
+        CFRunLoopPerformBlock(loop, CFRunLoopMode.defaultMode.rawValue, f)
+        CFRunLoopWakeUp(loop)
+    }
+}
+
+/// Calls `onChange` on the main thread with the focused window title when the app's focused window changes or that
+/// window's title changes. Accessibility notifications on `AXLoop`, so nothing polls and the main thread never waits
+/// on the app. After the watcher is released, no more calls come.
+public final class AXTitleWatcher {
+    /// state that the `AXLoop` thread owns
+    final class Core: @unchecked Sendable {
+        let observer: AXObserver
+        let app: AXUIElement
+        let onChange: (String?) -> Void
+        var window: AXUIElement?
+        let lock = NSLock()
+        var cancelled = false
+
+        init(observer: AXObserver, app: AXUIElement, onChange: @escaping (String?) -> Void) {
+            self.observer = observer; self.app = app; self.onChange = onChange
+        }
+
+        var refcon: UnsafeMutableRawPointer { Unmanaged.passUnretained(self).toOpaque() }
+
+        func start() {
+            for n in [kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification] {
+                AXObserverAddNotification(observer, app, n as CFString, refcon)
+            }
+            watchFocusedWindow()
+            CFRunLoopAddSource(AXLoop.shared.loop, AXObserverGetRunLoopSource(observer), .defaultMode)
+        }
+
+        func stop() {
+            CFRunLoopRemoveSource(AXLoop.shared.loop, AXObserverGetRunLoopSource(observer), .defaultMode)
+            if let w = window { AXObserverRemoveNotification(observer, w, kAXTitleChangedNotification as CFString) }
+            for n in [kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification] {
+                AXObserverRemoveNotification(observer, app, n as CFString)
+            }
+        }
+
+        func watchFocusedWindow() {
+            if let w = window { AXObserverRemoveNotification(observer, w, kAXTitleChangedNotification as CFString) }
+            window = AXMenuNode.attr(app, kAXFocusedWindowAttribute).map { $0 as! AXUIElement }
+            if let w = window {
+                AXUIElementSetMessagingTimeout(w, 0.25)
+                AXObserverAddNotification(observer, w, kAXTitleChangedNotification as CFString, refcon)
+            }
+        }
+
+        func fired(_ note: String) {
+            if note != kAXTitleChangedNotification { watchFocusedWindow() }
+            let title = window.flatMap { AXMenuNode.attr($0, kAXTitleAttribute) as? String }
+            // on the main run loop, not the main queue: it also runs while a caller spins the run loop
+            let main = CFRunLoopGetMain()
+            CFRunLoopPerformBlock(main, CFRunLoopMode.commonModes.rawValue) { [self] in
+                if !lock.withLock({ cancelled }) { onChange(title) }
+            }
+            CFRunLoopWakeUp(main)
+        }
+    }
+
+    let core: Core
+
+    public init?(pid: pid_t, onChange: @escaping (String?) -> Void) {
         var o: AXObserver?
         let cb: AXObserverCallback = { _, _, note, refcon in
             guard let refcon else { return }
-            let me = Unmanaged<AXTitleWatcher>.fromOpaque(refcon).takeUnretainedValue()
-            if (note as String) != kAXTitleChangedNotification { me.watchFocusedWindow() }
-            me.onChange()
+            Unmanaged<Core>.fromOpaque(refcon).takeUnretainedValue().fired(note as String)
         }
         guard AXObserverCreate(pid, cb, &o) == .success, let o else { return nil }
-        observer = o; app = AXUIElementCreateApplication(pid); self.onChange = onChange
-        AXUIElementSetMessagingTimeout(app, 0.5)
-        for n in [kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification] {
-            AXObserverAddNotification(o, app, n as CFString, Unmanaged.passUnretained(self).toOpaque())
-        }
-        watchFocusedWindow()
-        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(o), .defaultMode)
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        core = Core(observer: o, app: app, onChange: onChange)
+        AXLoop.shared.perform { [core] in core.start() }
     }
 
-    func watchFocusedWindow() {
-        if let w = window { AXObserverRemoveNotification(observer, w, kAXTitleChangedNotification as CFString) }
-        window = AXMenuNode.attr(app, kAXFocusedWindowAttribute).map { $0 as! AXUIElement }
-        if let w = window {
-            AXObserverAddNotification(observer, w, kAXTitleChangedNotification as CFString, Unmanaged.passUnretained(self).toOpaque())
-        }
+    deinit {
+        core.lock.withLock { core.cancelled = true }
+        // the block keeps `core` alive until its source is gone from the loop
+        AXLoop.shared.perform { [core] in core.stop() }
     }
-
-    deinit { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode) }
 }

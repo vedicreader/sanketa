@@ -84,6 +84,13 @@ public struct PackLibrary {
         packs.values.sorted { $0.id < $1.id }.first { $0.hosted(in: bundleID, title: title) }
     }
 
+    /// What in `title` changes the layers of the app: the pack that it picks (own or hosted) and its scope token.
+    /// Nil when the title shows no pack.
+    public func titleKey(bundleID: String, title: String?) -> String? {
+        let p = pack(bundleID: bundleID) ?? pack(hostedIn: bundleID, title: title)
+        return p.map { "\($0.id)|\($0.scopeToken(title: title) ?? "")" }
+    }
+
     /// True when the app's window title can change its layers: a pack reads a scope from it, or a pack may be hosted in it.
     public func readsTitle(bundleID: String) -> Bool {
         pack(bundleID: bundleID)?.titleScope != nil || packs.values.contains { !$0.titles.isEmpty && $0.titleApps.contains(bundleID) }

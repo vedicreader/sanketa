@@ -501,6 +501,30 @@ func threadCPUSeconds() -> Double {
         #expect(t.pack.tips.first?.title == "Clear the shell")
     }
 
+    @Test func unnamedGroupNeverFolds() throws {
+        var p = Self.pack
+        p.keys.append(KeyEntry(keys: "⌘Q", action: "Quit"))
+        let l = LayerResolver.applyContexts([Layer(kind: .app, name: "IDE", packID: p.id)], packs: [p], title: "ide · terminal")
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1)
+        m.update(Context(appName: "IDE", bundleID: "org.example.ide", layers: l, packs: [p], axTrusted: true))
+        let s = try #require(m.sections.first)
+        let unnamed = try #require(s.groups.first { $0.name == nil })
+        #expect(!unnamed.inContext && !m.isFolded(s, unnamed))
+        #expect(s.groups.filter { !$0.inContext && $0.name != nil }.allSatisfy { m.isFolded(s, $0) })
+    }
+
+    @Test func reseedDropsMarksOfGoneSections() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1)
+        m.update(ctx("ide · notebook"))
+        let s = try #require(m.sections.first)
+        m.toggle(s, s.groups[0]); m.toggle(s, s.groups[3]); m.toggle(s.id)
+        #expect(m.collapsed.count == 2 && m.expanded.count == 1)
+        m.update(ctx("ide · terminal"))       // same section: the group marks stay; the section opens again
+        #expect(m.collapsed == [PanelModel.groupID(s, s.groups[0])] && m.expanded.count == 1)
+        m.update(try context(["fish", "Terminal"]))           // the section is gone
+        #expect(m.collapsed.isEmpty && m.expanded.isEmpty)
+    }
+
     @Test func titleWithoutTokenKeepsTodaysOrder() throws {
         let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1)
         for title in ["ide — sanketa", nil, "ide — sanketa · web"] as [String?] {

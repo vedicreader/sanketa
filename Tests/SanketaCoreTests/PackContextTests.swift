@@ -145,6 +145,34 @@ import Testing
         #expect(r.resolveApp(bundleID: "com.google.Chrome", name: "Google Chrome", title: "Inbox").map(\.name) == ["Google Chrome"])
     }
 
+    /// The bundled Leela `titles` regex takes only Leela's title shape. The Chrome tail is the real format,
+    /// ` - Google Chrome – <profile>`, read from a running Chrome; the page part here is made up.
+    @Test func leelaTitlesMatchOnlyLeela() throws {
+        let lib = PackLibrary.load(bundled: bundledPacksDir, user: nil)
+        let p = try #require(lib.packs["leela"])
+        let chrome = " - Google Chrome – Sam (Work)"
+        for t in ["leela", "leela · py", "leela — sanketa", "leela — sanketa · notebook", "2⚙ (!) · leela — sanketa · notebook",
+                  "(!) · leela — orgs · agent", "2⚙ · leela — orgs · editor:md", "leela — my project · vars"] {
+            #expect(p.hosted(in: "com.google.Chrome", title: t), "\(t)")
+            #expect(p.hosted(in: "com.google.Chrome", title: t + chrome), "\(t + chrome)")
+            #expect(p.hosted(in: "com.apple.Safari", title: t), "\(t)")
+        }
+        for t in ["leela — a review", "leela — a review" + chrome, "leela - Google Search" + chrome, "Blog · leela",
+                  "Leela", "leelawadee font", "Notes on leela — sanketa · py", "leela — x · Notebook"] {
+            #expect(!p.hosted(in: "com.google.Chrome", title: t), "\(t)")
+        }
+        #expect(p.activeContext(title: "2⚙ (!) · leela — sanketa · notebook" + chrome)?.name == "notebook")
+    }
+
+    @Test func titleKeyChangesOnlyWithPackOrScope() throws {
+        let lib = PackLibrary.load(bundled: bundledPacksDir, user: nil)
+        let k = { lib.titleKey(bundleID: "com.google.Chrome", title: $0) }
+        #expect(k("Inbox (3) - Google Chrome – Sam") == nil && k("Inbox (4) - Google Chrome – Sam") == nil)
+        #expect(k("leela — a · py") == k("2⚙ · leela — a · py") && k("leela — a · py") == "leela|py")
+        #expect(k("leela — a · py") != k("leela — a · notebook"))
+        #expect(lib.titleKey(bundleID: "org.vedicreader.leela", title: "leela — a") == "leela|")
+    }
+
     @Test func mergeKeepsContexts() throws {
         let user = try PackLibrary.decode(Data("""
         id = "demo"
