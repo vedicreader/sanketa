@@ -52,14 +52,14 @@ let positive: [Example] = [
     Example(.fish, "for f in (ls *.log); echo $f; end", "glob-loop", before: "for f in (ls *.log)", "for f in *.log", .sortedLines),
     Example(.fish, "for f in (ls); echo $f; end", "glob-loop", before: "for f in (ls)", "for f in *", .sortedLines),
     Example(.fish, "expr 3 + 4", "math", "math 3 + 4", .exact),
-    Example(.fish, "set n (expr $n + 1); echo $n", "math", before: "expr $n + 1", "math $n + 1", .exact, setup: "set n 5"),
     Example(.fish, "expr 7 / 2", "math", "math -s0 7 / 2", .exact),
     Example(.fish, #"expr 3 \* 4"#, "math", "math '3 * 4'", .exact),
     Example(.fish, "echo '7 / 2' | bc", "math", "math -s0 '7 / 2'", .exact),
     Example(.fish, #"expr 2 \* 3 + 1"#, "math", "math '2 * 3 + 1'", .exact),
     Example(.fish, "echo '9 % 4' | bc", "math", "math -s0 '9 % 4'", .exact),
     Example(.bash, "expr 3 + 4", "math", "echo $(( 3 + 4 ))", .exact),
-    Example(.bash, "n=$(expr $n + 1); echo $n", "math", before: "$(expr $n + 1)", "$(( $n + 1 ))", .exact, setup: "n=5"),
+    Example(.bash, "n=$(expr 3 + 4); echo $n", "math", before: "$(expr 3 + 4)", "$(( 3 + 4 ))", .exact),
+    Example(.fish, "set n (expr 3 + 4); echo $n", "math", before: "expr 3 + 4", "math 3 + 4", .exact),
     Example(.fish, "echo $row | cut -d, -f1", "string-split", #"string split -f1 , -- "$row""#, .exact, setup: "set row a,b,c"),
     Example(.fish, "echo $row | cut -d, -f1", "string-split", #"string split -f1 , -- "$row""#, .exact, setup: "set row a,b c,d"),
     // no delimiter: same output, but string split exits with status 1, so `; true` lets the runner keep the output
@@ -108,6 +108,11 @@ let unsafe: [Unsafe] = [
     Unsafe(shell: .bash, setup: "", input: #"expr 999999999 \* 999999999 \* 999"#, naive: "echo $(( 999999999 * 999999999 * 999 ))", check: .exact, declined: true),
     // bash reads a leading zero as octal
     Unsafe(shell: .bash, setup: "", input: "expr 010 + 1", naive: "echo $(( 010 + 1 ))", check: .exact, declined: true),
+    // a variable can hold a leading zero or nothing: bash fails on 08, and math and $(( )) give 1 where expr fails
+    // (the subshell keeps bash running after "value too great for base", so the status line still prints)
+    Unsafe(shell: .bash, setup: "n=08", input: "n=$(expr $n + 1); echo $n", naive: "(n=$(( $n + 1 )); echo $n)", check: .exact, declined: true),
+    Unsafe(shell: .bash, setup: "n=", input: "n=$(expr $n + 1); echo $n", naive: "n=$(( $n + 1 )); echo $n", check: .exact, declined: true),
+    Unsafe(shell: .fish, setup: "set n", input: "set n (expr $n + 1); echo $n", naive: "set n (math $n + 1); echo $n", check: .exact, declined: true),
     // bash keeps a glob with no match as literal text
     Unsafe(shell: .bash, setup: "", input: #"for f in $(ls *.zzz); do echo "$f"; done"#, naive: #"for f in *.zzz; do echo "$f"; done"#, check: .exact, declined: true),
     // cut prints a line without the delimiter; string split -f2 prints nothing

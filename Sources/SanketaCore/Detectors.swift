@@ -137,19 +137,17 @@ public enum Detectors {
                        explain: "Loop over the glob; parsing ls breaks on spaces. If a folder matches, ls lists what is in it, but the glob gives the folder name.")
     }
 
-    /// Operands and operators that expr, math, bc and `$(( ))` all compute the same way: whole numbers without a
+    /// Operands and operators that expr, math, bc and `$(( ))` all compute the same way: literal whole numbers without a
     /// leading zero (bash reads `010` as octal), `/` or `%` only as the single operation (math -s0 and bc cut only
-    /// the final result), and with `*` no variable and at most 15 digits in total (math and bc lose whole numbers above 2^53).
+    /// the final result), and with `*` at most 15 digits in total (math and bc lose whole numbers above 2^53).
+    /// No variables: bash fails on a value like `08`, and math and `$(( ))` give 1 for `$e + 1` with `e` empty, where expr fails.
     static func isSafeArithmetic(_ t: [String]) -> Bool {
         guard t.count >= 3, t.count % 2 == 1 else { return false }
         let operands = stride(from: 0, to: t.count, by: 2).map { t[$0] }, ops = stride(from: 1, to: t.count, by: 2).map { t[$0] }
-        guard operands.allSatisfy({ matches($0, #"^(0|[1-9][0-9]{0,8})$"#) || isVariable($0) }),
+        guard operands.allSatisfy({ matches($0, #"^(0|[1-9][0-9]{0,8})$"#) }),
               ops.allSatisfy({ ["+", "-", "*", "/", "%"].contains($0) }) else { return false }
         if (ops.contains("/") || ops.contains("%")) && ops.count > 1 { return false }
-        if ops.contains("*") {
-            guard !operands.contains(where: { $0.hasPrefix("$") }), operands.reduce(0, { $0 + $1.count }) <= 15 else { return false }
-        }
-        return true
+        return !ops.contains("*") || operands.reduce(0, { $0 + $1.count }) <= 15
     }
 
     static func math(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -167,7 +165,7 @@ public enum Detectors {
                 return Rewrite(before: c.text, after: "echo $(( \(expr) ))", explain: bashNote + status)
             }
             let scale = ops.contains("/") || ops.contains("%") ? "-s0 " : ""
-            // `*` would glob unquoted; isSafeArithmetic allows no variable with it, so single quotes are safe
+            // `*` would glob unquoted; isSafeArithmetic allows no variable, so single quotes are safe
             let expr = ops.contains("*") ? "'\(args.map(\.value).joined(separator: " "))'" : emit(args)
             return Rewrite(before: c.text, after: "math \(scale)\(expr)", explain: fishNote + status)
         }
