@@ -36,8 +36,9 @@ public enum DebugInfo {
 
     /// The model tiers: `on-device: <status>`, `Apple Intelligence: <status>`, then `openai: off`, or `openai: on
     /// provider=openai|custom model=<id or auto>` and where the key came from. It never takes the key, and it never
-    /// shows the address of a custom server.
-    public static func llmLines(config: LLMConfig, statuses: [(String, ModelStatus)], keySource: KeySource? = nil) -> [String] {
+    /// shows the address of a custom server. With `keyChecked` false, the key line says that the lookup still runs.
+    public static func llmLines(config: LLMConfig, statuses: [(String, ModelStatus)], keySource: KeySource? = nil,
+                                keyChecked: Bool = true) -> [String] {
         func text(_ s: ModelStatus) -> String {
             switch s {
             case .available: "available"
@@ -49,7 +50,7 @@ public enum DebugInfo {
         guard config.openai else { return tiers + ["openai: off"] }
         let openAI = URL(string: config.baseURL).map(OpenAIModels.isOpenAI) ?? false
         return tiers + ["openai: on provider=\(openAI ? "openai" : "custom") model=\(config.openaiModel.isEmpty ? "auto" : config.openaiModel)",
-                        "OpenAI key: " + (keySource.map { "found (\($0.rawValue))" } ?? "missing")]
+                        "OpenAI key: " + (!keyChecked ? "checking…" : keySource.map { "found (\($0.rawValue))" } ?? "missing")]
     }
 
     static func tilde(_ s: String, home: String) -> String {

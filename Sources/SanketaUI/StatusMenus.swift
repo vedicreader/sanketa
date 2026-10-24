@@ -19,6 +19,14 @@ public enum StatusMenus {
     public static let turnOn = "Turn on with [llm] openai = true in config.toml"
     public static let loading = "Loading models…"
     public static let failed = "Could not load the model list"
+
+    /// The model-menu line when the list did not load because there is no key.
+    public static func noKey(provider: String) -> String { "No API key. Choose \(keyTitle(provider: provider))" }
+
+    /// The model-menu line for a list that did not load.
+    public static func failure(_ e: Error, provider: String) -> String {
+        (e as? ChoiceError) == .noKey ? noKey(provider: provider) : failed
+    }
     public static let needsMLX = "Needs the MLX build"
 
     /// "OpenAI Model", or "Model (host)" for another server.
@@ -28,8 +36,8 @@ public enum StatusMenus {
     public static func keyTitle(provider: String) -> String { provider == "OpenAI" ? "OpenAI Key…" : "API Key (\(provider))…" }
 
     /// With OpenAI off, one disabled line and no request. Else "Cheapest (now <id>)", then the ids in the list; the
-    /// saved choice is checked. A saved id that is not in the list still shows.
-    public static func modelLines(config: LLMConfig, models: [String]?, loading: Bool, failed didFail: Bool) -> [MenuLine] {
+    /// saved choice is checked. A saved id that is not in the list still shows. `failure` is why the last load failed.
+    public static func modelLines(config: LLMConfig, models: [String]?, loading: Bool, failure: String?) -> [MenuLine] {
         guard config.openai else { return [MenuLine(turnOn, enabled: false)] }
         let pinned = config.openaiModel
         let cheapest = models.flatMap(OpenAIModels.cheapest)
@@ -38,7 +46,7 @@ public enum StatusMenus {
         if !pinned.isEmpty && !ids.contains(pinned) { ids.insert(pinned, at: 0) }
         out += ids.map { MenuLine($0, checked: $0 == pinned, action: .model($0)) }
         if loading { out.append(MenuLine(StatusMenus.loading, enabled: false)) }
-        else if didFail { out.append(MenuLine(failed, enabled: false)) }
+        else if let failure { out.append(MenuLine(failure, enabled: false)) }
         return out
     }
 

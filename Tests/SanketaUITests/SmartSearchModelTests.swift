@@ -135,20 +135,21 @@ private func smart(_ c: (any Choosing)?) -> SmartSearch {
     }
 
     @Test func modelMenuOffMakesOneDisabledLine() {
-        #expect(StatusMenus.modelLines(config: openAI(false), models: ["gpt-5-nano"], loading: true, failed: false)
+        #expect(StatusMenus.modelLines(config: openAI(false), models: ["gpt-5-nano"], loading: true, failure: nil)
                 == [MenuLine("Turn on with [llm] openai = true in config.toml", enabled: false)])
     }
 
     @Test func modelMenuListsCachedModelsWithCheapestFirst() {
         let ids = ["gpt-4.1", "gpt-4o-mini", "gpt-5-nano"]
-        let l = StatusMenus.modelLines(config: openAI(), models: ids, loading: true, failed: false)
+        let l = StatusMenus.modelLines(config: openAI(), models: ids, loading: true, failure: nil)
         #expect(l.map(\.title) == ["Cheapest (now gpt-5-nano)", "gpt-4.1", "gpt-4o-mini", "gpt-5-nano", "Loading models…"])
         #expect(l.map(\.checked) == [true, false, false, false, false])
         #expect(l[0].action == .cheapest && l[1].action == .model("gpt-4.1") && !l[4].enabled)
-        let pinned = StatusMenus.modelLines(config: openAI(model: "gpt-4.1"), models: ids, loading: false, failed: false)
+        let pinned = StatusMenus.modelLines(config: openAI(model: "gpt-4.1"), models: ids, loading: false, failure: nil)
         #expect(pinned.filter(\.checked).map(\.title) == ["gpt-4.1"] && pinned.count == 4)
         // before the first list, or after a failure, the saved id still shows
-        let none = StatusMenus.modelLines(config: openAI(model: "my-model"), models: nil, loading: false, failed: true)
+        let none = StatusMenus.modelLines(config: openAI(model: "my-model"), models: nil, loading: false,
+                                            failure: StatusMenus.failed)
         #expect(none.map(\.title) == ["Cheapest", "my-model", "Could not load the model list"])
         #expect(none[1].checked && !none[2].enabled)
     }
@@ -158,6 +159,9 @@ private func smart(_ c: (any Choosing)?) -> SmartSearch {
         #expect(StatusMenus.modelTitle(provider: "llm.example.com") == "Model (llm.example.com)")
         #expect(StatusMenus.keyTitle(provider: "OpenAI") == "OpenAI Key…")
         #expect(StatusMenus.keyTitle(provider: "llm.example.com") == "API Key (llm.example.com)…")
+        #expect(StatusMenus.failure(ChoiceError.noKey, provider: "OpenAI") == "No API key. Choose OpenAI Key…")
+        #expect(StatusMenus.failure(ChoiceError.noKey, provider: "llm.example.com") == "No API key. Choose API Key (llm.example.com)…")
+        #expect(StatusMenus.failure(ChoiceError.http(500), provider: "OpenAI") == "Could not load the model list")
     }
 
     @Test func onDeviceMenuWithoutMLXBuild() {
@@ -180,6 +184,13 @@ private func smart(_ c: (any Choosing)?) -> SmartSearch {
         let failed = StatusMenus.onDeviceLines(selected: .qwen4b, installed: [], progress: nil, mlxReady: true,
                                                error: "The connection stopped.")
         #expect(failed.prefix(2).map(\.title) == ["Qwen3.5-4B: not downloaded", "The connection stopped."] && !failed[1].enabled)
+    }
+
+    @MainActor @Test func keyBoxSaysWhereTheKeyIs() {
+        #expect(KeyBox.statusText(.shell, varName: "OPENAI_API_KEY").hasPrefix("Your shell sets OPENAI_API_KEY. Sanketa uses that key first."))
+        #expect(KeyBox.statusText(.environment, varName: "MY_KEY").contains("only when MY_KEY is empty"))
+        #expect(KeyBox.statusText(.keychain, varName: "OPENAI_API_KEY") == "Your Keychain has a key for this server. A new key replaces it.")
+        #expect(KeyBox.statusText(nil, varName: "OPENAI_API_KEY") == "Sanketa found no key.")
     }
 
     @Test func throttleLetsOneCallThroughPerInterval() {

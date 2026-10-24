@@ -64,6 +64,7 @@ import SanketaAI
         var o = LLMConfig()
         o.openai = true; o.openaiModel = "gpt-4.1"
         #expect(DebugInfo.llmLines(config: o, statuses: []) == ["openai: on provider=openai model=gpt-4.1", "OpenAI key: missing"])
+        #expect(DebugInfo.llmLines(config: o, statuses: [], keyChecked: false).last == "OpenAI key: checking…")
         #expect(DebugInfo.llmLines(config: LLMConfig(), statuses: [("Apple Intelligence", .off)]) == ["Apple Intelligence: off", "openai: off"])
     }
 }
