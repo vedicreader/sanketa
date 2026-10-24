@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FAFAF7"/>
+      <stop offset="1" stop-color="#D8DEDA"/>
+    </linearGradient>
+  </defs>
+  <path d="M304 64H720C880 64 960 144 960 304V720C960 880 880 960 720 960H304C144 960 64 880 64 720V304C64 144 144 64 304 64Z" fill="url(#glass)" stroke="#C9D0CB" stroke-width="8"/>
+  <rect x="224" y="200" width="576" height="624" rx="96" fill="#FFFFFF" fill-opacity=".3" stroke="#FFFFFF" stroke-width="16"/>
+  <rect x="336" y="336" width="352" height="352" rx="88" fill="#E8A33D"/>
+  <path d="M512 416A64 64 0 0 0 480 535L464 608H560L544 535A64 64 0 0 0 512 416Z" fill="#F7F6EF"/>
+</svg>

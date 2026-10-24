@@ -1,5 +1,7 @@
 # Sanketa
 
+<img src="design/logo/sanketa-icon.png" width="96" alt="Sanketa icon">
+
 Sanketa (Sanskrit for hint, or signal) is a small macOS menu-bar app that keeps a floating glass panel of keyboard shortcuts and tips for whatever you are working in right now. It reads the stack of programs in your terminal, from the terminal app through the shell and tmux down to the program in front, and shows one section per layer. Run htop inside tmux inside fish and you get htop's keys, your live tmux bindings and fish's tips, innermost first. It follows you over ssh too, if the remote host is set up for it. Outside a terminal it shows the front app's menu shortcuts. The panel never takes focus from your terminal unless you ask it to search.
 
 ![Sanketa panel](design/screenshot.png)

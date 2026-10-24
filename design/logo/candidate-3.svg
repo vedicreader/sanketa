@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="glass" x2="1" y2="1"><stop stop-color="#F8F6F1"/><stop offset="1" stop-color="#DEDAD1"/></linearGradient></defs>
+  <path d="M304 64H720C880 64 960 144 960 304V720C960 880 880 960 720 960H304C144 960 64 880 64 720V304C64 144 144 64 304 64Z" fill="url(#glass)" stroke="#D1CEC6" stroke-width="8"/>
+  <rect x="216" y="216" width="464" height="464" rx="88" fill="#B9C5C0" fill-opacity=".6" stroke="#F9FAF6" stroke-width="16"/>
+  <rect x="344" y="344" width="464" height="464" rx="88" fill="#F9FAF6" fill-opacity=".7" stroke="#FFFFFF" stroke-width="16"/>
+  <path d="M468 580H576V472M576 580L684 472" fill="none" stroke="#E8A33D" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
