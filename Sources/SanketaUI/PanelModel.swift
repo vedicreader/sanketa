@@ -60,7 +60,9 @@ struct StackState {
     @Published public var translucency = Translucency.medium
     @Published public var packErrors: [PackLoadError] = []
     /// why config.toml did not load; Sanketa then uses the defaults
-    @Published public var configError: String?
+    @Published public var configError: PackLoadError?
+    /// the footer lists every bad pack file, not only the count
+    @Published public var showAllErrors = false
     @Published public var hotkeyConflict: String?
     /// The list top to bottom: the innermost layer's keys first, then the tip cards, then the outer layers.
     @Published public private(set) var blocks: [PanelBlock] = []
@@ -85,6 +87,28 @@ struct StackState {
 
     public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || configError != nil || hotkeyConflict != nil }
     public var needsAccessibility: Bool { !context.axTrusted && !context.bundleID.isEmpty }
+
+    /// One footer line for a file that did not load. A click opens the file, or (for the count line) lists the files.
+    public struct ErrorLine: Equatable {
+        public enum Action: Equatable { case open(String), showAll }
+        public var text: String
+        public var action: Action
+    }
+
+    /// More bad pack files than this show as one count line until the user clicks it.
+    public static let errorLinesShown = 2
+
+    /// `duckdb.toml: key 2 has no action.`, one line per bad file, with the config file first.
+    public var errorLines: [ErrorLine] {
+        func line(_ e: PackLoadError) -> ErrorLine {
+            let m = e.message.hasSuffix(".") ? e.message : e.message + "."
+            return ErrorLine(text: "\((e.file as NSString).lastPathComponent): \(m)", action: .open(e.file))
+        }
+        let packs = packErrors.count > Self.errorLinesShown && !showAllErrors
+            ? [ErrorLine(text: "\(packErrors.count) pack files did not load. Click to see them.", action: .showAll)]
+            : packErrors.map(line)
+        return (configError.map { [line($0)] } ?? []) + packs
+    }
 
     nonisolated static func sectionID(_ i: Int, _ l: Layer) -> String { "\(i)|\(l.id)" }
 

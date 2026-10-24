@@ -135,3 +135,38 @@ func bundledContext(_ names: [String]) throws -> Context {
         #expect(ResultsList.noResultHelp == "Search finds keys and tips in all packs. Press esc to close.")
     }
 }
+
+/// The footer names each file that did not load, in words, and a click opens it (P6).
+@MainActor struct FooterTests {
+    func err(_ name: String, _ m: String) -> PackLoadError { PackLoadError(file: "/tmp/sanketa-test/packs/\(name)", message: m) }
+
+    @Test func oneReadableLinePerBadFile() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
+        #expect(m.errorLines.isEmpty && !m.showsFooter)
+        m.packErrors = [err("duckdb.toml", "key 2 has no action")]
+        m.configError = PackLoadError(file: "/tmp/sanketa-test/config.toml", message: "line 1: hotkey must be a string")
+        #expect(m.showsFooter)
+        #expect(m.errorLines == [
+            .init(text: "config.toml: line 1: hotkey must be a string.", action: .open("/tmp/sanketa-test/config.toml")),
+            .init(text: "duckdb.toml: key 2 has no action.", action: .open("/tmp/sanketa-test/packs/duckdb.toml")),
+        ])
+    }
+
+    @Test func manyBadFilesShowACountUntilClicked() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
+        m.packErrors = [err("a.toml", "key 1 has no keys"), err("b.toml", "the pack has no id"), err("c.toml", "line 3: syntax error")]
+        #expect(m.errorLines == [.init(text: "3 pack files did not load. Click to see them.", action: .showAll)])
+        m.showAllErrors = true
+        #expect(m.errorLines.map(\.text) == ["a.toml: key 1 has no keys.", "b.toml: the pack has no id.", "c.toml: line 3: syntax error."])
+    }
+
+    /// The real loader's messages reach the footer as they are, from a broken pack on disk.
+    @Test func loaderMessagesReachTheFooter() throws {
+        let d = try tempURL("x").deletingLastPathComponent()
+        try "id = \"duckdb\"\nname = \"DuckDB\"\n\n[[keys]]\nkeys = \"⌃D\"\naction = \"Quit\"\n\n[[keys]]\nkeys = \".tables\"\n"
+            .write(to: d.appendingPathComponent("duckdb.toml"), atomically: true, encoding: .utf8)
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
+        m.packErrors = PackLibrary.load(bundled: d, user: nil).errors
+        #expect(m.errorLines.map(\.text) == ["duckdb.toml: key 2 has no action."])
+    }
+}

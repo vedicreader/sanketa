@@ -29,6 +29,10 @@ public final class SanketaPanel: NSPanel {
     public private(set) var searching = false
     var previousApp: NSRunningApplication?
     public var grantAccessibility: () -> Void = {}
+    /// opens a pack or config file for editing (a footer line)
+    public var openFile: (String) -> Void = { _ in }
+    /// makes a first pack for a program with none, then opens it
+    public var makePack: (String) -> Void = { _ in }
 
     public init(model: PanelModel, search: SearchModel, hotkeyLabel: String? = nil) {
         self.model = model; self.search = search
@@ -67,7 +71,9 @@ public final class SanketaPanel: NSPanel {
         let host = NSHostingView(rootView: PanelView(model: model, search: search, field: field, mark: mark,
             grantAccessibility: { [weak self] in self?.grantAccessibility() },
             pick: { [weak self] in self?.pick($0) },
-            clickLayer: { [weak self] in self?.clickLayer($0) }))
+            clickLayer: { [weak self] in self?.clickLayer($0) },
+            openFile: { [weak self] in self?.openFile($0) },
+            makePack: { [weak self] in self?.makePack($0) }))
         host.sizingOptions = []
         glass.contentView = host
         panel.contentView = glass

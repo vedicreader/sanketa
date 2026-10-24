@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import Combine
 import SanketaCore
 import SanketaSystem
@@ -31,10 +32,15 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         }.store(in: &subs)
         registerHotkey()
         panel.grantAccessibility = { [weak self] in self?.grantAccessibility() }
+        panel.openFile = { [weak self] in self?.openForEditing(URL(fileURLWithPath: $0)) }
+        panel.makePack = { [weak self] name in
+            do { self?.openForEditing(try PackStarter.make(name: name, in: packsDir)) }
+            catch { FileHandle.standardError.write(Data("cannot make a pack for \(name): \(error.localizedDescription)\n".utf8)) }
+        }
         panel.setTranslucency(config.translucency)
         scheduleRotation()
         buildStatusItem()
-        model.configError = configError
+        model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
         try? FileManager.default.createDirectory(at: packsDir, withIntermediateDirectories: true)
         let reload: () -> Void = { [weak self] in MainActor.assumeIsolated { self?.reloadPacks() } }
         watchers = [FileWatcher(url: LeelaKeymap.defaultURL(), onChange: reload),
@@ -64,7 +70,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     func reloadConfig() {
         let old = config
         config = loadConfig()
-        model.configError = configError
+        model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
         guard config != old else { return }
         if config.hotkey != old.hotkey { registerHotkey() }
         if config.translucency != old.translucency {
@@ -151,8 +157,15 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
 
             """.write(to: f, atomically: true, encoding: .utf8)
         }
-        guard let edit = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") else { return }
-        NSWorkspace.shared.open([f], withApplicationAt: edit, configuration: NSWorkspace.OpenConfiguration())
+        openForEditing(f)
+    }
+
+    /// Opens a pack or config file in the app that the user set for `.toml` files. With none, it opens in the default
+    /// text editor, as `open -t` does. Sanketa starts no terminal and runs no `$EDITOR` command.
+    func openForEditing(_ f: URL) {
+        let ws = NSWorkspace.shared
+        guard let app = ws.urlForApplication(toOpen: f) ?? ws.urlForApplication(toOpen: .plainText) else { return }
+        ws.open([f], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
     }
 
     @objc func grantAccessibility() { AXReader.promptForTrust() }

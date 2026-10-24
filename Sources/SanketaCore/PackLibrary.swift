@@ -4,6 +4,7 @@ import TOMLDecoder
 public struct PackLoadError: Hashable {
     public var file: String
     public var message: String
+    public init(file: String, message: String) { self.file = file; self.message = message }
 }
 
 public struct PackLibrary {
@@ -66,13 +67,17 @@ public struct PackLibrary {
 
     /// argv `match` first, then the process name, then argv[0]'s basename (what the user typed;
     /// Claude Code's executable is `…/versions/2.1.304` but argv[0] is `claude`).
-    public func pack(process name: String, argv: [String]) -> Pack? {
+    public func pack(process name: String, argv: [String]) -> Pack? { pick(process: name, argv: argv)?.pack }
+
+    /// The pack for a process and the rule that picked it: `match "bin/ramabana"`, `process htop` or `argv[0] claude`.
+    public func pick(process name: String, argv: [String]) -> (pack: Pack, reason: String)? {
         let sorted = packs.values.sorted { $0.id < $1.id }
         let cmd = argv.joined(separator: " ")
         let typed = argv.first.map { ($0.drop { $0 == "-" } as Substring as NSString).lastPathComponent }
-        return sorted.first { $0.match.contains { cmd.contains($0) } }
-            ?? sorted.first { $0.processes.contains(name) }
-            ?? typed.flatMap { t in sorted.first { $0.processes.contains(t) } }
+        for p in sorted { if let m = p.match.first(where: { cmd.contains($0) }) { return (p, "match \"\(m)\"") } }
+        if let p = sorted.first(where: { $0.processes.contains(name) }) { return (p, "process \(name)") }
+        if let t = typed, let p = sorted.first(where: { $0.processes.contains(t) }) { return (p, "argv[0] \(t)") }
+        return nil
     }
 
     public func pack(bundleID: String) -> Pack? {

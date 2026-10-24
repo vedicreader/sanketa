@@ -11,6 +11,8 @@ struct PanelView: View {
     let grantAccessibility: () -> Void
     let pick: (Int) -> Void
     let clickLayer: (Int) -> Void
+    var openFile: (String) -> Void = { _ in }
+    var makePack: (String) -> Void = { _ in }
     @Environment(\.colorScheme) var scheme
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @State var position = ScrollPosition(edge: .top)
@@ -45,7 +47,7 @@ struct PanelView: View {
                     if let id { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
                 }
             }
-            if model.showsFooter { Footer(model: model, grant: grantAccessibility) }
+            if model.showsFooter { Footer(model: model, grant: grantAccessibility, open: openFile) }
         }
         // the top row sits in the title bar, so the safe area there would only add dead space
         .ignoresSafeArea(.container, edges: .top)
@@ -70,7 +72,7 @@ struct PanelView: View {
                              folded: { model.isFolded(s, $0) }, toggleGroup: { model.toggle(s, $0) }) { model.toggle(s.id) }
                     .id(s.id)
             case .noPack(let l, _):
-                NoPackSection(layer: l)
+                NoPackSection(layer: l, makePack: makePack)
             }
         }
         if model.blocks.isEmpty {
@@ -179,6 +181,7 @@ struct Breadcrumb: View {
 struct Footer: View {
     @ObservedObject var model: PanelModel
     let grant: () -> Void
+    let open: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -186,9 +189,12 @@ struct Footer: View {
                 Button(action: grant) { Text("Allow Accessibility to show menu keys").underline() }
                     .buttonStyle(.plain).foregroundStyle(.primary)
             }
-            if !model.packErrors.isEmpty {
-                Text("\(model.packErrors.count) pack file\(model.packErrors.count == 1 ? "" : "s") did not load. Point to this line to see why.")
-                    .help(model.packErrors.map { "\(($0.file as NSString).lastPathComponent): \($0.message)" }.joined(separator: "\n"))
+            // one line for each file that did not load; a click opens the file
+            ForEach(Array(model.errorLines.enumerated()), id: \.offset) { _, l in
+                Button {
+                    switch l.action { case .open(let f): open(f); case .showAll: model.showAllErrors = true }
+                } label: { Text(l.text).lineLimit(2).multilineTextAlignment(.leading) }
+                .buttonStyle(.plain)
             }
             if let h = model.hotkeyConflict {
                 Text("Sanketa cannot use \(Theme.display(hotkey: h)). Set hotkey in ~/.config/sanketa/config.toml.")

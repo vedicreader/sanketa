@@ -336,7 +336,8 @@ func threadCPUSeconds() -> Double {
         let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 3)
         m.update(try yaziContext(withPack: false))
         #expect(kinds(m) == ["nopack:yazi", "tips", "fish", "app:com.apple.Terminal"])
-        #expect(NoPackSection.message("yazi") == "No keys for yazi. Add a pack in ~/.config/sanketa/packs.")
+        #expect(NoPackSection.message("yazi") == "Sanketa has no keys for yazi.")
+        #expect(NoPackSection.link("yazi") == "Make a pack for yazi")
     }
 
     /// With no keys in the innermost layer the tips lead, as before.
