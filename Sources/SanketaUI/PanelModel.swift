@@ -212,6 +212,12 @@ struct StackState {
         sections.first { $0.index == index }?.id
     }
 
+    /// Layer index of the section with keyboard focus, for the breadcrumb.
+    public var focusedLayerIndex: Int? { selectedLayer.flatMap { id in sections.first { $0.id == id }?.index } }
+
+    /// With one layer (an app such as Finder), the breadcrumb names it, so its section header does not.
+    public var showsSectionNames: Bool { context.layers.count > 1 }
+
     public func selectLayer(at index: Int) { if let id = sectionID(forLayerAt: index) { selectedLayer = id } }
 
     /// Moves the selected section by `by`, wrapping; starts at the first (or last) when none is selected.

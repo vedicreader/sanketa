@@ -22,7 +22,7 @@ struct PanelView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
                 Passthrough(view: mark).frame(width: Brand.markPoints, height: Brand.markPoints)
-                Breadcrumb(layers: model.context.layers, click: clickLayer)
+                Breadcrumb(layers: model.context.layers, focused: model.focusedLayerIndex, click: clickLayer)
             }
             .frame(height: Theme.topRow).padding(.horizontal, Theme.pad)
             SearchField(field: field).padding(.horizontal, Theme.pad - 2).padding(.top, Theme.fieldGap).padding(.bottom, 10)
@@ -66,6 +66,7 @@ struct PanelView: View {
                 .padding(.horizontal, 6)
             case .section(let s):
                 LayerSection(data: s, collapsed: model.collapsed.contains(s.id), selected: model.selectedLayer == s.id,
+                             showsName: model.showsSectionNames,
                              folded: { model.isFolded(s, $0) }, toggleGroup: { model.toggle(s, $0) }) { model.toggle(s.id) }
                     .id(s.id)
             case .noPack(let l, _):
@@ -142,25 +143,31 @@ struct ResultRow: View {
 }
 
 /// Layers as plain text, innermost first, joined by ` › `; clicking one jumps to its section.
+/// When the row is too narrow, the outer crumbs are cut first, from the terminal end; the tool in front is never cut.
 struct Breadcrumb: View {
     let layers: [Layer]
+    /// the layer whose section has keyboard focus; its crumb is semibold
+    var focused: Int?
     let click: (Int) -> Void
 
-    /// `ssh host`, `name@host`, or `name · context` when the window title picks a pack context
+    /// `ssh host`, or `name · context` when the window title picks a pack context. The host shows only on the
+    /// `ssh` crumb; the section headers keep `@ host`.
     static func label(_ l: Layer) -> String {
-        l.kind == .remote ? "ssh \(l.name)" : l.name + (l.host.map { "@\($0)" } ?? "") + (l.context.map { " · \($0)" } ?? "")
+        l.kind == .remote ? "ssh \(l.name)" : l.name + (l.context.map { " · \($0)" } ?? "")
     }
+
+    static func priority(_ i: Int) -> Double { i == 0 ? 2 : 1 - Double(i) / 100 }
 
     var body: some View {
         HStack(spacing: 0) {
             ForEach(Array(layers.enumerated()), id: \.offset) { i, l in
-                if i > 0 { Text(" › ").foregroundStyle(Theme.secondary) }
+                if i > 0 { Text(" › ").foregroundStyle(Theme.secondary).fixedSize() }
                 Button { click(i) } label: {
                     Text(Self.label(l))
-                        .fontWeight(i == 0 ? .semibold : .medium)
+                        .fontWeight(i == 0 || i == focused ? .semibold : .medium)
                         .foregroundStyle(i == 0 ? Theme.primary : Theme.secondary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plain).layoutPriority(Self.priority(i))
             }
             Spacer(minLength: 0)
         }
