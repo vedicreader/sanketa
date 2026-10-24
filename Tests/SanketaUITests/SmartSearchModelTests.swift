@@ -189,6 +189,17 @@ private func smart(_ c: (any Choosing)?) -> SmartSearch {
         #expect(failed.prefix(2).map(\.title) == ["Qwen3.5-4B: not downloaded", "The connection stopped."] && !failed[1].enabled)
     }
 
+    @Test func gemmaThatDoesNotLoadOffersTheSixBitModel() {
+        let l = StatusMenus.onDeviceLines(selected: .gemma4e4b, installed: [.gemma4e4b], progress: nil, mlxReady: true,
+                                          memory: 36 << 30, failed: [.gemma4e4b])
+        #expect(l.map(\.title) == ["Gemma 4 E4B: did not load", "Use Gemma 4 E4B", "Download Qwen3.5-4B (3.1 GB)",
+                                   "Download Qwen3.5-2B (1.7 GB)", "Download Qwen3.5-4B 6-bit (4.1 GB)", "Remove Downloaded Models"])
+        #expect(l[4].action == .download(.qwen4b6) && l[4].enabled)
+        // without a failure the 6-bit model does not show
+        #expect(!StatusMenus.onDeviceLines(selected: .gemma4e4b, installed: [], progress: nil, mlxReady: true, memory: 36 << 30)
+            .contains { $0.title.contains("6-bit") })
+    }
+
     @Test func onDeviceMenuOffersGemmaWithSixteenGigabytes() {
         let l = StatusMenus.onDeviceLines(selected: .gemma4e4b, installed: [.qwen4b], progress: nil, mlxReady: true, memory: 16 << 30)
         #expect(l.map(\.title) == ["Gemma 4 E4B: not downloaded", "Download Gemma 4 E4B (5.4 GB)", "Use Qwen3.5-4B",

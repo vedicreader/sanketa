@@ -45,9 +45,24 @@ final class FakeRunner: PickRunner, @unchecked Sendable {
     var wasReleased: Bool { lock.withLock { released } }
 }
 
-private func fakeChooser(_ runner: FakeRunner, idle: TimeInterval = 30, loads: Counts = Counts()) -> MLXChooser {
-    MLXChooser(name: "on-device (fake)", available: { .available },
-               holder: IdleHolder(idle: idle, load: { _ = loads.loaded(); return runner }, unload: { $0.release() }))
+/// A chooser for `runner` in its own registry (or `registry`), so tests that run at once do not share models.
+private func fakeChooser(_ runner: FakeRunner, idle: TimeInterval = 30, loads: Counts = Counts(), registry: Holders = Holders(),
+                         key: String = UUID().uuidString, loadTime: Duration = .zero,
+                         fail: Bool = false) -> MLXChooser {
+    MLXChooser(name: "on-device (fake)", key: key, registry: registry, idle: idle, failedNote: "fake did not load",
+               available: { .available }, load: {
+                   _ = loads.loaded()
+                   try await Task.sleep(for: loadTime)
+                   if fail { throw ChoiceError.badResponse }
+                   return runner
+               })
+}
+
+/// A chooser with its model loaded.
+private func loadedChooser(_ runner: FakeRunner, idle: TimeInterval = 30, loads: Counts = Counts()) async throws -> MLXChooser {
+    let c = fakeChooser(runner, idle: idle, loads: loads)
+    try await c.load()
+    return c
 }
 
 private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> ModelRouter {
@@ -101,7 +116,7 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
     @Test func fakeModelPicksThroughRouterAndLoadsOnce() async throws {
         let runner = FakeRunner { p in "{\"picks\": [\"\(p.refs[1])\", \"zz9\"]}" }
         let loads = Counts()
-        let c = fakeChooser(runner, loads: loads)
+        let c = try await loadedChooser(runner, loads: loads)
         let s = SmartSearch(router: router(c), timeout: 5)
         let cands = Retrieval.candidates(splitQuery, bundled, context: ["tmux"])
         let r1 = await s.results(splitQuery, bundled, context: ["tmux"])
@@ -118,7 +133,7 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
     @MainActor @Test func runsOffTheMainThread() async throws {
         let runner = FakeRunner { _ in #"{"picks": ["e1"]}"# }
         let p = ChoicePrompt(task: .search("a b c"), refs: ["e1"], lines: ["e1 | x | y | z"], maxPicks: 5)
-        #expect(try await fakeChooser(runner).choose(p) == ["e1"])
+        #expect(try await loadedChooser(runner).choose(p) == ["e1"])
         #expect(runner.calls.map(\.main) == [false])
     }
 
@@ -130,8 +145,8 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
         #expect(loads.loads == 0 && runner.calls.isEmpty)
     }
 
-    @Test func badAnswerGivesPlainSearch() async {
-        let r = await SmartSearch(router: router(fakeChooser(FakeRunner { _ in "e1, e2" })), timeout: 5)
+    @Test func badAnswerGivesPlainSearch() async throws {
+        let r = await SmartSearch(router: router(try await loadedChooser(FakeRunner { _ in "e1, e2" })), timeout: 5)
             .results(splitQuery, bundled, context: ["tmux"])
         #expect(r.picked.isEmpty && !r.items.isEmpty)
         #expect(r.note == "Plain search: on-device (fake) failed")
@@ -140,7 +155,7 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
     @Test func timeoutCancelsTheRun() async throws {
         let runner = FakeRunner(delay: .seconds(5)) { _ in #"{"picks": ["e1"]}"# }
         let clock = ContinuousClock(), t = clock.now
-        let r = await SmartSearch(router: router(fakeChooser(runner)), timeout: 0.3).results(splitQuery, bundled, context: [])
+        let r = await SmartSearch(router: router(try await loadedChooser(runner)), timeout: 0.3).results(splitQuery, bundled, context: [])
         // the fake answers only after 5 s; the router stops waiting well before that, even on a busy machine
         #expect(clock.now - t < .seconds(4))
         #expect(r.note == "Plain search: on-device (fake) timed out")
@@ -158,6 +173,60 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
         while await c.isLoaded, clock.now - t < .seconds(3) { try await Task.sleep(for: .milliseconds(50)) }
         #expect(await !c.isLoaded)
         #expect(runner.wasReleased)
+    }
+
+    @Test func searchDuringLoadIsPlainAndTheNextUsesTheModel() async throws {
+        let runner = FakeRunner { p in "{\"picks\": [\"\(p.refs[0])\"]}" }
+        let loads = Counts()
+        let c = fakeChooser(runner, loads: loads, loadTime: .seconds(2))
+        let s = SmartSearch(router: router(c), timeout: 5)
+        let clock = ContinuousClock(), t = clock.now
+        let first = await s.results(splitQuery, bundled, context: ["tmux"])
+        // it did not wait for the 2 s load
+        #expect(await !c.isLoaded)
+        #expect(first.picked.isEmpty && !first.items.isEmpty)
+        #expect(first.note == "Plain search: on-device (fake) is loading")
+        // a second search during the load does not start a second load
+        _ = await s.results(splitQuery, bundled, context: ["tmux"])
+        while await !c.isLoaded, clock.now - t < .seconds(15) { try await Task.sleep(for: .milliseconds(50)) }
+        let next = await s.results(splitQuery, bundled, context: ["tmux"])
+        #expect(next.note == nil && next.picked.count == 1)
+        #expect(loads.loads == 1 && runner.calls.count == 1)
+    }
+
+    @Test func modelSwitchUnloadsThePreviousModel() async throws {
+        let registry = Holders()
+        let a = FakeRunner { _ in #"{"picks": []}"# }, b = FakeRunner { _ in #"{"picks": []}"# }
+        let first = fakeChooser(a, registry: registry, key: "a")
+        try await first.load()
+        #expect(await first.isLoaded)
+        let second = fakeChooser(b, registry: registry, key: "b")
+        try await second.load()
+        #expect(a.wasReleased && !b.wasReleased)
+        let (firstIn, secondIn) = (await first.isLoaded, await second.isLoaded)
+        #expect(!firstIn && secondIn)
+        // the same folder gives the same holder, so its model is not loaded twice
+        #expect(await fakeChooser(b, registry: registry, key: "b").isLoaded)
+    }
+
+    @Test func unloadAllFreesTheModel() async throws {
+        let registry = Holders()
+        let runner = FakeRunner { _ in #"{"picks": []}"# }
+        let c = fakeChooser(runner, registry: registry)
+        try await c.load()
+        await registry.dropOthers(nil)
+        #expect(await !c.isLoaded && runner.wasReleased)
+    }
+
+    @Test func modelThatDoesNotLoadSaysSo() async throws {
+        let c = fakeChooser(FakeRunner { _ in "" }, fail: true)
+        #expect(c.status() == .available)
+        await #expect(throws: ChoiceError.badResponse) { try await c.load() }
+        #expect(c.status() == .unavailable("fake did not load"))
+        // the router goes on to the next tier, and its note says why the first one is off
+        #expect(router(c, fm: Fixed(picks: [])).searchChooser()?.name == "fixed")
+        #expect(MLXChooser.failedNote(.gemma4e4b) == "Gemma 4 E4B did not load; choose Qwen3.5-4B 6-bit in the On-Device Model menu")
+        #expect(MLXChooser.failedNote(.qwen4b) == "Qwen3.5-4B did not load")
     }
 
     @Test func modelFolderMustHoldOnlyFiles() throws {
@@ -227,7 +296,7 @@ private func hits(_ item: SearchItem, _ gold: [(String, String)]) -> Bool {
 }
 
 @Suite(.serialized) struct MLXChooserLiveTests {
-    @Test(.enabled(if: MLXGate.ready), .timeLimit(.minutes(5))) func liveSearchIsGroundedAndUnloadsAfterIdle() async throws {
+    @Test(.enabled(if: MLXGate.ready), .timeLimit(.minutes(6))) func liveSearchIsGroundedAndUnloadsAfterIdle() async throws {
         let dir = MLXGate.installer.directory(MLXGate.spec)
         try ModelFolder.check(dir)
         for name in try FileManager.default.contentsOfDirectory(atPath: dir.path) {
@@ -235,7 +304,7 @@ private func hits(_ item: SearchItem, _ gold: [(String, String)]) -> Bool {
             print("live MLX: \(name) quarantine xattr: \(q >= 0 ? "present" : "none")")
             #expect(q < 0, "\(name) has a quarantine attribute")
         }
-        let idle: TimeInterval = 8
+        let idle: TimeInterval = 60
         let c = MLXChooser(spec: MLXGate.spec, installer: MLXGate.installer, idle: idle)
         #expect(c.status() == .available)
         let s = SmartSearch(router: router(c), timeout: 90)
@@ -252,7 +321,18 @@ private func hits(_ item: SearchItem, _ gold: [(String, String)]) -> Bool {
             return (r, took)
         }
 
-        // the first query includes the load
+        // a search before the model is in memory is plain at once and starts the load
+        let t0 = clock.now
+        let early = await s.results(splitQuery, bundled, context: ["tmux"])
+        print("live MLX: search during load took \(clock.now - t0), note \(early.note ?? "-")")
+        #expect(early.note == "Plain search: \(c.name) is loading" && early.picked.isEmpty && clock.now - t0 < .seconds(1))
+        do { try await c.load() } catch {
+            Issue.record("\(MLXGate.spec.folder) did not load in mlx-swift-lm: \(error)")
+            #expect(c.status() == .unavailable(MLXChooser.failedNote(MLXGate.spec.choice)))
+            return
+        }
+        let loadTime = clock.now - t0
+        // the first query after the load (the grammar compiles for the first time)
         let (split, cold) = await run(splitQuery, ["tmux"])
         #expect(!split.picked.isEmpty)
         #expect(split.items.prefix(3).contains { $0.packID == "tmux" && $0.title.lowercased().contains("split") })
@@ -267,12 +347,12 @@ private func hits(_ item: SearchItem, _ gold: [(String, String)]) -> Bool {
             if r.items.prefix(3).contains(where: { hits($0, e.gold) }) { gold += 1 }
         }
         let median = warm.sorted()[warm.count / 2]
-        print("live MLX: cold \(cold), warm median \(median), gold in top 3: \(gold)/\(evals.count)")
+        print("live MLX: load \(loadTime), first query \(cold), warm median \(median) of \(warm), gold in top 3: \(gold)/\(evals.count)")
         #expect(cold < .seconds(60) && median < .seconds(10))
 
         let loaded = footprint()
         #expect(await c.isLoaded)
-        let busyIdle = try await cpuPercent(over: 3)
+        let busyIdle = try await cpuPercent(over: 10)
         #expect(await c.isLoaded)
         print("live MLX: loaded: footprint \(gb(loaded)) (before \(gb(base))), MLX active \(gb(MLXRuntime.memory.active)), cache \(gb(MLXRuntime.memory.cache)), peak \(gb(MLXRuntime.memory.peak)); idle CPU \(String(format: "%.2f", busyIdle)) %")
 

@@ -59,16 +59,19 @@ public enum StatusMenus {
     /// the MLX build (`mlxReady`); until then a disabled line says so. During a download the status line shows the percent.
     /// `error` is why the last download failed, on its own disabled line. A model that needs more than `memory` shows
     /// only when it is downloaded.
+    /// `failed` are the models that did not load; then the fallback model shows too.
     public static func onDeviceLines(selected: MLXModelChoice, installed: Set<MLXModelChoice>, progress: Double?,
                                      mlxReady: Bool, error: String? = nil,
-                                     memory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> [MenuLine] {
-        let status = progress.map { "Downloading… \(Int(($0 * 100).rounded(.down))) %" }
-            ?? "\(name(selected)): " + (installed.contains(selected) ? "downloaded" : "not downloaded")
+                                     memory: UInt64 = ProcessInfo.processInfo.physicalMemory,
+                                     failed: Set<MLXModelChoice> = []) -> [MenuLine] {
+        let state = failed.contains(selected) ? "did not load" : installed.contains(selected) ? "downloaded" : "not downloaded"
+        let status = progress.map { "Downloading… \(Int(($0 * 100).rounded(.down))) %" } ?? "\(name(selected)): \(state)"
         var out = [MenuLine(status, enabled: false)]
         if let error, progress == nil { out.append(MenuLine(error, enabled: false)) }
         if !mlxReady { out.append(MenuLine(needsMLX, enabled: false)) }
         let idle = progress == nil
-        for c in MLXModelChoice.allCases where installed.contains(c) || memory >= c.minMemory {
+        for c in MLXModelChoice.allCases
+        where installed.contains(c) || c == selected || (memory >= c.minMemory && (!c.isFallback || !failed.isEmpty)) {
             if installed.contains(c) {
                 out.append(MenuLine("Use \(name(c))", enabled: idle && c != selected, checked: c == selected, action: .use(c)))
             } else {

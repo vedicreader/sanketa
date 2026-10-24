@@ -109,6 +109,11 @@ struct CoachLLMConfigTests {
         let gemma = Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\"")).0.llm
         #expect(gemma.mlxModel == .gemma4e4b)
         #expect(Config.load(try writeConfig("")).0.llm.mlxModel == MLXModelChoice.recommended())
+        // a Mac with too little memory: one warning, and the model that fits
+        let (small, warn) = Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\""), memory: 8 << 30)
+        #expect(small.llm.mlxModel == .qwen4b)
+        #expect(warn == "Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB. Sanketa uses Qwen3.5-4B.")
+        #expect(Config.load(try writeConfig("[llm]\nmlx_model = \"qwen3.5-2b\""), memory: 8 << 30).1 == nil)
     }
 
     @Test func keyVariableOnlyForOpenAIUnlessSet() throws {

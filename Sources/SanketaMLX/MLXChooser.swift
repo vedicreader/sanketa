@@ -115,11 +115,13 @@ final class MLXRunner: PickRunner, @unchecked Sendable {
     }
 }
 
-/// One holder per model folder and idle time, so a new chooser after a config reload uses the model already loaded.
+/// One holder per model folder, so a new chooser after a config reload uses the model already loaded. It also keeps
+/// one model in memory at most, and notes the folders whose model did not load in this process.
 final class Holders: @unchecked Sendable {
     static let shared = Holders()
     private let lock = NSLock()
     private var all: [String: IdleHolder<any PickRunner>] = [:]
+    private var failed: Set<String> = []
 
     func holder(_ key: String, make: () -> IdleHolder<any PickRunner>) -> IdleHolder<any PickRunner> {
         lock.withLock {
@@ -129,27 +131,64 @@ final class Holders: @unchecked Sendable {
             return h
         }
     }
+
+    /// Unloads every model but the one for `key`; a model switch calls this before the new model loads.
+    func dropOthers(_ key: String?) async {
+        for (k, h) in lock.withLock({ all }) where k != key { await h.drop() }
+    }
+
+    func markFailed(_ key: String, _ yes: Bool) { lock.withLock { if yes { failed.insert(key) } else { failed.remove(key) } } }
+    func didFail(_ key: String) -> Bool { lock.withLock { failed.contains(key) } }
 }
 
-/// The downloaded MLX model as the on-device chooser. It loads on first use, runs off the main thread, answers JSON
-/// that a grammar limits to the candidate refs, and frees its memory after `idle` seconds with no search.
+/// The downloaded MLX model as the on-device chooser. It loads in the background, runs off the main thread, answers
+/// JSON that a grammar limits to the candidate refs, and frees its memory after `idle` seconds with no search. While
+/// it loads, a search gets `.loading` at once, so the results stay plain, and the next search uses the model.
 public struct MLXChooser: OnDeviceChooser {
     public let name: String
     let available: @Sendable () -> ModelStatus
     let holder: IdleHolder<any PickRunner>
+    let key: String
+    let registry: Holders
 
     public init(spec: ModelSpec, installer: ModelInstaller, idle: TimeInterval = 60) {
         let dir = installer.directory(spec)
-        self.init(name: "on-device (\(spec.choice.displayName))",
+        self.init(name: "on-device (\(spec.choice.displayName))", key: dir.path, idle: idle,
+                  failedNote: Self.failedNote(spec.choice),
                   available: { Self.status(installed: installer.isInstalled(spec), ready: MLXRuntime.isReady) },
-                  holder: Holders.shared.holder("\(dir.path)|\(idle)") {
-                      IdleHolder(idle: idle, load: { try await MLXRunner.load(dir) }, unload: { $0.release() })
-                  })
+                  load: { try await MLXRunner.load(dir) })
     }
 
-    init(name: String, available: @escaping @Sendable () -> ModelStatus, holder: IdleHolder<any PickRunner>) {
-        self.name = name; self.available = available; self.holder = holder
+    init(name: String, key: String, registry: Holders = .shared, idle: TimeInterval, failedNote: String,
+         available: @escaping @Sendable () -> ModelStatus, load: @escaping @Sendable () async throws -> any PickRunner) {
+        self.name = name; self.key = key; self.registry = registry
+        self.available = { registry.didFail(key) ? .unavailable(failedNote) : available() }
+        holder = registry.holder(key) {
+            IdleHolder(idle: idle, load: {
+                await registry.dropOthers(key)
+                do {
+                    let r = try await load()
+                    registry.markFailed(key, false)
+                    return r
+                } catch {
+                    registry.markFailed(key, true)
+                    throw error
+                }
+            }, unload: { $0.release() })
+        }
     }
+
+    /// Why the chooser is off after its model did not load. Gemma names the model to use in its place.
+    public static func failedNote(_ c: MLXModelChoice) -> String {
+        c == .gemma4e4b ? "\(c.displayName) did not load; choose \(MLXModelChoice.qwen4b6.displayName) in the On-Device Model menu"
+            : "\(c.displayName) did not load"
+    }
+
+    /// True when the model in `dir` did not load in this process.
+    public static func didFail(_ dir: URL) -> Bool { Holders.shared.didFail(dir.path) }
+
+    /// Unloads every on-device model, such as before its files are removed.
+    public static func unloadAll() async { await Holders.shared.dropOthers(nil) }
 
     static func status(installed: Bool, ready: Bool) -> ModelStatus {
         if !installed { return .unavailable("on-device model not downloaded") }
@@ -184,6 +223,8 @@ public struct MLXChooser: OnDeviceChooser {
 
     public func choose(_ prompt: ChoicePrompt) async throws -> [String] {
         guard !prompt.refs.isEmpty else { return [] }
+        // no wait for a load: this search stays plain, and the load goes on for the next one
+        guard await holder.isLoaded else { startLoad(); throw ChoiceError.loading }
         let holder = holder, schema = Self.schema(refs: prompt.refs, maxPicks: prompt.maxPicks)
         // a detached task: the model never runs on the caller's actor, and a cancel reaches its token loop
         let work = Task.detached(priority: .userInitiated) { try await holder.use { try await $0.run(prompt, schema: schema) } }
@@ -191,10 +232,17 @@ public struct MLXChooser: OnDeviceChooser {
         return try Self.picks(from: text)
     }
 
-    /// Starts the load in the background, so the first search does not wait for it.
-    public func prewarm() {
-        guard status() == .available else { return }
+    func startLoad() {
         let holder = holder
         Task.detached(priority: .utility) { _ = try? await holder.use { _ in true } }
     }
+
+    /// Starts the load in the background, so the first search does not wait for it.
+    public func prewarm() {
+        guard status() == .available else { return }
+        startLoad()
+    }
+
+    /// Loads the model and waits for it; for the live test and `--ask`. Throws why it did not load.
+    public func load() async throws { _ = try await holder.use { _ in true } }
 }

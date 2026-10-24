@@ -2,7 +2,8 @@ import Foundation
 
 public enum ModelStatus: Equatable, Sendable { case available, unavailable(String), off }
 
-public enum ChoiceError: Error, Equatable { case contextExceeded, notAllowed, http(Int), badResponse, noKey }
+/// `loading`: the model is still loading in the background, so this search is plain and a later one uses it.
+public enum ChoiceError: Error, Equatable { case contextExceeded, notAllowed, http(Int), badResponse, noKey, loading }
 
 /// A model that picks refs from a `ChoicePrompt`. It never sees anything but the prompt.
 public protocol Choosing: Sendable {
@@ -145,6 +146,7 @@ public struct SmartSearch: Sendable {
         case is TimedOut: return "timed out"
         case ChoiceError.notAllowed: return "refused the request"
         case ChoiceError.noKey: return "no key"
+        case ChoiceError.loading: return "is loading"
         case ChoiceError.http(let n): return "HTTP \(n)"
         default: return "failed"
         }

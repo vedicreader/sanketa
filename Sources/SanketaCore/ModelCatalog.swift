@@ -68,6 +68,21 @@ public enum ModelCatalog {
                       sha256: "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715"),
         ])
 
+    /// The fallback when Gemma 4 E4B does not load: the same weights as Qwen3.5-4B at 6 bits, checked 2026-10-25.
+    public static let qwen4b6 = ModelSpec(
+        choice: .qwen4b6, repo: "mlx-community/Qwen3.5-4B-6bit", revision: "fbb1092aa9daef007603ea9273cd24c225a409f1",
+        folder: "Qwen3.5-4B-6bit", files: [
+            ModelFile(name: "config.json", size: 3366,
+                      sha256: "86e6f28f1b175e5b088ca648a089cc00b15adbfa45cd4a65228ba97e07779fc6"),
+            ModelFile(name: "model.safetensors", size: 4085498443,
+                      sha256: "0fefe2844ed7c9201da4927a1930147669b05b24ca819bfe593e6e3b03fc33f0"),
+            ModelFile(name: "model.safetensors.index.json", size: 101944,
+                      sha256: "a81689f1901b3aa1ccb894c270d7bb30db471073b8b36f7d92c161f02b3a1980"),
+            tokenizer, tokenizerConfig,
+            ModelFile(name: "chat_template.jinja", size: 7756,
+                      sha256: "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715"),
+        ])
+
     public static let qwen2b = ModelSpec(
         choice: .qwen2b, repo: "mlx-community/Qwen3.5-2B-MLX-4bit", revision: "93760be4f1f69842a46bc13dbdc0f19e291392a3",
         folder: "Qwen3.5-2B-MLX-4bit", files: [
@@ -87,6 +102,7 @@ public enum ModelCatalog {
         case .gemma4e4b: gemma4e4b
         case .qwen4b: qwen4b
         case .qwen2b: qwen2b
+        case .qwen4b6: qwen4b6
         }
     }
 

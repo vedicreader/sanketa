@@ -368,7 +368,7 @@ private final class Seen: @unchecked Sendable {
         let names = ["config.json", "model.safetensors", "model.safetensors.index.json", "tokenizer.json",
                      "tokenizer_config.json", "chat_template.jinja"]
         let hex40 = try Regex("^[0-9a-f]{40}$"), hex64 = try Regex("^[0-9a-f]{64}$")
-        for (c, gb) in [(MLXModelChoice.qwen4b, 3.06), (.qwen2b, 1.75)] {
+        for (c, gb) in [(MLXModelChoice.qwen4b, 3.06), (.qwen2b, 1.75), (.qwen4b6, 4.11)] {
             let s = ModelCatalog.spec(c)
             #expect(s.choice == c)
             #expect(s.revision.wholeMatch(of: hex40) != nil)
@@ -384,6 +384,7 @@ private final class Seen: @unchecked Sendable {
         }
         #expect(ModelCatalog.spec(.qwen4b).repo == "mlx-community/Qwen3.5-4B-MLX-4bit")
         #expect(ModelCatalog.spec(.qwen2b).repo == "mlx-community/Qwen3.5-2B-MLX-4bit")
+        #expect(ModelCatalog.spec(.qwen4b6).repo == "mlx-community/Qwen3.5-4B-6bit")
         // Gemma has two weight shards and its own tokenizer files
         let g = ModelCatalog.spec(.gemma4e4b)
         #expect(g.choice == .gemma4e4b && g.repo == "mlx-community/unsloth-gemma-4-E4B-it-qat-oQ4")
@@ -405,7 +406,9 @@ private final class Seen: @unchecked Sendable {
     /// files are hashed; the weights are checked by size only, so the test stays fast.
     @Test func catalogMatchesBenchCopies() throws {
         let bench = URL(fileURLWithPath: "/tmp/sanketa-bench/models")
-        for (c, dir) in [(MLXModelChoice.qwen4b, "qwen35-4b-dl"), (.qwen2b, "qwen35-2b")] {
+        // each copy is checked only when it is there; the 2026-10-25 ones may be gone
+        for (c, dir) in [(MLXModelChoice.qwen4b, "qwen35-4b-dl"), (.qwen2b, "qwen35-2b"),
+                         (.gemma4e4b, "unsloth-gemma4-e4b-qat-oq4"), (.qwen4b6, "qwen35-4b-6bit")] {
             let d = bench.appendingPathComponent(dir)
             guard exists(d.appendingPathComponent("config.json")) else { continue }
             for f in ModelCatalog.spec(c).files {

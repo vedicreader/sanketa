@@ -24,15 +24,18 @@ public enum MLXRuntime {
     /// GPU code calls this first.
     @discardableResult
     public static func prepare() -> Bool {
-        guard isReady, let lib = metallibURL() else { return false }
+        guard isReady, let lib = found else { return false }
         if GPU.metallib == nil { GPU.metallib = lib }
         return true
     }
 
+    /// `metallibURL()`, looked up once: the app's files do not change while it runs, and `status()` runs at each search.
+    static let found: URL? = metallibURL()
+
     /// True on Apple Silicon when the shaders are present; GPU code checks this first.
     public static var isReady: Bool {
         #if arch(arm64)
-        metallibURL() != nil
+        found != nil
         #else
         false
         #endif

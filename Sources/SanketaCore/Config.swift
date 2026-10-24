@@ -7,7 +7,10 @@ public enum Translucency: String, Codable, CaseIterable { case low, medium, high
 
 /// The MLX model that runs on device for natural-language search.
 public enum MLXModelChoice: String, Codable, CaseIterable, Sendable {
-    case gemma4e4b = "gemma-4-e4b", qwen4b = "qwen3.5-4b", qwen2b = "qwen3.5-2b"
+    case gemma4e4b = "gemma-4-e4b", qwen4b = "qwen3.5-4b", qwen2b = "qwen3.5-2b", qwen4b6 = "qwen3.5-4b-6bit"
+
+    /// Offered only when Gemma 4 E4B does not load on this Mac (or when it is already chosen or downloaded).
+    public var isFallback: Bool { self == .qwen4b6 }
 
     /// The name in menus and in the search note.
     public var displayName: String {
@@ -15,6 +18,7 @@ public enum MLXModelChoice: String, Codable, CaseIterable, Sendable {
         case .gemma4e4b: "Gemma 4 E4B"
         case .qwen4b: "Qwen3.5-4B"
         case .qwen2b: "Qwen3.5-2B"
+        case .qwen4b6: "Qwen3.5-4B 6-bit"
         }
     }
 
@@ -26,9 +30,14 @@ public enum MLXModelChoice: String, Codable, CaseIterable, Sendable {
         memory >= gemma4e4b.minMemory ? .gemma4e4b : .qwen4b
     }
 
+    /// "Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB."
+    public static func memoryWarning(_ c: MLXModelChoice, memory: UInt64) -> String {
+        "\(c.displayName) needs \(c.minMemory >> 30) GB of memory. This Mac has \(memory >> 30) GB."
+    }
+
     /// The models to offer on a Mac with `memory` bytes.
     public static func offered(memory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> [MLXModelChoice] {
-        allCases.filter { memory >= $0.minMemory }
+        allCases.filter { memory >= $0.minMemory && !$0.isFallback }
     }
 }
 
@@ -90,6 +99,15 @@ public struct LLMConfig: Codable, Equatable, Sendable {
         if let v = try? c.decodeIfPresent(Double.self, forKey: .timeoutSeconds) { timeoutSeconds = v }
         else { timeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .timeoutSeconds).map(Double.init) ?? timeoutSeconds }
         if timeoutSeconds <= 0 { timeoutSeconds = LLMConfig().timeoutSeconds }
+    }
+
+    /// When `mlxModel` needs more than `memory`, it changes to `MLXModelChoice.recommended(memory:)`, and this gives
+    /// one line that says so; else nil.
+    public mutating func fitMemory(_ memory: UInt64) -> String? {
+        guard memory < mlxModel.minMemory else { return nil }
+        let want = mlxModel
+        mlxModel = MLXModelChoice.recommended(memory: memory)
+        return MLXModelChoice.memoryWarning(want, memory: memory) + " Sanketa uses \(mlxModel.displayName)."
     }
 
     /// The variable to read the key from for this server: `api_key_env` when set, else `OPENAI_API_KEY` for
@@ -168,9 +186,15 @@ public struct Config: Codable, Equatable {
     }
 
     /// A missing file gives defaults and no error; bad TOML gives defaults and a short message, such as `hotkey must be a string`.
-    public static func load(_ url: URL) -> (Config, String?) {
+    /// The config and why it did not load. A `mlx_model` that needs more memory than `memory` changes to the model
+    /// that fits, and the second value then says so.
+    public static func load(_ url: URL, memory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> (Config, String?) {
         guard let data = try? Data(contentsOf: url) else { return (Config(), nil) }
-        do { return (try TOMLDecoder().decode(Config.self, from: data), nil) }
+        do {
+            var c = try TOMLDecoder().decode(Config.self, from: data)
+            let warning = c.llm.fitMemory(memory)
+            return (c, warning)
+        }
         catch { return (Config(), PackLint.describe(error, root: "")) }
     }
 }

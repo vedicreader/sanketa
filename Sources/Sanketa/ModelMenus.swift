@@ -2,6 +2,7 @@ import AppKit
 import SanketaCore
 import SanketaUI
 import SanketaAI
+import SanketaMLX
 
 /// The "OpenAI Model", "OpenAI Key…" and "On-Device Model" status-menu items: the model list, the key box and the
 /// model download. The app owns the config and the router; this asks it for them and tells it about a change.
@@ -139,8 +140,9 @@ import SanketaAI
 
     func renderOnDeviceMenu() {
         let installed = Set(MLXModelChoice.allCases.filter { installer.isInstalled(ModelCatalog.spec($0)) })
+        let failed = Set(MLXModelChoice.allCases.filter { MLXChooser.didFail(installer.directory(ModelCatalog.spec($0))) })
         deviceLines = StatusMenus.onDeviceLines(selected: config().mlxModel, installed: installed, progress: downloadProgress,
-                                                mlxReady: mlxReady, error: downloadError)
+                                                mlxReady: mlxReady, error: downloadError, failed: failed)
         fill(onDeviceMenu, deviceLines, #selector(pickDevice(_:)))
     }
 
@@ -150,10 +152,15 @@ import SanketaAI
         case .download(let c): download(c)
         case .use(let c): use(c)
         case .remove:
-            for c in MLXModelChoice.allCases where installer.isInstalled(ModelCatalog.spec(c)) {
-                do { try installer.remove(ModelCatalog.spec(c)) } catch { downloadError = "Could not remove \(StatusMenus.name(c))." }
+            // the loaded model goes out of memory first, so no file is in use when it goes
+            Task { @MainActor in
+                await MLXChooser.unloadAll()
+                for c in MLXModelChoice.allCases where installer.isInstalled(ModelCatalog.spec(c)) {
+                    do { try installer.remove(ModelCatalog.spec(c)) } catch { downloadError = "Could not remove \(StatusMenus.name(c))." }
+                }
+                change(config())
+                renderOnDeviceMenu()
             }
-            change(config())
         default: break
         }
     }

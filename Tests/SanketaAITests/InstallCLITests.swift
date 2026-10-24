@@ -12,13 +12,13 @@ private final class Lines: @unchecked Sendable {
 }
 
 @Suite struct InstallCLITests {
-    func run(_ which: String?, force: Bool, mlxReady: Bool) async throws -> (status: Int32, out: [String], err: [String], stub: Stub, root: URL) {
+    func run(_ which: String?, force: Bool, mlxReady: Bool, memory: UInt64 = 36 << 30) async throws -> (status: Int32, out: [String], err: [String], stub: Stub, root: URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-installcli-\(UUID().uuidString)")
         let stub = Stub([:])   // every path answers 404
         let installer = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in Int64.max })
         let out = Lines(), err = Lines()
         let s = await InstallCLI.run(which: which, force: force, mlxReady: mlxReady, defaultChoice: .qwen2b, installer: installer,
-                                     out: out.add, err: err.add)
+                                     memory: memory, out: out.add, err: err.add)
         return (s, out.lines, err.lines, stub, root)
     }
 
@@ -52,6 +52,15 @@ private final class Lines: @unchecked Sendable {
         #expect(r.status == 1)
         #expect(r.out.first == "downloading mlx-community/unsloth-gemma-4-E4B-it-qat-oQ4 (5.4 GB)")
         #expect(r.stub.requests.first?.url?.path.hasPrefix("/mlx-community/unsloth-gemma-4-E4B-it-qat-oQ4/resolve/eaa5413e") == true)
+    }
+
+    @Test func gemmaOnASmallMacNeedsForce() async throws {
+        let r = try await run("e4b", force: false, mlxReady: true, memory: 8 << 30)
+        #expect(r.status == 2 && r.stub.requests.isEmpty)
+        #expect(r.err == ["Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB. Use --force to download it anyway."])
+        let forced = try await run("e4b", force: true, mlxReady: true, memory: 8 << 30)
+        #expect(forced.stub.requests.first?.url?.host == "huggingface.co")
+        #expect(try await run("4b", force: false, mlxReady: true, memory: 8 << 30).stub.requests.count == 1)
     }
 
     @Test func progressGivesEachStepOnce() {

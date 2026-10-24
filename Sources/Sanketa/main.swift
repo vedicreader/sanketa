@@ -144,6 +144,8 @@ func ask(_ query: String, out: String?) {
     let items = lib.packs.values.sorted { $0.id < $1.id }.flatMap { SearchItem.items(from: $0) }
     let timeout = config.llm.timeoutSeconds
     Task.detached {
+        // one search only: wait for the on-device model to load, so the answer is not plain because it was loading
+        if let mlx = llm.router.searchChooser() as? MLXChooser { try? await mlx.load() }
         let r = await SmartSearch(router: llm.router, timeout: timeout).results(query, items, context: [])
         let short = query.split(whereSeparator: \.isWhitespace).count < 3
         let backend = r.note ?? (short ? "plain search (fewer than 3 words)" : llm.router.searchChooser()?.name ?? "plain search")
@@ -154,7 +156,7 @@ func ask(_ query: String, out: String?) {
     dispatchMain()
 }
 
-/// `--install-model [e4b|4b|2b] [--force]`: downloads and checks the on-device model (the `[llm] mlx_model` one by default).
+/// `--install-model [e4b|4b|2b|4b-6bit] [--force]`: downloads and checks the on-device model (the `[llm] mlx_model` one by default).
 /// While this build can't run the model, it needs `--force`.
 func installModel(_ which: String?) {
     let force = CommandLine.arguments.contains("--force")
@@ -176,7 +178,7 @@ for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay", "--ask"]
             usage: Sanketa [--dump-context [--watch] [--pack FILE] [--delay S] | --dump-menus <bundleID> | --dump-ax <bundleID>
                            | --dump-coach [--full] | --ask "<query>"] [--out FILE]
                    Sanketa --lint-pack FILE|FOLDER...
-                   Sanketa --install-model [e4b|4b|2b] [--force]
+                   Sanketa --install-model [e4b|4b|2b|4b-6bit] [--force]
                    Sanketa --mlx-check
 
             """.utf8))

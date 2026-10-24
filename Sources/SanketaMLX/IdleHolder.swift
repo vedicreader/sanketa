@@ -12,6 +12,7 @@ public actor IdleHolder<Value: Sendable> {
     private var timer: Task<Void, Never>?
     /// Goes up at each use, so a timer that fires late after a newer use does nothing.
     private var generation = 0
+    private var dropAfterUse = false
 
     public init(idle: TimeInterval, load: @escaping @Sendable () async throws -> Value,
                 unload: @escaping @Sendable (Value) -> Void = { _ in }) {
@@ -19,13 +20,27 @@ public actor IdleHolder<Value: Sendable> {
     }
 
     public var isLoaded: Bool { value != nil }
+    public var isLoading: Bool { loading != nil }
+
+    /// Unloads now; while a use runs, as soon as the last one ends. A load that runs goes on.
+    public func drop() {
+        generation += 1
+        timer?.cancel(); timer = nil
+        if active > 0 { dropAfterUse = true; return }
+        guard let v = value else { return }
+        value = nil
+        unload(v)
+    }
 
     /// Runs `body` with the value, off this actor. The idle timer starts again when the last running use ends.
     public func use<R: Sendable>(_ body: @Sendable (Value) async throws -> R) async throws -> R {
         generation += 1
         timer?.cancel(); timer = nil
         active += 1
-        defer { active -= 1; if active == 0 { arm() } }
+        defer {
+            active -= 1
+            if active == 0 { if dropAfterUse { dropAfterUse = false; drop() } else { arm() } }
+        }
         return try await body(try await obtain())
     }
 

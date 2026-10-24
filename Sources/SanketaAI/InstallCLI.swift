@@ -15,14 +15,15 @@ public final class ProgressSteps: @unchecked Sendable {
     }
 }
 
-/// `Sanketa --install-model [e4b|4b|2b] [--force]`.
+/// `Sanketa --install-model [e4b|4b|2b|4b-6bit] [--force]`.
 public enum InstallCLI {
     public static let notReady = "This build cannot run on-device models yet. Use --force to download anyway."
-    public static let usage = "usage: Sanketa --install-model [e4b|4b|2b] [--force]"
+    public static let usage = "usage: Sanketa --install-model [e4b|4b|2b|4b-6bit] [--force]"
 
     /// The exit status: 0 when the model is installed, 1 when the download fails, 2 for a wrong size name, or when this
-    /// build can't run the model and `force` is not set. Nothing is requested in the cases that give 2.
+    /// build can't run the model or the Mac has too little memory for it, and `force` is not set. Nothing is requested in the cases that give 2.
     public static func run(which: String?, force: Bool, mlxReady: Bool, defaultChoice: MLXModelChoice, installer: ModelInstaller,
+                           memory: UInt64 = ProcessInfo.processInfo.physicalMemory,
                            out: @escaping @Sendable (String) -> Void, err: (String) -> Void) async -> Int32 {
         let choice: MLXModelChoice
         switch which {
@@ -30,9 +31,14 @@ public enum InstallCLI {
         case "e4b": choice = .gemma4e4b
         case "4b": choice = .qwen4b
         case "2b": choice = .qwen2b
+        case "4b-6bit": choice = .qwen4b6
         default: err(usage); return 2
         }
         guard mlxReady || force else { err(notReady); return 2 }
+        if memory < choice.minMemory && !force {
+            err(MLXModelChoice.memoryWarning(choice, memory: memory) + " Use --force to download it anyway.")
+            return 2
+        }
         let spec = ModelCatalog.spec(choice)
         if installer.isInstalled(spec) { out("installed \(installer.directory(spec).path)"); return 0 }
         out("downloading \(spec.repo) (\(String(format: "%.1f GB", Double(spec.downloadSize) / 1e9)))")
