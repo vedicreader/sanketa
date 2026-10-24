@@ -17,17 +17,27 @@ struct PanelView: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @State var position = ScrollPosition(edge: .top)
     @State var fade = 1.0
+    @Environment(\.imageRendering) var imageRendering
 
     var showsList: Bool { search.query.isEmpty || model.listFocused }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
-                Passthrough(view: mark).frame(width: Brand.markPoints, height: Brand.markPoints)
+                Group {
+                    if imageRendering, let m = Brand.mark() {
+                        Image(nsImage: m).renderingMode(.template).resizable().foregroundStyle(Theme.secondary)
+                    } else { Passthrough(view: mark) }
+                }
+                .frame(width: Brand.markPoints, height: Brand.markPoints)
                 Breadcrumb(layers: model.context.layers, focused: model.focusedLayerIndex, click: clickLayer)
             }
             .frame(height: Theme.topRow).padding(.horizontal, Theme.pad)
-            SearchField(field: field).padding(.horizontal, Theme.pad - 2).padding(.top, Theme.fieldGap).padding(.bottom, 10)
+            Group {
+                // ImageRenderer cannot draw AppKit views: a clear slot of the field's height, for the render test to fill
+                if imageRendering { Color.clear.frame(height: field.intrinsicContentSize.height) } else { SearchField(field: field) }
+            }
+            .padding(.horizontal, Theme.pad - 2).padding(.top, Theme.fieldGap).padding(.bottom, 10)
             ScrollViewReader { proxy in
                 PanelScroll(position: $position, offset: { model.scrollOffset = $0 }) {
                     VStack(alignment: .leading, spacing: Theme.sectionGap) {
@@ -208,15 +218,16 @@ struct Footer: View {
 }
 
 extension EnvironmentValues {
-    /// Draws the list as a clipped stack instead of a scroll view, for `ImageRenderer`, which does not draw scroll content.
-    @Entry var flatList = false
+    /// True under `ImageRenderer` (the render test): the list is a clipped stack, because `ImageRenderer` does not draw
+    /// scroll content, and AppKit views give way to stand-ins.
+    @Entry var imageRendering = false
 }
 
 struct PanelScroll<Content: View>: View {
     @Binding var position: ScrollPosition
     let offset: (CGFloat) -> Void
     @ViewBuilder var content: Content
-    @Environment(\.flatList) var flat
+    @Environment(\.imageRendering) var flat
 
     var body: some View {
         if flat {

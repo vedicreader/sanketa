@@ -110,6 +110,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         add("Open Packs Folder", #selector(openPacks))
         add("Open Config", #selector(openConfig))
         add("Allow Accessibility…", #selector(grantAccessibility))
+        add("Copy Debug Info", #selector(copyDebugInfo))
         m.addItem(.separator())
         add("Quit Sanketa", #selector(quit))
         s.menu = m
@@ -169,6 +170,15 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     }
 
     @objc func grantAccessibility() { AXReader.promptForTrust() }
+
+    /// For a bug report: version, the app in front, layers, packs and Accessibility state. No file contents.
+    @objc func copyDebugInfo() {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let text = DebugInfo.report(version: version, context: monitor.context, library: library, configPath: configURL.path,
+                                    configError: configError)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
 
     @objc func quit() { NSApp.terminate(nil) }
 }
