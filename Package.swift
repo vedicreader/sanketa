@@ -17,5 +17,6 @@ let package = Package(
         .executableTarget(name: "Sanketa", dependencies: ["SanketaCore", "SanketaSystem"], swiftSettings: v5),
         .testTarget(name: "SanketaCoreTests", dependencies: ["SanketaCore"],
                     resources: [.copy("Fixtures")], swiftSettings: v5),
+        .testTarget(name: "SanketaSystemTests", dependencies: ["SanketaCore", "SanketaSystem"], swiftSettings: v5),
     ]
 )

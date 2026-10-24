@@ -1,0 +1,80 @@
+[
+ {
+  "pid": 100,
+  "ppid": 1,
+  "pgid": 100,
+  "tty": null,
+  "tpgid": 0,
+  "name": "Conterm",
+  "argv": [
+   "Conterm"
+  ],
+  "start": 1000,
+  "path": "/usr/bin/Conterm"
+ },
+ {
+  "pid": 200,
+  "ppid": 100,
+  "pgid": 200,
+  "tty": "ttys001",
+  "tpgid": 300,
+  "name": "fish",
+  "argv": [
+   "fish"
+  ],
+  "start": 1001,
+  "path": "/usr/bin/fish"
+ },
+ {
+  "pid": 300,
+  "ppid": 200,
+  "pgid": 300,
+  "tty": "ttys001",
+  "tpgid": 300,
+  "name": "tmux",
+  "argv": [
+   "tmux"
+  ],
+  "start": 1002,
+  "path": "/usr/bin/tmux"
+ },
+ {
+  "pid": 400,
+  "ppid": 1,
+  "pgid": 400,
+  "tty": null,
+  "tpgid": 0,
+  "name": "tmux",
+  "argv": [
+   "tmux"
+  ],
+  "start": 900,
+  "path": "/usr/bin/tmux"
+ },
+ {
+  "pid": 500,
+  "ppid": 400,
+  "pgid": 500,
+  "tty": "ttys005",
+  "tpgid": 600,
+  "name": "fish",
+  "argv": [
+   "fish"
+  ],
+  "start": 901,
+  "path": "/usr/bin/fish"
+ },
+ {
+  "pid": 600,
+  "ppid": 500,
+  "pgid": 600,
+  "tty": "ttys005",
+  "tpgid": 600,
+  "name": "htop",
+  "argv": [
+   "htop"
+  ],
+  "start": 902,
+  "path": "/usr/bin/htop"
+ }
+]
