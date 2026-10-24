@@ -18,11 +18,14 @@ jobs:
       - uses: actions/checkout@v4
       - run: swift --version
       - run: brew install tmux fish htop
+      # make bundle compiles the MLX Metal shaders, which need this toolchain
+      - run: xcodebuild -downloadComponent MetalToolchain
       - run: swift build
       - run: swift test
-      - name: Ad-hoc bundle
+      - name: Ad-hoc bundle (xcodebuild, with the MLX metallib)
         run: |
           make app SIGN_ID=-
+          find build/Sanketa.app -name '*.metallib' | grep -q .
           make zip ZIP="dist/Sanketa-${GITHUB_SHA::7}.zip"
       - uses: actions/upload-artifact@v4
         with:

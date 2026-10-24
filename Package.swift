@@ -8,6 +8,8 @@ let package = Package(
     platforms: [.macOS(.v26)],
     dependencies: [
         .package(url: "https://github.com/dduan/TOMLDecoder", exact: "0.4.5"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.32.3"),
+        .package(url: "https://github.com/huggingface/swift-transformers", exact: "1.3.5"),
     ],
     targets: [
         .target(name: "SanketaCore",
@@ -16,7 +18,16 @@ let package = Package(
         .target(name: "SanketaSystem", dependencies: ["SanketaCore"], swiftSettings: v5),
         .target(name: "SanketaUI", dependencies: ["SanketaCore", "SanketaSystem"], swiftSettings: v5),
         .target(name: "SanketaAI", dependencies: ["SanketaCore"], swiftSettings: v5),
-        .executableTarget(name: "Sanketa", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI", "SanketaAI"], swiftSettings: v5),
+        // the only target that imports MLX; its Metal shaders compile only under xcodebuild (make bundle)
+        .target(name: "SanketaMLX",
+                dependencies: ["SanketaCore",
+                               .product(name: "MLXLLM", package: "mlx-swift-lm"),
+                               .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+                               .product(name: "MLXGuidedGeneration", package: "mlx-swift-lm"),
+                               .product(name: "Tokenizers", package: "swift-transformers")],
+                swiftSettings: v5),
+        .executableTarget(name: "Sanketa", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI", "SanketaAI", "SanketaMLX"],
+                          swiftSettings: v5),
         .testTarget(name: "SanketaCoreTests", dependencies: ["SanketaCore"],
                     resources: [.copy("Fixtures")], swiftSettings: v5),
         // test helper: an AppKit window whose title tests set through stdin
@@ -25,5 +36,6 @@ let package = Package(
         .testTarget(name: "SanketaUITests", dependencies: ["SanketaCore", "SanketaSystem", "SanketaUI", "SanketaTitleHost"],
                     swiftSettings: v5),
         .testTarget(name: "SanketaAITests", dependencies: ["SanketaAI", "SanketaCore"], swiftSettings: v5),
+        .testTarget(name: "SanketaMLXTests", dependencies: ["SanketaMLX", "SanketaCore"], swiftSettings: v5),
     ]
 )

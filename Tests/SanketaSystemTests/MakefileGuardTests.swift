@@ -25,7 +25,10 @@ import Testing
                      // a leading - would be an option: ssh -oProxyCommand runs a command
                      ["remote-setup", "HOST=-oProxyCommand"], ["lint", "PACKS=-x"], ["test", "FILTER=-h"], ["install", "INSTALL_DIR=-x"],
                      ["app", "SIGN_ID=Apple Development\"; touch \(marker.path); \""], ["app", "SIGN_ID=$(shell touch \(marker.path))"],
-                     ["zip", "ZIP=x;touch \(marker.path)"]] {
+                     ["zip", "ZIP=x;touch \(marker.path)"],
+                     // the xcodebuild paths go into recipes as text, so they are checked too
+                     ["bundle", "XCODE_DATA=x;touch \(marker.path)"], ["test-mlx", "XCODE_DATA=$(shell touch \(marker.path))"],
+                     ["bundle", "XCODE_DATA=`id`"], ["verify", "APP=x;id"], ["bundle", "XCODE_DATA=-x"]] {
             let r = try make(args)
             #expect(r.status == 2, "\(args)")
             #expect(r.err.contains("is not safe") || r.err.contains("must not start with -"), "\(args): \(r.err)")

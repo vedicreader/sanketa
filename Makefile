@@ -1,6 +1,7 @@
 SIGN_ID ?= Apple Development
 RELEASE_ID ?= Developer ID Application
 APP := build/Sanketa.app
+XCODE_DATA := build/xcode
 VERSION := $(shell /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
 # defaults as plain text (:=), so the check below sees no $( ) in them
 ifeq ($(origin INSTALL_DIR),undefined)
@@ -10,7 +11,7 @@ ifeq ($(origin ZIP),undefined)
 ZIP := dist/Sanketa-$(VERSION).zip
 endif
 
-.PHONY: test build lint shots bundle app release zip publish run relaunch install verify gatekeeper remote-setup
+.PHONY: test test-mlx build lint shots bundle app release zip publish run relaunch install verify gatekeeper remote-setup
 
 # Values from the command line go to recipes only through the environment ("$$FILTER"), so the shell never parses
 # them. Each value must also pass this check, which reads the raw text with $(value) and so never expands it.
@@ -31,7 +32,7 @@ check_var = $(if $(call strip_chars,$(call blanks_marked,$(value $1)),$2),$(erro
 check_dash = $(if $(filter -%,$(value $1)),$(error $1 must not start with -))
 # identity names such as "Apple Development: Name (TEAM)": spaces are safe in them, tabs and new lines are not
 check_identity = $(if $(call strip_chars,$(subst $(space),,$(subst $(tab),!,$(subst $(newline),!,$(value $1)))),$(SAFE_CHARS) ( ) :),$(error $1 has a character that is not safe. Use only letters, digits, spaces and _ . / - ( ) :))
-$(foreach v,FILTER PACKS SHOTS INSTALL_DIR ZIP,$(call check_var,$v,$(SAFE_CHARS))$(call check_dash,$v))
+$(foreach v,FILTER PACKS SHOTS INSTALL_DIR ZIP APP XCODE_DATA,$(call check_var,$v,$(SAFE_CHARS))$(call check_dash,$v))
 $(call check_var,HOST,$(SAFE_CHARS) @ :)$(call check_dash,HOST)
 $(foreach v,SIGN_ID RELEASE_ID,$(call check_identity,$v))
 export FILTER PACKS SHOTS HOST INSTALL_DIR ZIP SIGN_ID RELEASE_ID
@@ -39,6 +40,11 @@ export FILTER PACKS SHOTS HOST INSTALL_DIR ZIP SIGN_ID RELEASE_ID
 # FILTER=<name> runs only the tests whose names match (letters, digits and _ . / - only)
 test:
 	swift test $(if $(value FILTER),--filter "$$FILTER")
+
+# the MLX tests that need the Metal shaders, which only xcodebuild compiles
+test-mlx:
+	xcodebuild test -scheme Sanketa-Package -destination 'platform=macOS,arch=arm64' -derivedDataPath $(XCODE_DATA) \
+		-only-testing:SanketaMLXTests
 
 build:
 	swift build
@@ -51,12 +57,19 @@ lint: build
 shots:
 	SANKETA_RENDER=1 $(if $(value SHOTS),SANKETA_SHOTS_OUT="$$SHOTS") swift test --filter RenderTests
 
+# xcodebuild, not swift build: only xcodebuild compiles the MLX Metal shaders (mlx-swift_Cmlx.bundle/default.metallib).
+# Coverage off and stripped, because the package scheme turns coverage on and keeps symbols.
 bundle:
-	swift build -c release
+	xcodebuild -scheme Sanketa -configuration Release -destination 'platform=macOS,arch=arm64' -derivedDataPath $(XCODE_DATA) \
+		CLANG_COVERAGE_MAPPING=NO DEAD_CODE_STRIPPING=YES DEPLOYMENT_POSTPROCESSING=YES \
+		STRIP_INSTALLED_PRODUCT=YES build
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
 	# a fresh inode: overwriting an executable in place can get it killed at exec on its cached signature
 	mkdir -p /tmp/sanketa-trash && mv $(APP)/Contents/MacOS/Sanketa /tmp/sanketa-trash/Sanketa-$$$$ 2>/dev/null || true
-	cp "$$(swift build -c release --show-bin-path)/Sanketa" $(APP)/Contents/MacOS/Sanketa
+	cp $(XCODE_DATA)/Build/Products/Release/Sanketa $(APP)/Contents/MacOS/Sanketa
+	# the package resource bundles, with the MLX metallib; old ones move aside so no stale file breaks the seal
+	for b in $(APP)/Contents/Resources/*.bundle; do if [ -e "$$b" ]; then mv "$$b" "/tmp/sanketa-trash/$$(basename "$$b")-$$$$"; fi; done
+	cp -R $(XCODE_DATA)/Build/Products/Release/*.bundle $(APP)/Contents/Resources/
 	cp Resources/Info.plist $(APP)/Contents/Info.plist
 	mkdir -p /tmp/sanketa-trash && mv $(APP)/Contents/Resources/Packs /tmp/sanketa-trash/Packs-$$$$ 2>/dev/null || true
 	cp -R Resources/Packs $(APP)/Contents/Resources/Packs
@@ -110,6 +123,8 @@ install:
 
 verify:
 	@python3 -c "import plistlib,sys,os; a=sys.argv[1]; p=plistlib.load(open(a+'/Contents/Info.plist','rb')); assert p['CFBundleIdentifier']=='dev.sanketa.Sanketa'; assert os.access(a+'/Contents/MacOS/Sanketa',os.X_OK); assert os.path.isdir(a+'/Contents/Resources/Packs'); assert os.path.isfile(a+'/Contents/Resources/Brand/sanketa-mark@2x.png'); print('bundle ok')" $(APP)
+	@find $(APP)/Contents/Resources -name '*.metallib' | grep -q . || { echo "no .metallib in $(APP)"; exit 1; }
+	$(APP)/Contents/MacOS/Sanketa --mlx-check
 	codesign --verify --strict $(APP)
 	@codesign -dvv $(APP) 2>&1 | grep Authority
 

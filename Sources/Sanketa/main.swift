@@ -2,6 +2,7 @@ import AppKit
 import SanketaCore
 import SanketaSystem
 import SanketaAI
+import SanketaMLX
 
 /// `$HOME` when it is an absolute path (tests set it to a temp folder), else the account's home folder.
 let homeDir = ProcessInfo.processInfo.environment["HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0, isDirectory: true) : nil }
@@ -174,6 +175,7 @@ for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay", "--ask"]
                            | --dump-coach [--full] | --ask "<query>"] [--out FILE]
                    Sanketa --lint-pack FILE|FOLDER...
                    Sanketa --install-model [4b|2b] [--force]
+                   Sanketa --mlx-check
 
             """.utf8))
         exit(2)
@@ -203,6 +205,10 @@ if CommandLine.arguments.contains("--lint-pack") {
     let r = PackLint.run(paths)
     print(r.lines.joined(separator: "\n"))
     exit(r.status)
+} else if CommandLine.arguments.contains("--mlx-check") {
+    // smoke check for the MLX build: the metallib path and one small sum on the GPU
+    guard let lib = MLXRuntime.metallibURL(), let sum = MLXRuntime.gpuCheck() else { print("metallib missing"); exit(1) }
+    print("metallib \(lib.path)\ngpu sum \(sum)")
 } else if CommandLine.arguments.contains("--quit-running") {
     quitRunning()
 } else if let q = arg(after: "--ask") {
