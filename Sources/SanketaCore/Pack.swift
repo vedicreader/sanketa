@@ -9,10 +9,12 @@ public struct KeyEntry: Codable, Hashable {
     public var enabled: Bool?
     /// the pack context this key belongs to; overrides the contexts' `groups`
     public var context: String?
+    /// true for a live tmux binding whose title is its raw command: it never goes to a remote model
+    public var staysOnMac: Bool?
     public init(keys: String, action: String, group: String? = nil, command: String? = nil, enabled: Bool? = nil,
-                context: String? = nil) {
+                context: String? = nil, staysOnMac: Bool? = nil) {
         self.keys = keys; self.action = action; self.group = group; self.command = command; self.enabled = enabled
-        self.context = context
+        self.context = context; self.staysOnMac = staysOnMac
     }
 }
 

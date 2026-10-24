@@ -22,7 +22,7 @@ func tmuxFixture(_ name: String) throws -> String {
         #expect(!ks.contains { $0.keys.contains("Mouse") || $0.keys.contains("Wheel") || $0.keys.contains("Click") })
         #expect(ks.contains { $0.keys == "prefix c" && $0.command == "new-window" })
         let root = Tmux.parseKeys("bind-key -n -T root       M-h                       select-pane -L\nbind-key    -T root       WheelUpPane               copy-mode -e")
-        #expect(root == [KeyEntry(keys: "M-h", action: "select-pane -L", group: "Live bindings", command: "select-pane -L")])
+        #expect(root == [KeyEntry(keys: "M-h", action: "select-pane -L", group: "Live bindings", command: "select-pane -L", staysOnMac: true)])
     }
 
     @Test func parseKeysRepeatFlagAndEscapes() throws {
@@ -41,7 +41,8 @@ func tmuxFixture(_ name: String) throws -> String {
         #expect(real.contains { $0.keys == "prefix ;" && $0.command == "last-pane" })
         #expect(real.contains { $0.keys == "prefix -" && $0.command == "delete-buffer" })
         let dash = Tmux.parseKeys("bind-key -T prefix - split-window -v")
-        #expect(dash == [KeyEntry(keys: "prefix -", action: "split-window -v", group: "Live bindings", command: "split-window -v")])
+        #expect(dash == [KeyEntry(keys: "prefix -", action: "split-window -v", group: "Live bindings", command: "split-window -v",
+                                 staysOnMac: true)])
         #expect(real.contains { $0.keys == "prefix #" && $0.command == "list-buffers" })
     }
 

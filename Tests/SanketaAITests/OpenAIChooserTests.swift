@@ -152,6 +152,30 @@ private func choiceError(_ body: () async throws -> [String]) async -> ChoiceErr
         #expect(lines.allSatisfy { l in items.contains { l.hasSuffix("| \($0.packName) | \($0.title) | \($0.detail)") } })
     }
 
+    @Test func rawTmuxCommandsStayOnMac() async throws {
+        // a tmux pack from TOML, then the user's live bindings: one matches a pack entry, one is a raw command
+        let pack = try PackLibrary.decode(Data("""
+        id = "tmux"
+        name = "tmux"
+        processes = ["tmux"]
+        [[keys]]
+        keys = "prefix %"
+        action = "Split pane left/right"
+        command = "split-window -h"
+        """.utf8))
+        let live = Tmux.parseKeys("bind-key -T prefix | split-window -h\nbind-key -T prefix D run-shell ~/bin/deploy.sh prod-host")
+        let all = SearchItem.items(from: Tmux.mergeLive(pack, live: live))
+        #expect(all.map(\.title) == ["Split pane left/right", "run-shell ~/bin/deploy.sh prod-host"])
+        let stub = Stub([chatPath: [(200, okReply)]])
+        var cfg = LLMConfig(); cfg.onDevice = false; cfg.appleFM = false; cfg.openai = true
+        let router = ModelRouter(config: cfg, onDevice: nil, appleFM: nil, remote: chooser(stub))
+        _ = await SmartSearch(router: router, timeout: 60).results("run the deploy script on prod host or split the pane", all, context: ["tmux"])
+        let user = try #require((stub.requests.first?.json?["messages"] as? [[String: String]])?.last?["content"])
+        let entries = try #require(user.components(separatedBy: "Entries:\n").last)
+        #expect(entries.hasPrefix("e1 | tmux | Split pane left/right | prefix |\n"), "\(entries)")
+        for s in ["deploy.sh", "prod-host", "run-shell", "prefix D"] { #expect(!entries.contains(s), "\(s) left the machine") }
+    }
+
     @Test func insecureAddressIsRefused() async {
         let stub = Stub(["/v1/chat/completions": [(200, okReply)], "/v1/models": [(200, #"{"data":[{"id":"x"}]}"#)]])
         let c = chooser(stub, base: URL(string: "http://192.168.1.20:11434/v1")!)

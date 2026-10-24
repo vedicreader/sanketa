@@ -26,7 +26,7 @@ public struct SearchItem: Hashable, Identifiable, Sendable {
     public static func items(from p: Pack, context: String? = nil) -> [SearchItem] {
         func mark(_ i: SearchItem, _ on: Bool) -> SearchItem { var i = i; i.active = on; return i }
         return p.keys.map { k in mark(SearchItem(packID: p.id, packName: p.name, kind: .key, title: k.action, detail: k.keys,
-                                                 mayLeave: p.fromTOML),
+                                                 mayLeave: p.fromTOML && k.staysOnMac != true),
                                       context.map { p.key(k, isIn: $0) } ?? false) }
         + p.tips.map { t in mark(SearchItem(packID: p.id, packName: p.name, kind: .tip, title: t.title, detail: t.snippet,
                                             explain: t.explain, tags: t.tags, mayLeave: p.fromTOML), context.map { p.tip(t, isIn: $0) } ?? false) }

@@ -126,7 +126,7 @@ Your shell history, the "better ways" results, window and document titles, and t
 
 This is all that Sanketa sends, and only in these cases:
 
-- With OpenAI on, for each search of three words or more: one HTTPS request to the server. It holds the model name, the fixed instructions, your search text and up to 40 entries from the packs and your live tmux keys. Each entry has a short ref, the pack name, the title and the keys or snippet. The API key goes in the request header. To OpenAI, Sanketa also asks the server not to store the request.
+- With OpenAI on, for each search of three words or more: one HTTPS request to the server. It holds the model name, the fixed instructions, your search text and up to 40 entries from the packs and your live tmux keys. Each entry has a short ref, the pack name, the title and the keys or snippet. A live tmux key that no pack describes has its raw tmux command as its title, so it stays on this Mac. The API key goes in the request header. To OpenAI, Sanketa also asks the server not to store the request.
 - With OpenAI on, when the OpenAI Model menu opens or Sanketa needs the cheapest model: one request for the model list, with the API key. Sanketa keeps the list for 10 minutes, so it does not ask for each search.
 - When you start a model download: plain requests to `huggingface.co` and its download servers, over HTTPS. They have no key and no data about you. Sanketa checks the size and the SHA-256 hash of each file.
 

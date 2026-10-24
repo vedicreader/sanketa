@@ -49,8 +49,9 @@ public enum Tmux {
             let key = unescape(String(k))
             guard !cmd.isEmpty, !mouseKey(key) else { return nil }
             switch table {
-            case "prefix": return KeyEntry(keys: "prefix \(key)", action: cmd, group: group, command: cmd)
-            case "root": return KeyEntry(keys: key, action: cmd, group: group, command: cmd)
+            // the title is the raw command, which can hold hosts and paths, so it stays on this Mac
+            case "prefix": return KeyEntry(keys: "prefix \(key)", action: cmd, group: group, command: cmd, staysOnMac: true)
+            case "root": return KeyEntry(keys: key, action: cmd, group: group, command: cmd, staysOnMac: true)
             default: return nil
             }
         }
