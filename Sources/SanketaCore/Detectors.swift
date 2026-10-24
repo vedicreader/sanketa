@@ -99,14 +99,14 @@ public enum Detectors {
         let cmd = emit(st[1].dropFirst())
         if sh == .fish {
             guard let glob = f.glob else { return nil }
-            return Rewrite(before: c.text, after: "\(cmd) \(glob)", explain: "** expands to the matching files; names with spaces stay intact. It skips hidden files and folders.")
+            return Rewrite(before: c.text, after: "\(cmd) \(glob)", explain: "** expands to the matching files; names with spaces stay intact.")
         }
         return Rewrite(before: c.text, after: "\(emit(st[0])) -exec \(cmd) {} +", explain: "-exec … {} + batches files like xargs and copes with spaces.")
     }
 
     static func findGlob(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
         guard sh == .fish, c.stages.count == 1, let glob = findParts(c.stages[0])?.glob else { return nil }
-        return Rewrite(before: c.text, after: "printf '%s\\n' \(glob)", explain: "fish's ** walks subdirectories (it skips hidden ones).")
+        return Rewrite(before: c.text, after: "printf '%s\\n' \(glob)", explain: "fish's ** walks subfolders and skips hidden ones, as -not -path '*/.*' does.")
     }
 
     static func lsGrep(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -206,7 +206,7 @@ public enum Detectors {
         // only field 1: on a line without the delimiter, cut prints the whole line and string split -fN (N > 1) prints nothing
         guard let d = delim, d.count == 1, field == "1", d != "-", d != "'", d != "\\" else { return nil }
         let shown = matches(d, #"^[A-Za-z0-9,:._=/@+%]$"#) ? d : "'\(d)'"
-        return Rewrite(before: c.text, after: "string split -f1 \(shown) -- \(quoted(v))", explain: "fish's string split -f1 picks the first field. It exits with status 1 when the text has no delimiter.")
+        return Rewrite(before: c.text, after: "string split -f1 \(shown) -- \(quoted(v))", explain: "fish's string split -f1 picks the first field. It exits with status 1 when the text has no delimiter. A value that starts with - (like -n) is an option to echo, so the old command can print something else.")
     }
 
     static func stringReplace(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -219,7 +219,7 @@ public enum Detectors {
         guard parts.count == 3, ["", "g"].contains(parts[2]), matches(parts[0], cls), parts[1].isEmpty || matches(parts[1], cls) else { return nil }
         let all = parts[2] == "g" ? "-a " : ""
         return Rewrite(before: c.text, after: "string replace \(all)\(parts[0]) \(parts[1].isEmpty ? "''" : parts[1]) \(quoted(v))",
-                       explain: "fish's string replace works on variables directly.")
+                       explain: "fish's string replace works on variables directly. A value that starts with - (like -n) is an option to echo, so the old command can print something else.")
     }
 
     static func stringCase(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -231,7 +231,7 @@ public enum Detectors {
         if lower.contains(a), upper.contains(b) { fn = "upper" }
         else if upper.contains(a), lower.contains(b) { fn = "lower" }
         else { return nil }
-        return Rewrite(before: c.text, after: "string \(fn) \(quoted(v))", explain: "fish's string upper/lower. It also changes non-ASCII letters.")
+        return Rewrite(before: c.text, after: "string \(fn) \(quoted(v))", explain: "fish's string upper/lower. It also changes non-ASCII letters. A value that starts with - (like -n) is an option to echo, so the old command can print something else.")
     }
 
     static func uselessCat(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -304,21 +304,30 @@ public enum Detectors {
 
     static func isVariable(_ s: String) -> Bool { matches(s, #"^\$[A-Za-z_][A-Za-z0-9_]*$"#) }
 
-    /// `find DIR [-type f] -name '*SUFFIX'`, and the fish glob that names the same files. The glob is nil when it
-    /// would differ in a way we can see: fish has no glob for files only (`-type f`), and `**` skips hidden entries,
-    /// so a hidden folder in DIR or a name pattern that is not `*.ext` (`*rc` also finds `.zshrc`) gives nil.
+    /// `find DIR [-type f] -name '*SUFFIX' [-not -path '*/.*']` (the parts in any order; `!` for `-not`), and the fish
+    /// glob that names the same entries. `**` skips hidden files and folders, so the glob is nil unless the find also
+    /// skips them with `-not -path '*/.*'` (`-not -name '.*'` is not enough: find still looks inside hidden folders).
+    /// It is also nil for `-type f` (fish has no glob for files only), a hidden folder in DIR, or a name that is not `*.ext`.
     static func findParts(_ s: [Word]) -> (dir: Word, glob: String?)? {
-        guard name(s) == "find", s.count == 4 || s.count == 6 else { return nil }
-        let dir = s[1], tail = s.dropFirst(2).map(\.raw)
+        guard name(s) == "find", s.count >= 4 else { return nil }
+        let dir = s[1]
         guard dir.raw == dir.value, matches(dir.raw, #"^[A-Za-z0-9._~/-]+$"#), !dir.isFlag else { return nil }
-        guard tail.count == 2 ? tail[0] == "-name" : (tail[0] == "-type" && tail[1] == "f" && tail[2] == "-name") else { return nil }
-        let pat = s[s.count - 1]
-        guard !pat.globbed, pat.value.hasPrefix("*"), matches(String(pat.value.dropFirst()), #"^[A-Za-z0-9._-]+$"#) else { return nil }
+        var pat: Word?, typeF = false, noHidden = false, i = 2
+        while i < s.count {
+            let r = s[i].raw, rest = s.count - i
+            if r == "-name", rest >= 2, pat == nil { pat = s[i + 1]; i += 2 }
+            else if r == "-type", rest >= 2, s[i + 1].raw == "f", !typeF { typeF = true; i += 2 }
+            else if r == "-not" || r == "!", rest >= 3, s[i + 1].raw == "-path", !s[i + 2].globbed, s[i + 2].value == "*/.*", !noHidden {
+                noHidden = true; i += 3
+            }
+            else { return nil }
+        }
+        guard let pat, !pat.globbed, pat.value.hasPrefix("*"), matches(String(pat.value.dropFirst()), #"^[A-Za-z0-9._-]+$"#) else { return nil }
         var d = dir.raw
         while d.count > 1, d.hasSuffix("/") { d.removeLast() }
         guard d != "/" else { return nil }
         let hidden = d.split(separator: "/").contains { $0.hasPrefix(".") && $0 != "." && $0 != ".." }
-        guard tail.count == 2, !hidden, matches(pat.value, #"^\*\.[A-Za-z0-9]+$"#) else { return (dir, nil) }
+        guard noHidden, !typeF, !hidden, matches(pat.value, #"^\*\.[A-Za-z0-9]+$"#) else { return (dir, nil) }
         return (dir, (d == "." ? "" : d + "/") + "**" + pat.value.dropFirst())
     }
 

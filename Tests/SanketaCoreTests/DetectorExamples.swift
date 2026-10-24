@@ -37,9 +37,15 @@ let positive: [Example] = [
     Example(.fish, "grep 404 a.log | awk '{print $5}'", "grep-awk", "awk '/404/ {print $5}' a.log", .exact),
     Example(.bash, "cat a.log | grep GET | awk '{print $1}'", "grep-awk", "awk '/GET/ {print $1}' a.log", .exact),
     Example(.fish, "grep 404 a.log | awk -F/ '{print $2}'", "grep-awk", "awk -F/ '/404/ {print $2}' a.log", .exact),
-    Example(.fish, "find . -name '*.py'", "find-glob", #"printf '%s\n' **.py"#, .sortedNoDotSlash),
-    Example(.fish, "find src -name '*.py'", "find-glob", #"printf '%s\n' src/**.py"#, .sortedLines),
-    Example(.fish, "find . -name '*.py' | xargs wc -l", "find-xargs", "wc -l **.py", .sortedNoDotSlash),
+    // hidden entries in the folder: the find skips them as ** does
+    Example(.fish, "find . -name '*.py' -not -path '*/.*'", "find-glob", #"printf '%s\n' **.py"#, .sortedNoDotSlash,
+            setup: "mkdir -p .venv; touch .venv/x.py .h.py"),
+    Example(.fish, "find src ! -path '*/.*' -name '*.py'", "find-glob", #"printf '%s\n' src/**.py"#, .sortedLines,
+            setup: "mkdir -p src/.cache; touch src/.cache/z.py"),
+    Example(.fish, "find . -name '*.py' -not -path '*/.*' | xargs wc -l", "find-xargs", "wc -l **.py", .sortedNoDotSlash,
+            setup: "mkdir -p .venv; touch .venv/x.py .h.py"),
+    Example(.bash, "find . -name '*.py' -not -path '*/.*' | xargs wc -l", "find-xargs", "find . -name '*.py' -not -path '*/.*' -exec wc -l {} +",
+            .sortedLines, setup: "mkdir -p .venv; touch .venv/x.py"),
     Example(.bash, "find . -name '*.py' | xargs wc -l", "find-xargs", "find . -name '*.py' -exec wc -l {} +", .sortedLines),
     Example(.fish, "ls | grep log", "ls-grep", "ls -d *log*", .sortedLines),
     Example(.bash, #"ls | grep '\.txt$'"#, "ls-grep", "ls -d *.txt", .sortedLines),
@@ -109,7 +115,14 @@ let unsafe: [Unsafe] = [
     // fish has no glob for files only: ** also gives folders
     Unsafe(shell: .fish, setup: "mkdir d.py", input: "find . -type f -name '*.py'", naive: #"printf '%s\n' **.py"#, check: .sortedNoDotSlash, declined: true),
     Unsafe(shell: .fish, setup: "mkdir d.py", input: "find . -type f -name '*.py' | xargs wc -l", naive: "wc -l **.py", check: .sortedNoDotSlash, declined: true),
-    // ** skips hidden entries
+    // ** skips hidden entries; find without -not -path '*/.*' lists them
+    Unsafe(shell: .fish, setup: "mkdir -p .venv; touch .venv/x.py", input: "find . -name '*.py'", naive: #"printf '%s\n' **.py"#,
+           check: .sortedNoDotSlash, declined: true),
+    Unsafe(shell: .fish, setup: "mkdir -p .venv; touch .venv/x.py", input: "find . -name '*.py' | xargs wc -l", naive: "wc -l **.py",
+           check: .sortedNoDotSlash, declined: true),
+    // -not -name '.*' skips hidden names, but find still looks inside hidden folders
+    Unsafe(shell: .fish, setup: "mkdir -p .venv; touch .venv/x.py", input: "find . -name '*.py' -not -name '.*'", naive: #"printf '%s\n' **.py"#,
+           check: .sortedNoDotSlash, declined: true),
     Unsafe(shell: .fish, setup: "touch .zshrc", input: "find . -name '*rc'", naive: #"printf '%s\n' **rc"#, check: .sortedNoDotSlash, declined: true),
     Unsafe(shell: .fish, setup: "mkdir -p .h/.i; touch .h/a.py .h/.i/z.py", input: "find .h -name '*.py'", naive: #"printf '%s\n' .h/**.py"#,
            check: .sortedLines, declined: true),
