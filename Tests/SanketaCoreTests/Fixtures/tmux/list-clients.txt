@@ -1,0 +1,2 @@
+/dev/ttys003	/dev/ttys007	fish
+/dev/ttys004	/dev/ttys009	htop
