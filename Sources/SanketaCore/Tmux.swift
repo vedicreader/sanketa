@@ -40,7 +40,7 @@ public enum Tmux {
             }
             guard next() == "bind-key" else { return nil }
             var table = "prefix"
-            while let w = rest.drop(while: { $0 == " " }).first, w == "-" {
+            while case let t = rest.drop(while: { $0 == " " }).prefix(while: { $0 != " " }), t.count == 2, t.first == "-", t.last!.isLetter {
                 let f = next()!
                 if f == "-T" { table = String(next() ?? "") } else if f == "-N" { _ = next() }
             }

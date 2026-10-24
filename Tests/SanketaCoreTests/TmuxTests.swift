@@ -39,6 +39,9 @@ func tmuxFixture(_ name: String) throws -> String {
         #expect(real.contains { $0.keys == "prefix Up" && $0.command == "select-pane -U" })
         #expect(real.contains { $0.keys == "prefix \"" && $0.command == "split-window" })
         #expect(real.contains { $0.keys == "prefix ;" && $0.command == "last-pane" })
+        #expect(real.contains { $0.keys == "prefix -" && $0.command == "delete-buffer" })
+        let dash = Tmux.parseKeys("bind-key -T prefix - split-window -v")
+        #expect(dash == [KeyEntry(keys: "prefix -", action: "split-window -v", group: "Live bindings", command: "split-window -v")])
         #expect(real.contains { $0.keys == "prefix #" && $0.command == "list-buffers" })
     }
 
