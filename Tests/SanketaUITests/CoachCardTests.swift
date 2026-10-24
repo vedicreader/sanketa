@@ -45,6 +45,26 @@ import Testing
         #expect(!m.tipCards.contains(item) && m.tipCards.first?.packID == "fish")
     }
 
+    /// A new count changes the item's text but not its id: the same card stays and shows the new count.
+    @Test func newCountUpdatesTheCardInPlace() throws {
+        let m = try model(), item = Self.coaching(.fish)
+        m.coachItems = [item]
+        let c = try context(["fish", "Terminal"])
+        m.update(c)
+        #expect(m.tipCards == [item])
+        let seed = m.seed
+        var more = Coaching(detectorID: "grep-count", title: "Count matches with grep -c", shell: .fish, before: "cat b | grep y | wc -l",
+                            after: "grep -c y b", explain: "grep -c counts matching lines itself.", count: 4, lastSeen: nil).item
+        m.coachItems = [more]
+        #expect(m.seed == seed && m.tipCards.count == 1 && m.tipCards[0].id == item.id)
+        #expect(m.tipCards[0].explain?.contains("4×") == true && m.tipCards[0].detail == "grep -c y b")
+        m.update(c)
+        #expect(m.seed == seed && m.tipCards == [more])
+        more.title = "Something else"
+        m.coachItems = [more]                          // a new id: the old card went
+        #expect(m.tipCards.first?.id != item.id)
+    }
+
     @Test func noCoachCardInsideProgramOrRemote() throws {
         let item = Self.coaching(.fish)
         for seed in 0..<8 as Range<UInt64> {

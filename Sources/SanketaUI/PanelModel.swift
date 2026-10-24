@@ -82,11 +82,15 @@ struct StackState {
     /// Groups with this many keys or fewer never fold: a fold line would save no space.
     public nonisolated static let alwaysOpen = 2
 
-    /// Better ways from shell history, set by the app. A change picks a new card only when the card is one that went.
+    /// Better ways from shell history, set by the app. A change picks a new card only when the card is one that went
+    /// (by id); a card that is still there takes its new text, such as a new count.
     public var coachItems: [SearchItem] = [] {
         didSet {
-            guard coachItems != oldValue, let c = tipCards.first, c.packID == "coach", !coachItems.contains(c) else { return }
-            rotate()
+            guard coachItems != oldValue else { return }
+            for (i, c) in tipCards.enumerated() where c.packID == "coach" {
+                guard let n = coachItems.first(where: { $0.id == c.id }) else { return rotate() }
+                if n != c { tipCards[i] = n }
+            }
         }
     }
 
@@ -202,9 +206,9 @@ struct StackState {
             scrollToken &+= 1
         }
         let packs = Set(sections.map(\.pack.id))
-        let coach = coachPool
-        if tipCards.isEmpty || tipCards.contains(where: { !packs.contains($0.packID) && !coach.contains($0) }) { seed &+= 1; pickTips() }
-        blocks = Self.blocks(layers: c.layers, sections: sections, tips: !tipCards.isEmpty)
+        let coach = Set(coachPool.map(\.id))
+        if tipCards.isEmpty || tipCards.contains(where: { !packs.contains($0.packID) && !coach.contains($0.id) }) { seed &+= 1; pickTips() }
+        else { blocks = Self.blocks(layers: c.layers, sections: sections, tips: !tipCards.isEmpty) }
     }
 
     func remember(_ key: String) {

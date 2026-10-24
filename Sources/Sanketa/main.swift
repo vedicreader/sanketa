@@ -99,10 +99,16 @@ func dumpAX(_ bundleID: String, out: String?) {
 /// `--dump-coach [--full]`: what the coach finds in the `[coach]` history files. Each line is shell, detector id and
 /// count, with no command text; `--full` adds before and after, for the user only.
 func dumpCoach(out: String?) {
+    let full = CommandLine.arguments.contains("--full")
+    if full, out != nil {
+        FileHandle.standardError.write(Data("--full does not work with --out. Shell history must not go into a file.\n".utf8))
+        exit(2)
+    }
+    if full { FileHandle.standardError.write(Data("This output contains commands from your shell history.\n".utf8)) }
     let c = loadConfig().coach
     guard c.enabled else { return emit(["coach is off in config.toml"], to: out) }
     let es = HistoryCache().entries(fish: c.fishURL, bash: c.bashURL, maxEntries: c.maxEntries)
-    emit(CoachMonitor.dumpLines(Coach.analyze(es), full: CommandLine.arguments.contains("--full")), to: out)
+    emit(CoachMonitor.dumpLines(Coach.analyze(es), full: full), to: out)
 }
 
 for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay"] where CommandLine.arguments.contains(flag) {
