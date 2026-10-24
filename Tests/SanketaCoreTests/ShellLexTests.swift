@@ -99,4 +99,20 @@ struct ShellLexTests {
         #expect(values("make |& tee log", .bash) == [[["make"], ["tee", "log"]]])
         #expect(values("make &| tee log", .fish) == [[["make"], ["tee", "log"]]])
     }
+
+    @Test func bashParensOutsideSubstitutionGiveNothing() {
+        #expect(ShellLex.commands("(cd d && cat a | grep b)", shell: .bash) == [])
+        #expect(ShellLex.commands("echo $((1 + 2)) \"(x)\" '(y)'", shell: .bash).count == 1)
+        #expect(ShellLex.commands("echo $(ls)", shell: .bash).count == 2)
+    }
+
+    @Test func attachedRedirects() {
+        for r in ["2>/dev/null", ">out.txt", "<in", "&>x", "2>&1", ">>log", "2>>e", ">&2", ">", "<"] {
+            #expect(Word(raw: r, value: r).isRedirect, "\(r)")
+        }
+        for r in ["a>b", "'>'", "grep", "2", "x"] { #expect(!Word(raw: r, value: r).isRedirect, "\(r)") }
+        let cs = ShellLex.commands("cat f | grep x 2>/dev/null", shell: .bash)
+        #expect(cs[0].stages[1].map(\.isRedirect) == [false, false, true])
+        #expect(cs[0].stages[0].map(\.isRedirect) == [false, false])
+    }
 }

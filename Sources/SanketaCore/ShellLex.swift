@@ -7,11 +7,8 @@ public struct Word: Hashable, Sendable {
 
     public init(raw: String, value: String, globbed: Bool = false) { self.raw = raw; self.value = value; self.globbed = globbed }
 
-    /// `<`, `>`, `>>`, `2>&1` and the like.
-    public var isRedirect: Bool {
-        raw.range(of: #"^[0-9&]*(<|>|>>|>&\d*|<&\d*)$"#, options: .regularExpression) != nil
-            || raw.range(of: #"^[0-9]*>&[0-9]+$"#, options: .regularExpression) != nil
-    }
+    /// `<`, `>`, `>>`, `2>&1`, and attached forms such as `2>/dev/null`, `>out.txt`, `<in` and `&>x`.
+    public var isRedirect: Bool { raw.range(of: #"^[0-9&]*(>>|>&|>|<&|<)"#, options: .regularExpression) != nil }
 }
 
 public enum Substitution: Hashable, Sendable { case paren, dollar, backtick }
@@ -29,7 +26,7 @@ public struct ShellCommand: Hashable, Sendable {
 
 public enum ShellLex {
     /// The pipelines of `line`, each followed by the commands of its substitutions. An unbalanced quote,
-    /// parenthesis or backtick gives `[]`.
+    /// parenthesis or backtick gives `[]`. In bash, so does an unquoted `(` or `)` outside `$(`.
     public static func commands(_ line: String, shell: Shell) -> [ShellCommand] {
         Lexer(Array(line.replacingOccurrences(of: "\r\n", with: "\n")), shell).lex() ?? []
     }
@@ -158,6 +155,7 @@ private struct Lexer {
                 guard let s = substitution(at: i) else { return nil }
                 subs += s.cmds; take(i...s.end); i = s.end + 1
             case ")" where shell == .fish: return nil
+            case "(" where shell == .bash, ")" where shell == .bash: return nil
             case "`" where shell == .bash:
                 guard let s = substitution(at: i) else { return nil }
                 subs += s.cmds; take(i...s.end); i = s.end + 1
