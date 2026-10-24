@@ -2,7 +2,7 @@ import Foundation
 
 /// Rules for the model list of an OpenAI-compatible server and the default model choice.
 public enum OpenAIModels {
-    static func host(_ url: URL) -> String {
+    public static func host(_ url: URL) -> String {
         (url.host ?? "").lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
     }
 
