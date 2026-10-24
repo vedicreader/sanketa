@@ -14,12 +14,14 @@ struct KeyChip: View {
     }
 }
 
+/// `small` is for inline use next to `Theme.small` text, such as a section header's prefix.
 struct KeyLabel: View {
     let text: String
-    static let symbols: Set<Character> = ["⌃", "⌥", "⇧", "⌘", "🌐", "←", "→", "↑", "↓", "↩", "⎋", "⌫", "⌦", "⇥"]
-    static let glyphGap: CGFloat = 3, stepGap: CGFloat = 12
+    var small = false
+    static let symbols: Set<Character> = ["⌃", "⌥", "⇧", "⌘", "🌐", "←", "→", "↑", "↓", "↩", "⌫"]
+    static let glyphGap: CGFloat = 2, stepGap: CGFloat = 8
 
-    /// `⌃⌥X` → ["⌃", "⌥", "X"]; runs of other characters (`PgUp`, `F6`) stay whole.
+    /// `⌃⌥X` → ["⌃", "⌥", "X"]; runs of other characters (`esc`, `pgup`, `F6`) stay whole.
     static func tokens(_ step: Substring) -> [String] {
         var out = [String](), run = ""
         for c in step {
@@ -33,11 +35,13 @@ struct KeyLabel: View {
     }
 
     var body: some View {
-        HStack(spacing: Self.stepGap) {
+        let scale: CGFloat = small ? 0.8 : 1
+        HStack(spacing: Self.stepGap * scale) {
             ForEach(Array(text.components(separatedBy: "  ").enumerated()), id: \.offset) { _, step in
-                HStack(spacing: Self.glyphGap) {
+                HStack(spacing: Self.glyphGap * scale) {
                     ForEach(Array(Self.tokens(Substring(step)).enumerated()), id: \.offset) { _, t in
-                        Text(t).font(Self.symbols.contains(t.first ?? " ") ? Theme.keySymbols : Theme.keys)
+                        Text(t).font(Self.symbols.contains(t.first ?? " ") ? (small ? Theme.keySymbolsSmall : Theme.keySymbols)
+                                                                           : (small ? Theme.keysSmall : Theme.keys))
                     }
                 }
             }

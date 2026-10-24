@@ -167,6 +167,7 @@ import Testing
         }
         // chord steps get the wider gap
         #expect(width(KeyLabel(text: "⌃B  %")) >= width(KeyLabel(text: "⌃B")) + width(KeyLabel(text: "%")) + Int(KeyLabel.stepGap * 2) - 2)
-        #expect(KeyLabel.tokens("🌐⌃⇧←") == ["🌐", "⌃", "⇧", "←"] && KeyLabel.tokens("⌃PgUp") == ["⌃", "PgUp"])
+        #expect(KeyLabel.tokens("🌐⌃⇧←") == ["🌐", "⌃", "⇧", "←"] && KeyLabel.tokens("⌃pgup") == ["⌃", "pgup"])
+        #expect(KeyLabel.tokens("⇧esc") == ["⇧", "esc"] && KeyLabel.tokens("⌥tab") == ["⌥", "tab"])
     }
 }

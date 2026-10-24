@@ -21,13 +21,13 @@ public extension MenuNode { var enabled: Bool { true } }
 public enum MenuKeys {
     static let fKeyVirtual = [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111]
     static let virtualNames: [Int: String] = {
-        var d = [36: "↩", 48: "⇥", 49: "Space", 51: "⌫", 53: "⎋", 117: "⌦", 123: "←", 124: "→", 125: "↓", 126: "↑"]
+        var d = [36: "↩", 48: "tab", 49: "space", 51: "⌫", 53: "esc", 117: "del", 123: "←", 124: "→", 125: "↓", 126: "↑"]
         for (i, k) in fKeyVirtual.enumerated() { d[k] = "F\(i + 1)" }
         return d
     }()
     static let glyphNames: [Int: String] = {
-        var d: [Int: String] = [kMenuReturnGlyph: "↩", kMenuTabRightGlyph: "⇥", kMenuDeleteLeftGlyph: "⌫",
-            kMenuEscapeGlyph: "⎋", kMenuDeleteRightGlyph: "⌦", kMenuSpaceGlyph: "Space",
+        var d: [Int: String] = [kMenuReturnGlyph: "↩", kMenuTabRightGlyph: "tab", kMenuDeleteLeftGlyph: "⌫",
+            kMenuEscapeGlyph: "esc", kMenuDeleteRightGlyph: "del", kMenuSpaceGlyph: "space",
             kMenuUpArrowGlyph: "↑", kMenuDownArrowGlyph: "↓", kMenuLeftArrowGlyph: "←", kMenuRightArrowGlyph: "→"]
         for i in 0..<12 { d[kMenuF1Glyph + i] = "F\(i + 1)" }
         return d
@@ -40,7 +40,7 @@ public enum MenuKeys {
         case 0xF702: "←"
         case 0xF703: "→"
         case 0xF704...0xF70F: "F\(u - 0xF704 + 1)"
-        case 0xF728: "⌦"
+        case 0xF728: "del"
         default: nil
         }
     }
@@ -50,10 +50,10 @@ public enum MenuKeys {
         if let c = char, let u = c.unicodeScalars.first {
             if (0xF700...0xF8FF).contains(u.value) { key = privateUse(u.value) }
             else if u.value == 0x0D || u.value == 0x03 { key = "↩" }
-            else if u.value == 0x09 { key = "⇥" }
+            else if u.value == 0x09 { key = "tab" }
             else if u.value == 0x7F || u.value == 0x08 { key = "⌫" }
-            else if u.value == 0x1B { key = "⎋" }
-            else if u.value == 0x20 { key = "Space" }
+            else if u.value == 0x1B { key = "esc" }
+            else if u.value == 0x20 { key = "space" }
             else if u.value > 0x20 { key = c.uppercased() }
         }
         if key == nil, let v = virtualKey { key = virtualNames[v] }

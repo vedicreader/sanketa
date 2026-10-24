@@ -16,7 +16,9 @@ struct LayerSection: View {
                         .rotationEffect(.degrees(collapsed ? 0 : 90))
                     Text(data.pack.name + (data.layer.host.map { " @ \($0)" } ?? "")).font(Theme.header)
                     Spacer()
-                    if let p = data.pack.prefix { Text("prefix \(KeyNotation.display(p))").font(Theme.small) }
+                    if let p = data.pack.prefix {
+                        HStack(spacing: 4) { Text("prefix").font(Theme.small); KeyLabel(text: KeyNotation.display(p), small: true) }
+                    }
                 }
                 .foregroundStyle(Theme.secondary).contentShape(Rectangle())
             }

@@ -36,6 +36,14 @@ struct FakeNode: MenuNode {
     @Test func formatCmdShiftS() { #expect(MenuKeys.format(char: "s", virtualKey: nil, modifiers: 1) == "⇧⌘S") }
     @Test func formatCtrlOptNoCmd() { #expect(MenuKeys.format(char: "t", virtualKey: nil, modifiers: 4|2|8) == "⌃⌥T") }
     @Test func formatVirtualKeyArrow() { #expect(MenuKeys.format(char: "", virtualKey: 126, modifiers: 0) == "⌘↑") }
+    @Test func formatObscureKeysAsWords() {
+        #expect(MenuKeys.format(char: "\u{1B}", virtualKey: nil, modifiers: 0) == "⌘esc")
+        #expect(MenuKeys.format(char: nil, virtualKey: 53, modifiers: 8) == "esc")
+        #expect(MenuKeys.format(char: "\t", virtualKey: nil, modifiers: 1) == "⇧⌘tab")
+        #expect(MenuKeys.format(char: " ", virtualKey: nil, modifiers: 4) == "⌃⌘space")
+        #expect(MenuKeys.format(char: "\u{F728}", virtualKey: nil, modifiers: 0) == "⌘del")
+    }
+
     @Test func formatNothingIsNil() {
         #expect(MenuKeys.format(char: nil, virtualKey: nil, modifiers: 0) == nil)
         #expect(MenuKeys.format(char: "", virtualKey: 9999, modifiers: 0) == nil)
