@@ -132,23 +132,34 @@ public struct LLMConfig: Codable, Equatable, Sendable {
         if timeoutSeconds <= 0 { timeoutSeconds = LLMConfig().timeoutSeconds }
     }
 
-    /// With no `on_device` in config.toml, the on-device model is on only when `mlxModel` is already installed: a
-    /// user who downloaded it before keeps it, and on a new Mac nothing is used or downloaded.
-    public mutating func chooseOnDevice(installed: (MLXModelChoice) -> Bool) {
-        if onDeviceUnset { onDevice = installed(mlxModel) }
+    /// With no `on_device` in config.toml, the on-device model is on only when a model that fits `memory` is already
+    /// installed: `mlxModel` when it is one, else the first such model in the catalog. A user who downloaded a model
+    /// before keeps it, and on a new Mac nothing is used or downloaded.
+    public mutating func chooseOnDevice(installed: (MLXModelChoice) -> Bool, memory: UInt64 = ProcessInfo.processInfo.physicalMemory) {
+        guard onDeviceUnset else { return }
+        let fits = MLXModelChoice.allCases.filter { installed($0) && memory >= $0.minMemory }
+        if !fits.contains(mlxModel), let m = fits.first { mlxModel = m }
+        onDevice = !fits.isEmpty
     }
 
     /// Below `MLXModelChoice.memoryFloor` the on-device model goes off. When `mlxModel` needs more than `memory`, it
-    /// changes to `MLXModelChoice.recommended(memory:)`. While the model is on, this gives one line that says so; else nil.
-    public mutating func fitMemory(_ memory: UInt64) -> String? {
+    /// changes to the first installed model that fits; with none, to `MLXModelChoice.recommended(memory:)`, and the
+    /// model goes off, so it is never on with no model. While the model was on, this gives one line that says so.
+    public mutating func fitMemory(_ memory: UInt64, installed: (MLXModelChoice) -> Bool = { _ in false }) -> String? {
         guard MLXModelChoice.anyFits(memory: memory) else {
             defer { onDevice = false }
             return onDevice ? MLXModelChoice.notEnoughMemory : nil
         }
         guard memory < mlxModel.minMemory else { return nil }
-        let want = mlxModel
+        let want = mlxModel, wasOn = onDevice
+        if let m = MLXModelChoice.allCases.first(where: { installed($0) && memory >= $0.minMemory }) {
+            mlxModel = m
+            return wasOn ? MLXModelChoice.memoryWarning(want, memory: memory) + " Sanketa uses \(m.displayName)." : nil
+        }
         mlxModel = MLXModelChoice.recommended(memory: memory)
-        return onDevice ? MLXModelChoice.memoryWarning(want, memory: memory) + " Sanketa uses \(mlxModel.displayName)." : nil
+        onDevice = false
+        return wasOn ? MLXModelChoice.memoryWarning(want, memory: memory)
+            + " No model that fits is downloaded, so the on-device model is off." : nil
     }
 
     /// The variable to read the key from for this server: `api_key_env` when set, else `OPENAI_API_KEY` for
@@ -237,8 +248,8 @@ public struct Config: Codable, Equatable {
             do { c = try TOMLDecoder().decode(Config.self, from: data) }
             catch { failure = PackLint.describe(error, root: "") }
         }
-        c.llm.chooseOnDevice(installed: installed)
-        let note = c.llm.fitMemory(memory)
+        c.llm.chooseOnDevice(installed: installed, memory: memory)
+        let note = c.llm.fitMemory(memory, installed: installed)
         return (c, failure, note)
     }
 }

@@ -112,7 +112,7 @@ struct CoachLLMConfigTests {
         // a Mac with too little memory: one warning, and the model that fits
         let (small, err, warn) = Config.load(try writeConfig("[llm]\non_device = true\nmlx_model = \"gemma-4-e4b\""), memory: 8 << 30)
         #expect(small.llm.mlxModel == .qwen4b && err == nil, "the file loaded: a note, not an error")
-        #expect(warn == "Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB. Sanketa uses Qwen3.5-4B.")
+        #expect(warn == "Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB. No model that fits is downloaded, so the on-device model is off.")
         #expect(Config.load(try writeConfig("[llm]\nmlx_model = \"qwen3.5-2b\""), memory: 8 << 30).note == nil)
     }
 
@@ -137,8 +137,9 @@ struct CoachLLMConfigTests {
         // a user who downloaded Gemma before this change: no on_device line, the default model is installed
         #expect(Config.load(try tempDir().appendingPathComponent("missing.toml"), memory: 16 << 30, installed: gemma).0.llm.onDevice)
         #expect(Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\""), memory: 16 << 30, installed: gemma).0.llm.onDevice)
-        // another model is chosen than the one installed: off
-        #expect(!Config.load(try writeConfig("[llm]\nmlx_model = \"qwen3.5-2b\""), memory: 16 << 30, installed: gemma).0.llm.onDevice)
+        // another model is chosen than the one installed: the installed one that fits
+        let other = Config.load(try writeConfig("[llm]\nmlx_model = \"qwen3.5-2b\""), memory: 16 << 30, installed: gemma).0.llm
+        #expect(other.onDevice && other.mlxModel == .gemma4e4b)
         // the user's own value wins
         #expect(!Config.load(try writeConfig("[llm]\non_device = false"), memory: 16 << 30, installed: gemma).0.llm.onDevice)
         #expect(Config.load(try writeConfig("[llm]\non_device = true"), memory: 16 << 30, installed: none).0.llm.onDevice)
@@ -147,6 +148,28 @@ struct CoachLLMConfigTests {
         #expect(!small.llm.onDevice && err == nil && note == MLXModelChoice.notEnoughMemory)
         let quiet = Config.load(try writeConfig(""), memory: 4 << 30, installed: none)
         #expect(!quiet.config.llm.onDevice && quiet.note == nil)
+    }
+
+    /// With no on_device line, a downloaded model that fits is used when the chosen one is not downloaded.
+    @Test func migrationUsesAnotherInstalledModelThatFits() throws {
+        let qwen = { (c: MLXModelChoice) in c == .qwen2b }
+        let l = Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\""), memory: 16 << 30, installed: qwen).0.llm
+        #expect(l.onDevice && l.mlxModel == .qwen2b)
+        // Gemma downloaded on a Mac that is too small for it: the Qwen that is also downloaded
+        let both = { (c: MLXModelChoice) in c == .qwen2b || c == .gemma4e4b }
+        let s = Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\""), memory: 8 << 30, installed: both).0.llm
+        #expect(s.onDevice && s.mlxModel == .qwen2b)
+    }
+
+    /// A model that is on but too big changes to a downloaded model that fits; with none, the model goes off.
+    @Test func tooBigModelNeverStaysOnWithNoModel() throws {
+        let none = { (_: MLXModelChoice) in false }, qwen4 = { (c: MLXModelChoice) in c == .qwen4b }
+        let (off, _, note) = Config.load(try writeConfig("[llm]\non_device = true\nmlx_model = \"gemma-4-e4b\""), memory: 8 << 30, installed: none)
+        #expect(!off.llm.onDevice)
+        #expect(note == "Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB. No model that fits is downloaded, so the on-device model is off.")
+        let (on, _, n2) = Config.load(try writeConfig("[llm]\non_device = true\nmlx_model = \"gemma-4-e4b\""), memory: 8 << 30, installed: qwen4)
+        #expect(on.llm.onDevice && on.llm.mlxModel == .qwen4b)
+        #expect(n2 == "Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB. Sanketa uses Qwen3.5-4B.")
     }
 
     @Test func keyVariableOnlyForOpenAIUnlessSet() throws {
