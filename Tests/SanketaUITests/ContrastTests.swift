@@ -115,7 +115,7 @@ import Testing
         return r.cgImage!
     }
 
-    /// Only the views render on the main actor; the pixel work runs off it, so other main-actor tests go on.
+    /// Only the views render on the main actor; the pixel work runs off it, so other tests go on.
     @Test func textContrastOverGlass() async throws {
         try FileManager.default.createDirectory(at: Self.out, withIntermediateDirectories: true)
         let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 1)
@@ -130,7 +130,10 @@ import Testing
         let texts = [("sections", false, AnyView(sections)), ("sections", true, AnyView(sections)),
                      ("results", false, AnyView(results)), ("results", true, AnyView(results))]
             .map { (name: $0.0, dark: $0.1, text: Self.pixels(render($0.2, dark: $0.1))) }
-        let (table, failures) = try await Task.detached { try Self.measureAll(texts) }.value
+        // a GCD thread, not the Swift pool: this is seconds of pixel work, and other tests wait for pool threads
+        let (table, failures) = try await withCheckedThrowingContinuation { c in
+            DispatchQueue.global().async { c.resume(with: Result { try Self.measureAll(texts) }) }
+        }
         print("contrast output: \(Self.out.path)\n" + table.joined(separator: "\n"))
         #expect(failures.isEmpty, "\(failures)")
     }

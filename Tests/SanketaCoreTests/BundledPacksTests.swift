@@ -144,7 +144,7 @@ func run(_ bin: String, _ args: [String], input: String) throws -> (Int32, Strin
         #expect(users.contains(NSUserName()), "\(users)")
     }
 
-    @Test func fishTipsCoverTheBasicsAndParse() throws {
+    @Test func fishTipsCoverTheBasicsAndParse() async throws {
         let all = try tips("fish").map(\.snippet).joined(separator: "\n")
         for needle in ["for ", "if test", "string split", "string replace", "string match", "math ", "set -l", "set -g", "set -gx",
                        "**", "(", " and ", " or ", "psub"] {
@@ -152,20 +152,22 @@ func run(_ bin: String, _ args: [String], input: String) throws -> (Int32, Strin
         }
         for id in ["fish", "grep", "awk", "find", "sed", "pipes", "git", "nvidia-smi"] {
             for t in try tips(id) {
-                let (st, err) = try run("/opt/homebrew/bin/fish", ["--no-config", "--no-execute"], input: t.snippet)
+                let snippet = t.snippet
+                let (st, err) = try await offPool { try run("/opt/homebrew/bin/fish", ["--no-config", "--no-execute"], input: snippet) }
                 #expect(st == 0, "\(id) / \(t.title) is not valid fish: \(err)")
             }
         }
     }
 
-    @Test func bashTipsCoverTheBasicsAndParse() throws {
+    @Test func bashTipsCoverTheBasicsAndParse() async throws {
         let all = try tips("bash").map(\.snippet).joined(separator: "\n")
         for needle in ["for ", "while IFS= read", "[[ ", "${", "$(", "set -euo pipefail"] {
             #expect(all.contains(needle), "bash tips lack \(needle)")
         }
         for id in ["bash", "grep", "awk", "find", "sed", "pipes", "git", "nvidia-smi"] {
             for t in try tips(id) {
-                let (st, err) = try run("/bin/bash", ["-n"], input: t.snippet)
+                let snippet = t.snippet
+                let (st, err) = try await offPool { try run("/bin/bash", ["-n"], input: snippet) }
                 #expect(st == 0, "\(id) / \(t.title) is not valid bash: \(err)")
             }
         }

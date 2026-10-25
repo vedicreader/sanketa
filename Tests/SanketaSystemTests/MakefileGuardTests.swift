@@ -6,7 +6,8 @@ import Testing
     static let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
     /// `make -n` prints the recipes and runs none; only `$(shell)` in a value could still run, so that is tested too.
-    func make(_ args: [String]) throws -> (status: Int32, out: String, err: String) {
+    func make(_ args: [String]) async throws -> (status: Int32, out: String, err: String) { try await offPool { try self.makeNow(args) } }
+    func makeNow(_ args: [String]) throws -> (status: Int32, out: String, err: String) {
         let p = Process(), out = Pipe(), err = Pipe()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/make")
         p.arguments = ["-n", "-C", Self.repo.path] + args
@@ -22,7 +23,7 @@ import Testing
         return (p.terminationStatus, o, e)
     }
 
-    @Test func refusesUnsafeValues() throws {
+    @Test func refusesUnsafeValues() async throws {
         let marker = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-pwned-\(UUID().uuidString)")
         for args in [["test", "FILTER=x';echo pwned;'"], ["test", "FILTER=$(shell touch \(marker.path))"], ["test", "FILTER=a b"],
                      ["lint", "PACKS=x;id"], ["shots", "SHOTS=`id`"], ["remote-setup", "HOST=me@gpubox;id"],
@@ -36,20 +37,23 @@ import Testing
                      ["zip", "NOTES=x;touch \(marker.path)"], ["zip", "NOTES=-x"],
                      // the check's own variables are override, so the command line cannot turn the check off
                      ["test", "FILTER=x;id", "check_var="], ["test", "FILTER=x;id", "SAFE_CHARS=x ; i d"], ["test", "FILTER=x;id", "strip_chars="]] {
-            let r = try make(args)
+            let r = try await make(args)
             #expect(r.status == 2, "\(args)")
             #expect(r.err.contains("is not safe") || r.err.contains("must not start with -"), "\(args): \(r.err)")
             #expect(r.out.isEmpty, "\(args): \(r.out)")
         }
         #expect(!FileManager.default.fileExists(atPath: marker.path))
         // a recipe macro from the command line is ignored
-        let z = try make(["zip", "ZIP_APP=touch \(marker.path)"])
+        let z = try await make(["zip", "ZIP_APP=touch \(marker.path)"])
         #expect(z.status == 0 && z.out.contains("ditto -c -k") && !z.out.contains(marker.path), "\(z.out) \(z.err)")
     }
 
     /// Runs /usr/bin/make on a temp makefile that includes mk/no-dry-run.mk and has a harmless `release` target, so
     /// no case can reach the real release recipe (codesign, notarize.sh, gh).
-    func guardMake(_ args: [String], makeflags: String? = nil) throws -> (status: Int32, out: String, err: String) {
+    func guardMake(_ args: [String], makeflags: String? = nil) async throws -> (status: Int32, out: String, err: String) {
+        try await offPool { try self.guardMakeNow(args, makeflags: makeflags) }
+    }
+    func guardMakeNow(_ args: [String], makeflags: String? = nil) throws -> (status: Int32, out: String, err: String) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-ndr-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let guardFile = Self.repo.appendingPathComponent("mk/no-dry-run.mk").path
@@ -69,58 +73,58 @@ import Testing
         return (p.terminationStatus, o, e)
     }
 
-    @Test func dryRunGuardRefusesEveryForm() throws {
+    @Test func dryRunGuardRefusesEveryForm() async throws {
         let cases: [[String]] = [["-n"], ["--dry-run"], ["--just-print"], ["--recon"], ["-nB"], ["-k", "-n"], ["-kn"],
                                  ["-n", "-j4"], ["-j4", "-n"], ["-n", "--no-print-directory"], ["--dry-run", "--no-print-directory"],
                                  ["--warn-undefined-variables", "-n"],
                                  // the guard's own variables are override, so the command line cannot empty them
                                  ["-n", "ndr_words="], ["-n", "ndr_short=", "ndr_flags="], ["-n", "ndr_letters=x"]]
         for args in cases {
-            let r = try guardMake(args)
+            let r = try await guardMake(args)
             #expect(r.status == 2 && r.err.contains("release and publish do not run with -n"), "\(args): \(r.out) \(r.err)")
             #expect(!r.out.contains("ran"), "\(args): \(r.out)")
         }
         for flags in ["n", "-n", "--dry-run", "--dry-run --no-print-directory"] {
-            let r = try guardMake([], makeflags: flags)
+            let r = try await guardMake([], makeflags: flags)
             #expect(r.status == 2 && r.err.contains("release and publish do not run with -n"), "MAKEFLAGS=\(flags): \(r.out) \(r.err)")
             #expect(!r.out.contains("ran"), "MAKEFLAGS=\(flags): \(r.out)")
         }
     }
 
     /// make -i goes on after a failed line, so a failed notarization could still reach the upload.
-    @Test func ignoreErrorsGuardRefusesEveryForm() throws {
+    @Test func ignoreErrorsGuardRefusesEveryForm() async throws {
         let cases: [[String]] = [["-i"], ["--ignore-errors"], ["--ignore"], ["-ki"], ["-ik"], ["-k", "-i"], ["-i", "-j4"],
                                  ["-j4", "-i"], ["-i", "--no-print-directory"], ["--ignore-errors", "--no-print-directory"],
                                  ["-s", "-i"], ["-iB"],
                                  // the guard's own variables are override, so the command line cannot empty them
                                  ["-i", "ndr_words="], ["-i", "ndr_short=", "ndr_flags="], ["-i", "ndr_letters=x"]]
         for args in cases {
-            let r = try guardMake(args)
+            let r = try await guardMake(args)
             #expect(r.status == 2 && r.err.contains("release and publish do not run with -i"), "\(args): \(r.out) \(r.err)")
             #expect(!r.out.contains("ran"), "\(args): \(r.out)")
         }
         for flags in ["i", "-i", "ki", "--ignore-errors", "--ignore-errors --no-print-directory", "-k -i"] {
-            let r = try guardMake([], makeflags: flags)
+            let r = try await guardMake([], makeflags: flags)
             #expect(r.status == 2 && r.err.contains("release and publish do not run with -i"), "MAKEFLAGS=\(flags): \(r.out) \(r.err)")
             #expect(!r.out.contains("ran"), "MAKEFLAGS=\(flags): \(r.out)")
         }
         // -n with -i: refused, by the first check
-        let both = try guardMake(["-n", "-i"])
+        let both = try await guardMake(["-n", "-i"])
         #expect(both.status == 2 && !both.out.contains("ran"), "\(both.out) \(both.err)")
     }
 
-    @Test func dryRunGuardLetsRealRunsThrough() throws {
+    @Test func dryRunGuardLetsRealRunsThrough() async throws {
         for args in [["-k"], ["-j4"], ["--no-print-directory"], ["-s"], ["-kB"], []] {
-            let r = try guardMake(args)
+            let r = try await guardMake(args)
             #expect(r.status == 0 && r.out.contains("ran"), "\(args): \(r.out) \(r.err)")
         }
     }
 
     /// VERSION feeds the ZIP default, so it is checked before anything expands it.
-    @Test func refusesUnsafeVersion() throws {
+    @Test func refusesUnsafeVersion() async throws {
         let marker = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-pwned-\(UUID().uuidString)")
         for v in ["$(shell touch \(marker.path))", "1.0;id", "-1"] {
-            let r = try make(["zip", "VERSION=\(v)"])
+            let r = try await make(["zip", "VERSION=\(v)"])
             #expect(r.status == 2, "\(v)")
             #expect(r.err.contains("VERSION"), "\(v): \(r.err)")
             #expect(r.out.isEmpty, "\(v): \(r.out)")
@@ -132,7 +136,11 @@ import Testing
     /// notarize.sh, stapler and gh (`echo GH-UPLOAD`), on a folder that stands in for the app. `check` replaces the
     /// notarization check; nil keeps the real one (`xcrun stapler validate`, which fails on a folder with no ticket).
     func releaseMake(_ args: [String], notarize: Int, check: String? = "true",
-                     env extra: [String: String] = [:]) throws -> (status: Int32, out: String, err: String, dir: URL) {
+                     env extra: [String: String] = [:]) async throws -> (status: Int32, out: String, err: String, dir: URL) {
+        try await offPool { try self.releaseMakeNow(args, notarize: notarize, check: check, env: extra) }
+    }
+    func releaseMakeNow(_ args: [String], notarize: Int, check: String? = "true",
+                        env extra: [String: String] = [:]) throws -> (status: Int32, out: String, err: String, dir: URL) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-rel-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let mk = Self.repo.appendingPathComponent("mk/release.mk").path
@@ -169,20 +177,20 @@ import Testing
     }
 
     /// publish uploads only an app that is notarized, stapled and checked; release fails without notary credentials.
-    @Test func publishUploadsOnlyANotarizedApp() throws {
+    @Test func publishUploadsOnlyANotarizedApp() async throws {
         let fm = FileManager.default
         for (notarize, check, why) in [(3, "true", "no credentials"), (1, "true", "notarization failed"),
                                        (0, "false", "the check fails"), (0, nil, "real stapler validate, no ticket")] as [(Int, String?, String)] {
-            let r = try releaseMake(["publish"], notarize: notarize, check: check)
+            let r = try await releaseMake(["publish"], notarize: notarize, check: check)
             #expect(r.status != 0, "\(why): \(r.out) \(r.err)")
             #expect(!r.out.contains("GH-UPLOAD"), "\(why): \(r.out)")
             #expect(!fm.fileExists(atPath: r.dir.appendingPathComponent("dist/notes-0.0.0.md").path), "\(why): no notes")
             #expect(!fm.fileExists(atPath: r.dir.appendingPathComponent("dist/Sanketa.zip").path), "\(why): no stable zip")
         }
-        let none = try releaseMake(["release"], notarize: 3)
+        let none = try await releaseMake(["release"], notarize: 3)
         #expect(none.status != 0 && none.err.contains("found no notary credentials"), "\(none.out) \(none.err)")
 
-        let ok = try releaseMake(["publish"], notarize: 0)
+        let ok = try await releaseMake(["publish"], notarize: 0)
         #expect(ok.status == 0, "\(ok.out) \(ok.err)")
         #expect(ok.out.contains("GH-UPLOAD release create v0.0.0 dist/Sanketa-0.0.0.zip dist/Sanketa.zip --target main"), "\(ok.out)")
         let notes = try String(contentsOf: ok.dir.appendingPathComponent("dist/notes-0.0.0.md"), encoding: .utf8)
@@ -192,26 +200,26 @@ import Testing
     }
 
     /// release and publish take VERSION only from Info.plist (here the makefile), and publish its own ZIP name.
-    @Test func releaseRefusesVersionAndZipFromOutside() throws {
+    @Test func releaseRefusesVersionAndZipFromOutside() async throws {
         for (args, env) in [(["publish", "VERSION=9.9.9"], [:]), (["release", "VERSION=9.9.9"], [:]),
                             (["-e", "publish"], ["VERSION": "9.9.9"]), (["publish", "ZIP=dist/x.zip"], [:]),
                             (["publish"], ["ZIP": "dist/x.zip"])] as [([String], [String: String])] {
-            let r = try releaseMake(args, notarize: 0, env: env)
+            let r = try await releaseMake(args, notarize: 0, env: env)
             #expect(r.status == 2 && (r.err.contains("Do not set VERSION") || r.err.contains("Do not set ZIP")), "\(args) \(env): \(r.err)")
             #expect(!r.out.contains("mkdir") && !r.out.contains("GH-UPLOAD"), "\(args) \(env): \(r.out)")
         }
         // the version in the file still works, and so does a ZIP for release alone
-        #expect(try releaseMake(["release", "ZIP=dist/x.zip"], notarize: 0).status == 0)
+        #expect(try await releaseMake(["release", "ZIP=dist/x.zip"], notarize: 0).status == 0)
     }
 
-    @Test func safeValuesPassThroughTheEnvironment() throws {
-        let r = try make(["test", "FILTER=PackLint", "lint", "PACKS=Resources/Packs/yazi.toml", "remote-setup", "HOST=me@gpubox",
+    @Test func safeValuesPassThroughTheEnvironment() async throws {
+        let r = try await make(["test", "FILTER=PackLint", "lint", "PACKS=Resources/Packs/yazi.toml", "remote-setup", "HOST=me@gpubox",
                           "app", "SIGN_ID=Apple Development: Jane Doe (AB12CD34EF)", "zip", "ZIP=dist/x.zip", "install", "INSTALL_DIR=/tmp/apps"])
         #expect(r.status == 0, "\(r.err)")
         #expect(r.out.contains(#"swift test --filter "$FILTER""#) && r.out.contains(#"--lint-pack "$PACKS""#)
                 && r.out.contains(#"scripts/remote-setup.sh "$HOST""#) && r.out.contains(#"--sign "$SIGN_ID""#)
                 && r.out.contains(#"--keepParent build/Sanketa.app "$ZIP""#) && r.out.contains(#""$INSTALL_DIR/Sanketa.app""#))
         // the ad-hoc identity for CI still works
-        #expect(try make(["app", "SIGN_ID=-"]).status == 0)
+        #expect(try await make(["app", "SIGN_ID=-"]).status == 0)
     }
 }
