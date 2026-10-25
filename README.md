@@ -86,7 +86,9 @@ Copy Debug Info copies a short report for a bug report. It has the version, the 
 The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search. Type a word to find a key or tip in all packs. Results from the current layers come first.
 
 - Press ↑ or ↓ to move the selection.
-- Press Return to copy the selected key or snippet.
+- Press Return to copy the command or snippet of the selected result. A key that has no command copies nothing.
+- Click a result to see all its text, its command and its explanation. Click it again to make it short. Search stays open.
+- Put the pointer on a result to see all its text and a copy button. The copy button copies the command or the snippet.
 - Press Esc to give the focus back to your terminal.
 - Press Tab to go to the layer list. The search text stays.
 - In the layer list, press Tab, Shift-Tab, ↑ or ↓ to go to the next or previous section.
@@ -95,11 +97,29 @@ The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search
 
 The breadcrumb at the top lists the layers, the innermost first, for example `htop › tmux › fish › Kaku`. Click a layer to go to its section and open all its groups. When you click the panel outside a search, the focus goes back to the app that you used. When you click the search field, the search starts and the field keeps the focus.
 
-The panel is an index of the layers. When the innermost layer has keys, its section comes first and is open. It shows the keys of its first two groups. Each other section shows the keys of its first group. The other groups show as one line with a count, such as `› View 10`. Click the line to open the group. A group with two keys or fewer is always open. Click a key to see all its text and its full command. Click it again to make it short. Put the pointer on a key to see all its text, and a copy button at the right. The copy button copies the keys, or the snippet of a tip. The panel then shows "Copied" for a short time. The focus does not change.
+The panel is an index of the layers. When the innermost layer has keys, its section comes first and is open. It shows the keys of its first two groups. Each other section shows the keys of its first group. The other groups show as one line with a count, such as `› View 10`. Click the line to open the group. A group with two keys or fewer is always open. Click a key to see all its text and its full command. Click it again to make it short. Put the pointer on a key to see all its text. If the key has a command, a copy button shows at the right. The copy button copies the command, or the snippet of a tip. It does not copy the keys. The panel then shows "Copied" for a short time. The focus does not change.
 
 When you go to a different program, the panel goes back to the top. If you go back to a stack of layers that you used a short time ago, the panel shows it as you left it. It keeps the groups that you opened and the scroll position. It remembers the last eight stacks.
 
 If a program has no pack, its section says "Sanketa has no keys for yazi." Click "Make a pack for yazi" to make a first pack. Sanketa writes `~/.config/sanketa/packs/yazi.toml` and opens it. If an app has no pack, the link "Make a pack for <app>" shows under its menu keys. It opens the Make a Pack window.
+
+### Make a pack
+
+The Make a Pack window makes a pack for the app in front. Open it from "Make a Pack for <app>…" in the menu-bar menu, or from the link in the panel.
+
+1. Optional: type the URLs of the shortcut pages of the app.
+2. Click one of these buttons:
+   - **Copy Prompt**: paste the prompt in a local agent, such as Claude Code. Then paste the result in the window.
+   - **Send to OpenAI**: this button shows when Use OpenAI is on. The model reads the docs on the web.
+   - **Send to On-Device Model**: this button shows when a model is ready. Paste the text of the shortcut page first. The model cannot read web pages. This can take 2 minutes.
+3. Sanketa checks the result and shows a preview.
+4. Click Save, or press Return.
+
+The status line at the bottom shows what Sanketa does. While a model works, it shows a timer. Press Esc to stop the request. When no request runs, Esc closes the window.
+
+After a save, the panel shows the new keys and the message "Saved". The window closes, and the app that was in front gets the focus again. If a pack file for the app exists, Sanketa asks before it replaces the file. It keeps the old file as `<id>.toml.bak`.
+
+The prompt does not contain window titles, file names, paths or your history. For all the rules, see "Make a pack with a model" in [docs/packs.md](docs/packs.md). Check each key in the app before you trust it. A model can make a mistake.
 
 ### Tip cards
 
