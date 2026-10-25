@@ -34,12 +34,14 @@ struct TipCard: View {
                 .buttonStyle(.plain).font(Theme.tiny).foregroundStyle(Theme.secondary)
             }
         }
+        .padding(.trailing, CopyButton.slot)
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onHover { hover = $0 }
+        // inside the card's frame, on the line under the header, so the pointer stays in the hover area
         .overlay(alignment: .topTrailing) {
-            if hover { CopyButton { copy(Self.copyText(item, prefix: prefix)) }.offset(x: 13, y: 18) }
+            if hover { CopyButton { copy(Self.copyText(item, prefix: prefix)) }.padding(.top, 18) }
         }
+        .onHover { hover = $0 }
     }
 }

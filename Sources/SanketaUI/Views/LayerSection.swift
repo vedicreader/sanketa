@@ -99,18 +99,22 @@ struct KeyRow: View {
             }
         }
         .padding(.vertical, Theme.rowPad)
+        // a slot for the copy button inside the row, so the pointer stays in the hover area on its way to the button
+        .padding(.trailing, CopyButton.slot)
         .contentShape(Rectangle())
         .onTapGesture(perform: toggle)
+        .overlay(alignment: .topTrailing) {
+            if hover { CopyButton { copy(PanelModel.copyText(key, prefix: prefix)) } }
+        }
         .onHover { hover = $0 }
         .help(full)
-        .overlay(alignment: .topTrailing) {
-            if hover { CopyButton { copy(PanelModel.copyText(key, prefix: prefix)) }.offset(x: 13) }
-        }
     }
 }
 
 /// A small copy icon in the secondary colour, with no box. A click copies and does not take focus.
 struct CopyButton: View {
+    /// the width that a row keeps free at its trailing edge for the button
+    static let slot: CGFloat = 14
     let action: () -> Void
     var body: some View {
         Button(action: action) {
