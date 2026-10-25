@@ -50,6 +50,11 @@ public protocol VaultSearching: Sendable {
     func search(_ query: String) async -> [SearchItem]
 }
 
+/// Saves a note in the vishalakshi vault, through Python. Only a user action calls it. It gives the saved title.
+public protocol VaultWriting: Sendable {
+    func save(text: String, title: String) async throws -> String
+}
+
 public struct LocalSearch: SearchProviding {
     public init() {}
     public func results(_ query: String, _ items: [SearchItem], context: [String]) -> [SearchItem] {

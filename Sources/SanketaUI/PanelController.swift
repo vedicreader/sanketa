@@ -7,10 +7,14 @@ import SanketaSystem
 public final class SanketaPanel: NSPanel {
     public override var canBecomeKey: Bool { true }
     var onKey: (NSEvent) -> Bool = { _ in false }
+    var onKeyEquivalent: (NSEvent) -> Bool = { _ in false }
     var onMouseUp: (NSEvent) -> Void = { _ in }
 
     /// Keys reaching the window itself, i.e. while the layer list (not the field) has focus.
     public override func keyDown(with e: NSEvent) { if !onKey(e) { super.keyDown(with: e) } }
+
+    /// ⌘ keys, also while the field has focus.
+    public override func performKeyEquivalent(with e: NSEvent) -> Bool { onKeyEquivalent(e) || super.performKeyEquivalent(with: e) }
 
     public override func sendEvent(_ e: NSEvent) {
         super.sendEvent(e)
@@ -60,6 +64,7 @@ public final class SanketaPanel: NSPanel {
         field.delegate = self
         field.onClick = { [weak self] in self?.clicked() }
         panel.onKey = { [weak self] in self?.key($0) ?? false }
+        panel.onKeyEquivalent = { [weak self] in self?.keyEquivalent($0) ?? false }
         panel.onMouseUp = { [weak self] in self?.mouseUp(at: $0.locationInWindow) }
 
         glass.cornerRadius = 18
@@ -180,6 +185,17 @@ public final class SanketaPanel: NSPanel {
         return true
     }
 
+    /// In search, ⌘S saves the query in the vault and ⌘D saves the clipboard. Both keys are on the left hand.
+    func keyEquivalent(_ e: NSEvent) -> Bool {
+        guard searching, e.type == .keyDown, e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command else { return false }
+        switch Int(e.keyCode) {
+        case kS: search.saveToVault(clipboard: false)
+        case kD: search.saveToVault(clipboard: true)
+        default: return false
+        }
+        return true
+    }
+
     /// True when `point` (window coordinates) is on the search field.
     func inField(_ point: NSPoint) -> Bool { field.bounds.contains(field.convert(point, from: nil)) }
 
@@ -230,4 +246,4 @@ public final class SanketaPanel: NSPanel {
     }
 }
 
-let kTab = 48, kEscape = 53, kUp = 126, kDown = 125, kReturn = 36
+let kTab = 48, kEscape = 53, kUp = 126, kDown = 125, kReturn = 36, kS = 1, kD = 2

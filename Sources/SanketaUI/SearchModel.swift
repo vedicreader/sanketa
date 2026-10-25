@@ -28,6 +28,8 @@ import SanketaSystem
     var vaultItems: [SearchItem] = []
     /// opens a vault result on Return
     let open: (URL) -> Void
+    /// saves a note in the vault on ⌘S or ⌘D; nil: no saving
+    var writer: VaultWriting?
     var library = PackLibrary()
     var context = Context()
     /// items from outside the packs, such as coaching from shell history
@@ -45,6 +47,46 @@ import SanketaSystem
 
     /// The vault search, or nil to turn it off (config change); the next query uses it.
     public func setVault(_ v: VaultSearching?) { vault = v }
+
+    /// The vault writer, or nil to turn saving off (config change).
+    public func setWriter(_ w: VaultWriting?) { writer = w }
+
+    /// True when ⌘S and ⌘D can save to the vault.
+    public var canSave: Bool { writer != nil }
+
+    /// The keys that save, for the line under the results.
+    public static let saveHint = "⌘S  Save the query in the vault     ⌘D  Save the clipboard"
+
+    /// ⌘S saves the query as a note; ⌘D (`clipboard`) saves the text on the clipboard, with the query as its title.
+    /// Only these keys save. The line under the results tells the user what happens. False: nothing to save.
+    @discardableResult public func saveToVault(clipboard: Bool) -> Bool {
+        guard let writer else { return false }
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let (text, title) = clipboard ? (pasteboard.string(forType: .string) ?? "", q) : (q, "")
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            note = clipboard ? "The clipboard has no text to save." : "Type the text to save."
+            return false
+        }
+        note = "Saving in the vault…"
+        let raw = query
+        Task { [weak self] in
+            let line: String
+            do { line = "Saved in the vault: \u{201C}\(try await writer.save(text: text, title: title))\u{201D}." }
+            catch { line = "Sanketa could not save in the vault. \(Self.reason(error))" }
+            guard let self, self.query == raw else { return }
+            self.note = line
+        }
+        return true
+    }
+
+    /// A short reason for a failed save.
+    nonisolated static func reason(_ e: Error) -> String {
+        switch "\(e)" {
+        case let s where s.contains("timeout"): return "The vault server did not answer in time."
+        case let s where s.contains("notRunning"): return "The vault server did not start. See [vault] in the config."
+        default: return "The vault server gave an error."
+        }
+    }
 
     /// The shortest query that searches the vault.
     public static let vaultMinLength = 3

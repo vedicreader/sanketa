@@ -26,6 +26,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     lazy var llm = makeLLM(config.llm)
     /// the model loads at most once a minute when the panel opens
     let prewarmGate = Throttle(60)
+    /// the vault search and writer from `[vault]`
+    var vault: (search: VaultSearching, writer: VaultWriting?)?
     /// model suggestions run at most once per 10 minutes, and only after the history changed
     let suggestGate = Throttle(600)
     var suggestGeneration = -1
@@ -320,6 +322,11 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # enabled = \(v.enabled)
             # path = ""   # empty: VISHALAKSHI_VAULT, then ABHYASA_VAULT, then \(VaultConfig.defaultPath)
             # learning_url = "\(v.learningURL)"   # abhyasa, which shows a concept at /c/<slug>
+            # mcp = \(v.mcp)   # hybrid search and ⌘S/⌘D saving through vishalakshi-mcp; Python writes, Sanketa does not
+            # mcp_command = ""   # empty: the first of \(VaultConfig.mcpCandidates.joined(separator: ", "))
+            # mcp_url = ""   # a running server on this Mac, such as http://127.0.0.1:8000/mcp; Sanketa then starts none
+            # mcp_timeout_seconds = \(v.mcpTimeoutSeconds)   # then keyword results show
+            # mcp_idle_seconds = \(Int(v.mcpIdleSeconds))   # the server stops after this long with no search
 
             """.write(to: f, atomically: true, encoding: .utf8)
         }
@@ -364,11 +371,16 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         }
     }
 
-    /// The vault search from `[vault]`. It opens the vault on the first search of 3 letters or more.
+    /// The vault search from `[vault]`: hybrid through vishalakshi's MCP server when it can, else keyword only. It
+    /// opens the vault on the first search of 3 letters or more. The old MCP child stops.
     func applyVault() {
-        let v = config.vault
-        search.setVault(v.enabled ? VaultSearch(path: v.resolvedPath(), learningURL: v.learningURL) : nil)
+        (vault?.search as? VaultHybrid)?.client.close()
+        vault = VaultHybrid.make(config.vault)
+        search.setVault(vault?.search)
+        search.setWriter(vault?.writer)
     }
+
+    func applicationWillTerminate(_ n: Notification) { (vault?.search as? VaultHybrid)?.client.close() }
 
     // MARK: natural-language search
 
@@ -383,6 +395,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// Search started: load the model off the main thread, at most once a minute. With OpenAI on, also find the key
     /// (the login shell runs once per launch) and the model list (kept 10 minutes), so the first request is quick.
     func prewarm() {
+        // the vault's MCP server needs about 1.5 seconds to start; it is ready, or near, when the query has 3 letters
+        (vault?.search as? VaultHybrid)?.client.warm()
         guard prewarmGate.ready() else { return }
         let router = llm.router
         DispatchQueue.global(qos: .utility).async { router.prewarm() }

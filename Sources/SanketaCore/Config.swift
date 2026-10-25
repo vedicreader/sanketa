@@ -170,22 +170,55 @@ public struct LLMConfig: Codable, Equatable, Sendable {
 }
 
 /// `[vault]`: the vishalakshi vault that search reads, read-only. An empty `path` uses `VISHALAKSHI_VAULT`, then
-/// `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`.
+/// `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`. With `mcp` on, search is hybrid (words and meaning) and ⌘S saves
+/// notes, through vishalakshi's MCP server: Sanketa starts `mcp_command` as a child, or uses the server at `mcp_url`.
 public struct VaultConfig: Codable, Equatable, Sendable {
     public var enabled = true
     public var path = ""
     /// the abhyasa web app, which shows a concept at `<learning_url>/c/<slug>`
     public var learningURL = "http://127.0.0.1:5077"
+    /// hybrid search and saving through vishalakshi's MCP server; off: keyword search only, and no saving
+    public var mcp = true
+    /// the `vishalakshi-mcp` program; empty: the first of `mcpCandidates` that exists
+    public var mcpCommand = ""
+    /// a running Streamable HTTP server, such as `http://127.0.0.1:8000/mcp`; set, Sanketa starts no child
+    public var mcpURL = ""
+    /// the most time that one hybrid search can take; then keyword results show
+    public var mcpTimeoutSeconds = 1.0
+    /// a child with no call for this long stops; it starts again on the next search
+    public var mcpIdleSeconds = 600.0
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case enabled, path, learningURL = "learning_url" }
+    enum CodingKeys: String, CodingKey {
+        case enabled, path, mcp, learningURL = "learning_url", mcpCommand = "mcp_command", mcpURL = "mcp_url"
+        case mcpTimeoutSeconds = "mcp_timeout_seconds", mcpIdleSeconds = "mcp_idle_seconds"
+    }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        func num(_ k: CodingKeys, _ d: Double) throws -> Double {
+            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return v }
+            return try c.decodeIfPresent(Int.self, forKey: k).map(Double.init) ?? d
+        }
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
         path = try c.decodeIfPresent(String.self, forKey: .path) ?? path
         learningURL = try c.decodeIfPresent(String.self, forKey: .learningURL) ?? learningURL
+        mcp = try c.decodeIfPresent(Bool.self, forKey: .mcp) ?? mcp
+        mcpCommand = try c.decodeIfPresent(String.self, forKey: .mcpCommand) ?? mcpCommand
+        mcpURL = try c.decodeIfPresent(String.self, forKey: .mcpURL) ?? mcpURL
+        mcpTimeoutSeconds = try num(.mcpTimeoutSeconds, mcpTimeoutSeconds)
+        mcpIdleSeconds = try num(.mcpIdleSeconds, mcpIdleSeconds)
+    }
+
+    /// Where Sanketa looks for `vishalakshi-mcp` when `mcp_command` is empty: `uv tool install vishalakshi` puts it in
+    /// `~/.local/bin`.
+    public static let mcpCandidates = ["~/.local/bin/vishalakshi-mcp", "/opt/homebrew/bin/vishalakshi-mcp", "/usr/local/bin/vishalakshi-mcp"]
+
+    /// The MCP server program: `mcp_command`, else the first candidate that `exists`; `~` expanded. nil: none.
+    public func resolvedCommand(exists: (String) -> Bool = FileManager.default.isExecutableFile) -> String? {
+        let all = (mcpCommand.isEmpty ? Self.mcpCandidates : [mcpCommand]).map { ($0 as NSString).expandingTildeInPath }
+        return all.first(where: exists)
     }
 
     public static let defaultPath = "~/.vishalakshi/vault.db"

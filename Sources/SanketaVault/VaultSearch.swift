@@ -66,6 +66,11 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
         return out
     }
 
+    /// `f` with the read-only connection, on `queue`; nil when there is no vault.
+    func withDB<T>(_ f: @escaping (Database) -> T?) async -> T? {
+        await withCheckedContinuation { k in queue.async { k.resume(returning: self.open().flatMap(f)) } }
+    }
+
     /// The connection, opened on first use; a missing file is tried again on the next search.
     func open() -> Database? {
         if let db { return db }

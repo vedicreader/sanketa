@@ -100,7 +100,7 @@ struct PanelView: View {
     var results: some View {
         ResultsList(results: search.results, selection: search.selection, prefix: search.prefix(for:), pick: pick, query: search.query,
                     picked: search.picked, note: search.note, expanded: search.expanded, copy: { model.copy($0) },
-                    openResult: openResult)
+                    openResult: openResult, saveHint: search.canSave ? SearchModel.saveHint : nil)
     }
 }
 
@@ -118,6 +118,8 @@ struct ResultsList: View {
     var expanded: String?
     var copy: (String) -> Void = { _ in }
     var openResult: (Int) -> Void = { _ in }
+    /// the keys that save to the vault: one muted line at the end
+    var saveHint: String?
 
     static func noResult(_ q: String) -> String { "No result for \u{201C}\(q.trimmingCharacters(in: .whitespaces))\u{201D}." }
     static let noResultHelp = "Search finds keys and tips in all packs. Press esc to close."
@@ -141,6 +143,9 @@ struct ResultsList: View {
             }
             if let note {
                 Text(note).font(Theme.small).foregroundStyle(Theme.secondary).lineLimit(2).padding(.top, 6).padding(.horizontal, 6)
+            }
+            if let saveHint {
+                Text(saveHint).font(Theme.small).foregroundStyle(Theme.secondary).lineLimit(1).padding(.top, 6).padding(.horizontal, 6)
             }
         }
     }
