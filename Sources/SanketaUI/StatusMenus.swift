@@ -98,3 +98,29 @@ public enum StatusMenus {
         return out
     }
 }
+
+/// The three toggles of the status menu that connect Sanketa to other tools. All off, Sanketa works alone. Each line
+/// writes one key: `[vault] enabled`, `[vault] mcp` and `[abhyasa] enabled`.
+public enum VaultToggles {
+    public enum Key: String, CaseIterable, Sendable { case vault, hybrid, abhyasa }
+
+    public static let vaultTitle = "Search the Vault"
+    public static let hybridTitle = "Vault: Search by Meaning, Save Notes"
+    public static let abhyasaTitle = "Open Vault Results in Abhyasa"
+
+    /// title, checked and enabled for each toggle; the two vault options need vault search
+    public static func lines(_ c: Config) -> [(key: Key, line: MenuLine)] {
+        [(.vault, MenuLine(vaultTitle, checked: c.vault.enabled)),
+         (.hybrid, MenuLine(hybridTitle, enabled: c.vault.enabled, checked: c.vault.mcp)),
+         (.abhyasa, MenuLine(abhyasaTitle, enabled: c.vault.enabled, checked: c.abhyasa.enabled))]
+    }
+
+    /// The table, key and TOML value that a click on `key` saves.
+    public static func change(_ key: Key, _ c: Config) -> (table: String, key: String, value: String) {
+        switch key {
+        case .vault: return ("vault", "enabled", c.vault.enabled ? "false" : "true")
+        case .hybrid: return ("vault", "mcp", c.vault.mcp ? "false" : "true")
+        case .abhyasa: return ("abhyasa", "enabled", c.abhyasa.enabled ? "false" : "true")
+        }
+    }
+}

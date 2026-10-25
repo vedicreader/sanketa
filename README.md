@@ -86,11 +86,12 @@ Copy Debug Info copies a short report for a bug report. It has the version, the 
 The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search. Type a word to find a key or tip in all packs. Results from the current layers come first.
 
 - Press ↑ or ↓ to move the selection.
-- Press Return to copy the command or snippet of the selected result. A key that has no command copies nothing. A vault result can open instead. See "Vault search".
+- Press Return to copy the command or snippet of the selected result. A key that has no command copies nothing. A vault result opens instead. See "Vault search".
 - Click a result to see all its text, its command and its explanation. Click it again to make it short. Search stays open.
 - Put the pointer on a result to see all its text and a copy button. The copy button copies the command or the snippet.
 - Press Esc to give the focus back to your terminal.
 - Press Tab to go to the layer list. The search text stays.
+- The search field has the usual text keys of macOS. ⌘A selects all. ⌘C, ⌘X and ⌘V copy, cut and paste. ⌘Z undoes and ⇧⌘Z redoes. ⌥← and ⌥→ move one word. ⌘← and ⌘→ go to the start or the end. ⌥⌫ and ⌘⌫ delete a word or the line. Add ⇧ to select the text.
 - In the layer list, press Tab, Shift-Tab, ↑ or ↓ to go to the next or previous section.
 
 ### Vault search
@@ -98,15 +99,62 @@ The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search
 Search also finds documents in your vishalakshi vault. The vault keeps your learnings from abhyasa, your ramabana sessions and the other shelves of vishalakshi. One search box finds them all. Each tool keeps its own functions.
 
 - Type 3 letters or more. Sanketa waits until you stop typing for 0.2 seconds. Then it searches the vault.
-- The vault results come after the results from the packs. A heading shows the shelf of each result, such as "learning" or "leela". The main shelf shows as "vault".
+- The vault results come after the results from the packs. A heading shows the shelf of each result, such as "ramabana" or "leela". The main shelf shows as "vault".
 - Each result shows the title of the document and a short part of its text.
-- Sanketa finds words, not meanings. It uses the same word rules as the vault, so "joining" also finds "joins".
-- Press Return to open the selected result. A concept from abhyasa opens at `http://127.0.0.1:5077/c/<name>`. A web page opens in your browser. A file opens in its app if it is on this Mac. Other results copy their text.
-- Put the pointer on a result that can open. An open button then shows. Click it to open the result.
+- The selected result shows its keys on one line, such as `↩ Open     ⌥↩ Resume session`.
 
-Sanketa only reads the vault. It never changes it. The vault never leaves this Mac, and the model for natural-language search does not get it. A search of the vault stops after about 0.15 seconds, so typing stays fast. If Sanketa cannot find or read the vault, it shows no vault results and no error.
+Sanketa finds the vault in this order: `path` in `[vault]`, then the variable `VISHALAKSHI_VAULT`, then `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`. An app that you start from the Dock does not get the variables of your shell. Set `path` if your vault is in a different place. Sanketa skips the test shelves whose names start with `tmp` or `dialogprobe`.
 
-Sanketa finds the vault in this order: `path` in `[vault]`, then the variable `VISHALAKSHI_VAULT`, then `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`. An app that you start from the Dock does not get the variables of your shell. Set `path` if your vault is in a different place. Sanketa skips the test shelves whose names start with `tmp` or `dialogprobe`. To turn vault search off, set `enabled = false` in `[vault]`.
+#### Search by meaning
+
+Sanketa can search by words and by meaning together. This is hybrid search. For it, Sanketa uses the MCP server of vishalakshi, `vishalakshi-mcp`. Sanketa starts the server when you start a search. The server runs on this Mac, and it reads the same vault file.
+
+- The server needs about 1.5 seconds to start. Until it is ready, Sanketa finds words only.
+- A hybrid search takes about 60 milliseconds. Sanketa waits 1 second at most. Then it shows the word results.
+- If Sanketa cannot start the server, it finds words only. It shows no error.
+- The server stops after 10 minutes with no search. It uses about 270 MB of memory while it runs.
+- The server hides personal data in the results, such as email addresses.
+
+Install the server with `uv tool install vishalakshi`. Use version 0.1.35 or later. An old version can start very slowly. To update it, use `uv tool upgrade vishalakshi`.
+
+#### Save to the vault
+
+You can save text in the vault as a note. Sanketa saves only when you push one of these keys during a search:
+
+- Push ⌘S to save the search text as a note.
+- Push ⌘D to save the text on the clipboard as a note. The search text is the title. If you did not type a search, the first line is the title.
+
+A line under the results shows the keys. After the save, the line tells you the title of the note. Each save makes a new note. It never replaces a note that has the same title. Sanketa adds the tag `sanketa` to each note. Python writes the note, through the MCP server. Sanketa itself never writes to the vault file.
+
+#### Open a result
+
+Push Return to open the selected result:
+
+- A web page opens in your browser.
+- A file opens in its app, if it is on this Mac.
+- If abhyasa is on, a concept opens at `<url>/c/<name>`. Other documents open in the vault viewer of abhyasa, at `<url>/v/<shelf>/<id>`. This includes ramabana sessions, memory entries and notes.
+- In all other cases, Return shows all the text of the result in the panel. Push Return again to make it short.
+
+Push ⌥Return for more actions:
+
+- On a ramabana session, ⌥Return resumes the session with `ramabana --resume <id>`. If you use tmux, the session opens in a new window of your tmux session. If not, it opens in a new window of your terminal app.
+- On a ramabana memory entry, ⌥Return opens its file, such as `~/.config/ramabana/memory/<id>/MEMORY.md`.
+
+Put the pointer on a result that can open. An open button then shows. Click it to open the result.
+
+#### Use Sanketa alone, or with other tools
+
+Sanketa works alone. Three items in the menu-bar menu connect it to other tools. Each item changes one line in the settings file.
+
+| Item | Setting | Default | What it does |
+|---|---|---|---|
+| Search the Vault | `[vault] enabled` | on | Finds documents in the vault. Sanketa only reads the vault file. |
+| Vault: Search by Meaning, Save Notes | `[vault] mcp` | on | Starts the MCP server for hybrid search, ⌘S and ⌘D. |
+| Open Vault Results in Abhyasa | `[abhyasa] enabled` | off | Return opens vault results in abhyasa. |
+
+If there is no vault file, vault search shows nothing. If abhyasa is off, Sanketa never connects to it. If abhyasa is on, Sanketa checks that abhyasa runs before it makes a link. It checks at most one time in 10 seconds. If abhyasa does not answer, Return shows the text in the panel.
+
+The vault never leaves this Mac. The model for natural-language search does not get vault results.
 
 ### Layers and sections
 
@@ -210,17 +258,27 @@ base_url = "https://api.openai.com/v1"
 # api_key_env = "OPENROUTER_API_KEY"   # the variable with the key for base_url
 timeout_seconds = 5          # Sanketa stops waiting for the model after this
 
-[vault]                      # search your vishalakshi vault too, read-only
+[vault]                      # search your vishalakshi vault too
 enabled = true
 path = ""                    # empty: VISHALAKSHI_VAULT, then ABHYASA_VAULT, then ~/.vishalakshi/vault.db
-learning_url = "http://127.0.0.1:5077"   # abhyasa, which shows a concept at /c/<slug>
+mcp = true                   # search by meaning and save notes, through vishalakshi-mcp
+mcp_command = ""             # empty: ~/.local/bin, then /opt/homebrew/bin, then /usr/local/bin
+mcp_url = ""                 # a server that runs already on this Mac, such as "http://127.0.0.1:8000/mcp"
+mcp_timeout_seconds = 1.0    # then Sanketa shows the word results
+mcp_idle_seconds = 600       # the server stops after this time with no search
+
+[abhyasa]                    # off: Sanketa never connects to abhyasa
+enabled = false
+url = "http://127.0.0.1:5077"   # the old name of this setting, [vault] learning_url, also works
 ```
 
 The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. If another app uses the same keys, the footer tells you.
 
 Sanketa applies the file when you save it. You do not have to restart Sanketa. Open Config opens the file in the app that you set for `.toml` files. If you set no app, it opens in your default text editor.
 
-You can also set the translucency and the OpenAI model in the menu-bar menu. The change shows at once, and Sanketa writes only that line to the file. If the file has an error, Sanketa uses the default values.
+If you set `mcp_url`, Sanketa uses that server and starts no server. Sanketa accepts only an address on this Mac. Start such a server with `vishalakshi-mcp --http`. It listens on port 8000.
+
+You can also set the translucency, the OpenAI model and the three tool items in the menu-bar menu. The change shows at once, and Sanketa writes only that line to the file. If the file has an error, Sanketa uses the default values.
 
 ## Terminals
 

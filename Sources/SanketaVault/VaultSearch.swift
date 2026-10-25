@@ -8,7 +8,8 @@ import SanketaCore
 /// search is keyword-only. No vault or a bad vault gives no results and no error.
 public final class VaultSearch: VaultSearching, @unchecked Sendable {
     public let path: String
-    let learningURL: URL?
+    /// abhyasa, when `[abhyasa]` is on: Return opens documents there while it answers
+    let probe: AbhyasaProbe?
     /// results from each shelf, after one result per document
     let perShelf: Int
     /// no new shelf starts after this; a shelf that runs is not stopped
@@ -17,8 +18,8 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
     let queue = DispatchQueue(label: "dev.sanketa.vault", qos: .userInitiated)
     var db: Database?
 
-    public init(path: String, learningURL: String = VaultConfig().learningURL, perShelf: Int = 3, budget: TimeInterval = 0.15) {
-        self.path = path; self.learningURL = URL(string: learningURL); self.perShelf = perShelf; self.budget = budget
+    public init(path: String, abhyasa: AbhyasaProbe? = nil, perShelf: Int = 3, budget: TimeInterval = 0.15) {
+        self.path = path; self.probe = abhyasa; self.perShelf = perShelf; self.budget = budget
     }
 
     /// Test shelves that tools leave behind.
@@ -50,20 +51,27 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
     }
 
     public func search(_ query: String) async -> [SearchItem] {
-        await withCheckedContinuation { k in queue.async { k.resume(returning: self.run(query)) } }
+        guard !Self.words(query).isEmpty else { return [] }
+        let abhyasa = await probe?.up()
+        return await withCheckedContinuation { k in queue.async { k.resume(returning: self.run(query, abhyasa: abhyasa)) } }
     }
 
-    /// The search itself, on the caller's thread; `search` calls it on `queue`.
-    func run(_ query: String) -> [SearchItem] {
+    /// The search itself, on the caller's thread; `search` calls it on `queue`. `abhyasa`: the base URL when it answers.
+    func run(_ query: String, abhyasa: URL? = nil) -> [SearchItem] {
         let start = Date()
         let ws = Self.words(query)
         guard let fts = anyOf(ws), let db = open(), let shelves = try? Self.shelves(db) else { return [] }
         var out: [SearchItem] = []
         for s in shelves {
             if Date().timeIntervalSince(start) > budget { break }
-            out += (try? items(db, shelf: s, fts: fts, words: ws)) ?? []
+            out += (try? items(db, shelf: s, fts: fts, words: ws, abhyasa: abhyasa)) ?? []
         }
         return out
+    }
+
+    /// `f` with the read-only connection, on `queue`; nil when there is no vault.
+    func withDB<T>(_ f: @escaping (Database) -> T?) async -> T? {
+        await withCheckedContinuation { k in queue.async { k.resume(returning: self.open().flatMap(f)) } }
     }
 
     /// The connection, opened on first use; a missing file is tried again on the next search.
@@ -76,7 +84,7 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
     }
 
     /// The best `perShelf` documents of one shelf, best first: one chunk for each document.
-    func items(_ db: Database, shelf: String, fts: String, words: [String]) throws -> [SearchItem] {
+    func items(_ db: Database, shelf: String, fts: String, words: [String], abhyasa: URL? = nil) throws -> [SearchItem] {
         let hits = try db.search(store: shelf, fts: fts, vector: nil, k: perShelf * 4)
         guard !hits.isEmpty else { return [] }
         let docs = shelf == "store" ? "docs" : "\(shelf)_docs"
@@ -94,31 +102,21 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
             guard out.count < perShelf, let r = byID[h.id] else { continue }
             let content = text(r, "content") ?? ""
             let title = text(r, "title") ?? text(r, "heading") ?? Self.firstLine(content)
-            guard seen.insert(text(r, "doc_id") ?? title).inserted, seen.insert("title:" + title).inserted else { continue }
-            let source = text(r, "source")
-            var i = SearchItem(packID: "vault:\(shelf)", packName: Self.label(shelf), kind: .vault, title: title,
-                               detail: Self.snippet(content, words), explain: source, tags: [text(r, "kind")].compactMap { $0 })
-            i.open = source.flatMap { Self.target($0, learningURL: learningURL) }
-            out.append(i)
+            let doc = text(r, "doc_id")
+            guard seen.insert(doc ?? title).inserted, seen.insert("title:" + title).inserted else { continue }
+            out.append(Self.item(shelf: shelf, doc: doc, title: title, detail: Self.snippet(content, words), source: text(r, "source"),
+                                 kind: text(r, "kind"), abhyasa: abhyasa))
         }
         return out
     }
 
-    /// What Return opens for a document `source`: a concept's page in abhyasa, a web page, or a file that exists.
-    /// nil: Return copies the snippet.
-    public static func target(_ source: String, learningURL: URL?, exists: (String) -> Bool = FileManager.default.fileExists) -> URL? {
-        let concept = "learning://concept/"
-        if source.hasPrefix(concept) {
-            let slug = String(source.dropFirst(concept.count))
-            guard let learningURL, !slug.isEmpty, slug.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) else { return nil }
-            return learningURL.appendingPathComponent("c").appendingPathComponent(slug)
-        }
-        if let u = URL(string: source), let s = u.scheme?.lowercased() {
-            if s == "http" || s == "https" { return u.host == nil ? nil : u }
-            if s == "file" { return exists(u.path) ? u : nil }
-        }
-        let p = (source as NSString).expandingTildeInPath
-        return p.hasPrefix("/") && exists(p) ? URL(fileURLWithPath: p) : nil
+    /// One vault result, with what Return and ⌥Return do.
+    static func item(shelf: String, doc: String?, title: String, detail: String, source: String?, kind: String?, abhyasa: URL?) -> SearchItem {
+        var i = SearchItem(packID: "vault:\(shelf)", packName: label(shelf), kind: .vault, title: title, detail: detail,
+                           explain: source, tags: [kind].compactMap { $0 })
+        i.open = VaultLinks.open(source ?? "", shelf: shelf, doc: doc, abhyasa: abhyasa)
+        i.alt = source.flatMap { VaultLinks.alt($0) }
+        return i
     }
 
     static func firstLine(_ s: String) -> String {

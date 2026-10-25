@@ -26,6 +26,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     lazy var llm = makeLLM(config.llm)
     /// the model loads at most once a minute when the panel opens
     let prewarmGate = Throttle(60)
+    /// the vault search and writer from `[vault]`
+    var vault: (search: VaultSearching, writer: VaultWriting?)?
     /// model suggestions run at most once per 10 minutes, and only after the history changed
     let suggestGate = Throttle(600)
     var suggestGeneration = -1
@@ -52,6 +54,9 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        // no menu bar shows; the Edit menu gives the search field ⌘A, ⌘C, ⌘X, ⌘V, ⌘Z and ⇧⌘Z
+        NSApp.mainMenu = EditMenu.make()
+        search.resume = { [weak self] in self?.resumeSession($0) ?? false }
         if !AXReader.isTrusted { AXReader.promptForTrust() }
         model.packErrors = library.errors
         search.setSource(library: library)
@@ -124,7 +129,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         if config.tipRotateSeconds != old.tipRotateSeconds { scheduleRotation() }
         if config.hyperLabel != old.hyperLabel { library = loadLibrary(config: config); model.packErrors = library.errors; search.setSource(library: library) }
         if config.llm != old.llm { rebuildLLM() }
-        if config.vault != old.vault { applyVault() }
+        if config.vault != old.vault || config.abhyasa != old.abhyasa { applyVault() }
         monitor.reload(config: config, library: library)
         coach.reload(config: config.coach)
     }
@@ -152,6 +157,13 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         m.addItem(withTitle: "Translucency", action: nil, keyEquivalent: "").submenu = tr
         menus.add(to: m)
         m.addItem(.separator())
+        for (key, line) in VaultToggles.lines(config) {
+            let i = m.addItem(withTitle: line.title, action: #selector(toggleVault(_:)), keyEquivalent: "")
+            i.target = self
+            i.representedObject = key.rawValue
+        }
+        refreshVaultToggles(m)
+        m.addItem(.separator())
         add("Reload Packs", #selector(reloadPacks))
         add("Open Packs Folder", #selector(openPacks))
         add("Make a Pack…", #selector(makePackFromMenu))
@@ -167,6 +179,53 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     }
 
     @objc func togglePanel() { panel.toggle() }
+
+    // MARK: vault and abhyasa
+
+    /// Check marks of the vault toggles, from the config.
+    func refreshVaultToggles(_ m: NSMenu) {
+        for (key, line) in VaultToggles.lines(config) {
+            guard let i = m.items.first(where: { $0.representedObject as? String == key.rawValue }) else { continue }
+            i.state = line.checked ? .on : .off
+            i.isEnabled = line.enabled
+        }
+    }
+
+    /// Writes the toggle's key to config.toml, then applies the config.
+    @objc func toggleVault(_ sender: NSMenuItem) {
+        guard let key = (sender.representedObject as? String).flatMap(VaultToggles.Key.init) else { return }
+        let c = VaultToggles.change(key, config)
+        do { try Config.save(c.key, c.value, to: configURL, table: c.table) }
+        catch { FileHandle.standardError.write(Data("cannot save config: \(error.localizedDescription)\n".utf8)) }
+        reloadConfig()
+    }
+
+    /// ⌥Return on a ramabana session: a new window in the tmux session that the user used last, else a new window of
+    /// the terminal app. False: Sanketa could not start it.
+    func resumeSession(_ id: String) -> Bool {
+        let tmuxClients = SysctlProcesses.snapshot().procs.filter { $0.name == "tmux" && $0.tty != nil }.map { (path: $0.path, argv: $0.argv) }
+        let ramabana = ["~/.local/bin/ramabana", "/opt/homebrew/bin/ramabana", "/usr/local/bin/ramabana"]
+            .map { ($0 as NSString).expandingTildeInPath }.first(where: FileManager.default.isExecutableFile)
+        let r = SessionResume(runner: ProcessRunner(),
+                              servers: SessionResume.servers(clients: tmuxClients, fallback: ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"]),
+                              ramabana: ramabana)
+        if r.inTmux(id) { return true }
+        guard let text = r.script(id), let app = terminalApp() else { return false }
+        let f = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-resume-\(id).command")
+        do {
+            try text.write(to: f, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: f.path)
+        } catch { return false }
+        NSWorkspace.shared.open([f], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        return true
+    }
+
+    /// The first terminal of `terminals` that runs, else the first that is installed.
+    func terminalApp() -> URL? {
+        let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        let ids = config.terminals.filter(running.contains) + config.terminals
+        return ids.lazy.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }.first
+    }
 
     // MARK: make a pack
 
@@ -185,6 +244,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
 
     func menuWillOpen(_ menu: NSMenu) {
         guard menu === status?.menu, let item = makePackItem else { return }
+        refreshVaultToggles(menu)
         switch makePackTarget() {
         case .app(let a): item.title = "Make a Pack for \(appName(a))…"; item.isEnabled = true; item.toolTip = nil
         case .program(let l): item.title = "Make a Pack for \(l.name)…"; item.isEnabled = true; item.toolTip = nil
@@ -316,10 +376,18 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # api_key_env = "OPENAI_API_KEY"   # read only for api.openai.com unless you set it
             # timeout_seconds = \(Int(l.timeoutSeconds))
 
+            # [abhyasa]   # off: Sanketa works alone and never connects to abhyasa
+            # enabled = \(c.abhyasa.enabled)   # on: Return opens vault results in abhyasa when it runs
+            # url = "\(c.abhyasa.url)"   # concepts at /c/<slug>, other documents at /v/<shelf>/<doc_id>
+
             # [vault]   # search your vishalakshi vault too; Sanketa only reads it, on this Mac
             # enabled = \(v.enabled)
             # path = ""   # empty: VISHALAKSHI_VAULT, then ABHYASA_VAULT, then \(VaultConfig.defaultPath)
-            # learning_url = "\(v.learningURL)"   # abhyasa, which shows a concept at /c/<slug>
+            # mcp = \(v.mcp)   # hybrid search and ⌘S/⌘D saving through vishalakshi-mcp; Python writes, Sanketa does not
+            # mcp_command = ""   # empty: the first of \(VaultConfig.mcpCandidates.joined(separator: ", "))
+            # mcp_url = ""   # a running server on this Mac, such as http://127.0.0.1:8000/mcp; Sanketa then starts none
+            # mcp_timeout_seconds = \(v.mcpTimeoutSeconds)   # then keyword results show
+            # mcp_idle_seconds = \(Int(v.mcpIdleSeconds))   # the server stops after this long with no search
 
             """.write(to: f, atomically: true, encoding: .utf8)
         }
@@ -364,11 +432,16 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         }
     }
 
-    /// The vault search from `[vault]`. It opens the vault on the first search of 3 letters or more.
+    /// The vault search from `[vault]`: hybrid through vishalakshi's MCP server when it can, else keyword only. It
+    /// opens the vault on the first search of 3 letters or more. The old MCP child stops.
     func applyVault() {
-        let v = config.vault
-        search.setVault(v.enabled ? VaultSearch(path: v.resolvedPath(), learningURL: v.learningURL) : nil)
+        (vault?.search as? VaultHybrid)?.client.close()
+        vault = VaultHybrid.make(config.vault, abhyasa: config.abhyasa)
+        search.setVault(vault?.search)
+        search.setWriter(vault?.writer)
     }
+
+    func applicationWillTerminate(_ n: Notification) { (vault?.search as? VaultHybrid)?.client.close() }
 
     // MARK: natural-language search
 
@@ -383,6 +456,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// Search started: load the model off the main thread, at most once a minute. With OpenAI on, also find the key
     /// (the login shell runs once per launch) and the model list (kept 10 minutes), so the first request is quick.
     func prewarm() {
+        // the vault's MCP server needs about 1.5 seconds to start; it is ready, or near, when the query has 3 letters
+        (vault?.search as? VaultHybrid)?.client.warm()
         guard prewarmGate.ready() else { return }
         let router = llm.router
         DispatchQueue.global(qos: .utility).async { router.prewarm() }

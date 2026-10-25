@@ -28,6 +28,10 @@ import SanketaSystem
     var vaultItems: [SearchItem] = []
     /// opens a vault result on Return
     let open: (URL) -> Void
+    /// saves a note in the vault on ⌘S or ⌘D; nil: no saving
+    var writer: VaultWriting?
+    /// resumes a ramabana session on ⌥Return; false when it could not
+    public var resume: (String) -> Bool = { _ in false }
     var library = PackLibrary()
     var context = Context()
     /// items from outside the packs, such as coaching from shell history
@@ -45,6 +49,46 @@ import SanketaSystem
 
     /// The vault search, or nil to turn it off (config change); the next query uses it.
     public func setVault(_ v: VaultSearching?) { vault = v }
+
+    /// The vault writer, or nil to turn saving off (config change).
+    public func setWriter(_ w: VaultWriting?) { writer = w }
+
+    /// True when ⌘S and ⌘D can save to the vault.
+    public var canSave: Bool { writer != nil }
+
+    /// The keys that save, for the line under the results.
+    public static let saveHint = "⌘S  Save the query in the vault     ⌘D  Save the clipboard"
+
+    /// ⌘S saves the query as a note; ⌘D (`clipboard`) saves the text on the clipboard, with the query as its title.
+    /// Only these keys save. The line under the results tells the user what happens. False: nothing to save.
+    @discardableResult public func saveToVault(clipboard: Bool) -> Bool {
+        guard let writer else { return false }
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let (text, title) = clipboard ? (pasteboard.string(forType: .string) ?? "", q) : (q, "")
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            note = clipboard ? "The clipboard has no text to save." : "Type the text to save."
+            return false
+        }
+        note = "Saving in the vault…"
+        let raw = query
+        Task { [weak self] in
+            let line: String
+            do { line = "Saved in the vault: \u{201C}\(try await writer.save(text: text, title: title))\u{201D}." }
+            catch { line = "Sanketa could not save in the vault. \(Self.reason(error))" }
+            guard let self, self.query == raw else { return }
+            self.note = line
+        }
+        return true
+    }
+
+    /// A short reason for a failed save.
+    nonisolated static func reason(_ e: Error) -> String {
+        switch "\(e)" {
+        case let s where s.contains("timeout"): return "The vault server did not answer in time."
+        case let s where s.contains("notRunning"): return "The vault server did not start. See [vault] in the config."
+        default: return "The vault server gave an error."
+        }
+    }
 
     /// The shortest query that searches the vault.
     public static let vaultMinLength = 3
@@ -145,15 +189,39 @@ import SanketaSystem
         expanded = expanded == results[i].id ? nil : results[i].id
     }
 
-    /// Opens the selected vault result that has a target. Else copies the selected item's command or snippet; nil when
+    /// Opens the selected vault result that has a target. A vault result with no target shows all its text, or goes
+    /// back to one line, and gives nil: search stays open. Else copies the selected item's command or snippet; nil when
     /// nothing is selected or it has nothing to copy.
     @discardableResult public func activate() -> SearchItem? {
         guard let s = selected else { return nil }
         if let u = s.open { open(u); return s }
+        if s.kind == .vault { click(selection); return nil }
         guard let t = s.copyText else { return nil }
         pasteboard.clearContents()
         pasteboard.setString(t, forType: .string)
         return s
+    }
+
+    public enum AltResult: Equatable { case none, resumed, opened }
+
+    /// ⌥Return: resumes the selected ramabana session, or opens the file of the selected memory entry.
+    @discardableResult public func activateAlt() -> AltResult {
+        switch selected?.alt {
+        case .resume(let id)?: return resume(id) ? .resumed : .none
+        case .file(let u)?: open(u); return .opened
+        case nil: return .none
+        }
+    }
+
+    /// The keys of a vault result, in Mac symbols, for its row: what Return and ⌥Return do.
+    public nonisolated static func keyHint(_ i: SearchItem) -> String? {
+        guard i.kind == .vault else { return nil }
+        let ret = i.open == nil ? "↩ Show all" : "↩ Open"
+        switch i.alt {
+        case .resume?: return ret + "     ⌥↩ Resume session"
+        case .file?: return ret + "     ⌥↩ Open file"
+        case nil: return ret
+        }
     }
 
     public func clear() { query = "" }

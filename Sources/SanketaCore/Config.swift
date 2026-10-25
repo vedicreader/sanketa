@@ -170,22 +170,55 @@ public struct LLMConfig: Codable, Equatable, Sendable {
 }
 
 /// `[vault]`: the vishalakshi vault that search reads, read-only. An empty `path` uses `VISHALAKSHI_VAULT`, then
-/// `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`.
+/// `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`. With `mcp` on, search is hybrid (words and meaning) and ⌘S saves
+/// notes, through vishalakshi's MCP server: Sanketa starts `mcp_command` as a child, or uses the server at `mcp_url`.
 public struct VaultConfig: Codable, Equatable, Sendable {
     public var enabled = true
     public var path = ""
-    /// the abhyasa web app, which shows a concept at `<learning_url>/c/<slug>`
-    public var learningURL = "http://127.0.0.1:5077"
+    /// the old name of `[abhyasa] url`; it is used when `[abhyasa]` has no `url`
+    public var learningURL = AbhyasaConfig.defaultURL
+    /// hybrid search and saving through vishalakshi's MCP server; off: keyword search only, and no saving
+    public var mcp = true
+    /// the `vishalakshi-mcp` program; empty: the first of `mcpCandidates` that exists
+    public var mcpCommand = ""
+    /// a running Streamable HTTP server, such as `http://127.0.0.1:8000/mcp`; set, Sanketa starts no child
+    public var mcpURL = ""
+    /// the most time that one hybrid search can take; then keyword results show
+    public var mcpTimeoutSeconds = 1.0
+    /// a child with no call for this long stops; it starts again on the next search
+    public var mcpIdleSeconds = 600.0
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case enabled, path, learningURL = "learning_url" }
+    enum CodingKeys: String, CodingKey {
+        case enabled, path, mcp, learningURL = "learning_url", mcpCommand = "mcp_command", mcpURL = "mcp_url"
+        case mcpTimeoutSeconds = "mcp_timeout_seconds", mcpIdleSeconds = "mcp_idle_seconds"
+    }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        func num(_ k: CodingKeys, _ d: Double) throws -> Double {
+            if let v = try? c.decodeIfPresent(Double.self, forKey: k) { return v }
+            return try c.decodeIfPresent(Int.self, forKey: k).map(Double.init) ?? d
+        }
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
         path = try c.decodeIfPresent(String.self, forKey: .path) ?? path
         learningURL = try c.decodeIfPresent(String.self, forKey: .learningURL) ?? learningURL
+        mcp = try c.decodeIfPresent(Bool.self, forKey: .mcp) ?? mcp
+        mcpCommand = try c.decodeIfPresent(String.self, forKey: .mcpCommand) ?? mcpCommand
+        mcpURL = try c.decodeIfPresent(String.self, forKey: .mcpURL) ?? mcpURL
+        mcpTimeoutSeconds = try num(.mcpTimeoutSeconds, mcpTimeoutSeconds)
+        mcpIdleSeconds = try num(.mcpIdleSeconds, mcpIdleSeconds)
+    }
+
+    /// Where Sanketa looks for `vishalakshi-mcp` when `mcp_command` is empty: `uv tool install vishalakshi` puts it in
+    /// `~/.local/bin`.
+    public static let mcpCandidates = ["~/.local/bin/vishalakshi-mcp", "/opt/homebrew/bin/vishalakshi-mcp", "/usr/local/bin/vishalakshi-mcp"]
+
+    /// The MCP server program: `mcp_command`, else the first candidate that `exists`; `~` expanded. nil: none.
+    public func resolvedCommand(exists: (String) -> Bool = FileManager.default.isExecutableFile) -> String? {
+        let all = (mcpCommand.isEmpty ? Self.mcpCandidates : [mcpCommand]).map { ($0 as NSString).expandingTildeInPath }
+        return all.first(where: exists)
     }
 
     public static let defaultPath = "~/.vishalakshi/vault.db"
@@ -194,6 +227,32 @@ public struct VaultConfig: Codable, Equatable, Sendable {
     public func resolvedPath(env: [String: String] = ProcessInfo.processInfo.environment) -> String {
         let p = [path, env["VISHALAKSHI_VAULT"] ?? "", env["ABHYASA_VAULT"] ?? ""].first { !$0.isEmpty } ?? Self.defaultPath
         return (p as NSString).expandingTildeInPath
+    }
+}
+
+/// `[abhyasa]`: the abhyasa web app on this Mac. Off (the default), Sanketa works alone: it makes no abhyasa link and
+/// never connects to it. On, Return opens a vault result in abhyasa: a concept at `<url>/c/<slug>`, another document at
+/// `<url>/v/<shelf>/<doc_id>`, when abhyasa answers.
+public struct AbhyasaConfig: Codable, Equatable, Sendable {
+    public static let defaultURL = "http://127.0.0.1:5077"
+    public var enabled = false
+    public var url = AbhyasaConfig.defaultURL
+
+    public init() {}
+
+    enum CodingKeys: String, CodingKey { case enabled, url }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
+        url = try c.decodeIfPresent(String.self, forKey: .url) ?? url
+    }
+
+    /// The base URL when abhyasa is on and the URL is an http address on this Mac; else nil.
+    public var base: URL? {
+        guard enabled, let u = URL(string: url), ["http", "https"].contains(u.scheme?.lowercased() ?? ""),
+              ["127.0.0.1", "localhost", "::1"].contains(u.host?.lowercased() ?? "") else { return nil }
+        return u
     }
 }
 
@@ -208,11 +267,12 @@ public struct Config: Codable, Equatable {
     public var coach = CoachConfig()
     public var llm = LLMConfig()
     public var vault = VaultConfig()
+    public var abhyasa = AbhyasaConfig()
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm, vault
+        case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm, vault, abhyasa
         case hyperLabel = "hyper_label"
     }
 
@@ -230,6 +290,9 @@ public struct Config: Codable, Equatable {
         coach = try c.decodeIfPresent(CoachConfig.self, forKey: .coach) ?? coach
         llm = try c.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? llm
         vault = try c.decodeIfPresent(VaultConfig.self, forKey: .vault) ?? vault
+        abhyasa = try c.decodeIfPresent(AbhyasaConfig.self, forKey: .abhyasa) ?? abhyasa
+        // the old key: `[vault] learning_url`, when `[abhyasa]` has no `url`
+        if abhyasa.url == AbhyasaConfig.defaultURL { abhyasa.url = vault.learningURL }
         translucency = (try? c.decodeIfPresent(String.self, forKey: .translucency)).flatMap { $0.flatMap(Translucency.init) } ?? .medium
     }
 
