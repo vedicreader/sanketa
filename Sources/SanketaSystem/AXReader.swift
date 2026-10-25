@@ -31,12 +31,14 @@ public enum AXReader {
     public static var isTrusted: Bool { AXIsProcessTrusted() }
     /// the messaging timeout of each read, in seconds
     public static let timeout: TimeInterval = 0.5
+    /// the menu-read timeout for an app whose last read was empty or slow, such as an Electron app (Slack)
+    public static let slowTimeout: TimeInterval = 2
 
     public static func promptForTrust() {
         _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
     }
 
-    public static func menuShortcuts(pid: pid_t) -> [MenuShortcut] {
+    public static func menuShortcuts(pid: pid_t, timeout: TimeInterval = timeout) -> [MenuShortcut] {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, Float(timeout))
         guard let bar = AXMenuNode.attr(app, kAXMenuBarAttribute) else { return [] }

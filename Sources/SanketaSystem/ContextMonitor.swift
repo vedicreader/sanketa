@@ -57,19 +57,23 @@ final class LastAnswer<K: Equatable, V: Equatable>: @unchecked Sendable {
     func clear() { lock.withLock { last = nil } }
 }
 
-/// Menu reads by pid for 60 s. A slow read (it may have hit the AX timeout) is kept but read once more.
+/// Menu reads by pid for 60 s. A slow read (it may have hit the AX timeout) is kept but read once more. After an empty
+/// or slow read, the app's reads get the long timeout (`AXReader.slowTimeout`): an Electron app such as Slack can need
+/// more than 0.5 s to give its menu bar.
 final class MenuCache: @unchecked Sendable {
     private var store: [pid_t: (at: Date, shortcuts: [MenuShortcut], reread: Bool)] = [:]
+    private var needsLong: Set<pid_t> = []
     private let lock = NSLock()
     let ttl: TimeInterval = 60
 
-    /// The shortcuts, and false when this read was empty or the first slow one.
-    func get(_ pid: pid_t, slow: TimeInterval, _ read: () -> [MenuShortcut]) -> (shortcuts: [MenuShortcut], full: Bool) {
-        let e = lock.withLock { store[pid].flatMap { Date().timeIntervalSince($0.at) < ttl ? $0 : nil } }
+    /// The shortcuts, and false when this read was empty or the first slow one. `read` gets the timeout to use.
+    func get(_ pid: pid_t, slow: TimeInterval, _ read: (TimeInterval) -> [MenuShortcut]) -> (shortcuts: [MenuShortcut], full: Bool) {
+        let (e, long) = lock.withLock { (store[pid].flatMap { Date().timeIntervalSince($0.at) < ttl ? $0 : nil }, needsLong.contains(pid)) }
         if let e, !e.reread { return (e.shortcuts, true) }
         let t0 = Date()
-        let m = read()
+        let m = read(long ? AXReader.slowTimeout : AXReader.timeout)
         let isSlow = Date().timeIntervalSince(t0) >= slow
+        if m.isEmpty || isSlow { lock.withLock { _ = needsLong.insert(pid) } }
         // the second read is final; an empty read is never kept, so the next compute reads again
         let first = e == nil
         if !m.isEmpty { lock.withLock { store[pid] = (Date(), m, isSlow && first) } }
@@ -94,7 +98,7 @@ public struct ContextEngine: @unchecked Sendable {
     var isTrusted: () -> Bool = { AXReader.isTrusted }
     var snapshot: (pid_t) -> ProcessSnapshot = { SysctlProcesses.snapshot(under: [$0]) }
     var focusedWindow: (pid_t) -> (title: String?, id: Int)? = { AXReader.focusedWindow(pid: $0) }
-    var readMenu: (pid_t) -> [MenuShortcut] = { AXReader.menuShortcuts(pid: $0) }
+    var readMenu: (pid_t, TimeInterval) -> [MenuShortcut] = { AXReader.menuShortcuts(pid: $0, timeout: $1) }
     var kakuCLI: (pid_t) -> String? = { KakuQuery.cli(bundle: NSRunningApplication(processIdentifier: $0)?.bundleURL) }
     /// a menu read this slow may have hit the AX timeout
     var slowMenu: TimeInterval = AXReader.timeout
@@ -152,7 +156,7 @@ public struct ContextEngine: @unchecked Sendable {
 
     /// `appPack`, and false when the menu read was empty or the first slow one (the monitor then reads once more).
     func menuPack(pid: pid_t, bundleID: String, name: String, trusted: Bool) -> (pack: Pack, full: Bool) {
-        let (shortcuts, full) = trusted ? menus.get(pid, slow: slowMenu) { readMenu(pid) } : ([], true)
+        let (shortcuts, full) = trusted ? menus.get(pid, slow: slowMenu) { readMenu(pid, $0) } : ([], true)
         let menu = MenuKeys.pack(bundleID: bundleID, name: name, shortcuts: shortcuts)
         guard let user = library.pack(bundleID: bundleID) else { return (menu, full) }
         var m = PackLibrary.merge(menu, user)
@@ -214,10 +218,12 @@ public struct ContextEngine: @unchecked Sendable {
     /// pack id and scope token of the last title; nil inside means the title shows no pack
     var titleKey: String??
     var pendingTitle: Timer?
-    /// one more read after `menuRetryDelay` when the menu read was empty or timed out; once for each activation
+    /// more reads when the menu read was empty or timed out, after each wait in `menuRetryDelays`; only after an
+    /// activation, never as a poll
     var menuRetry: Timer?
-    var menuRetried = false
-    var menuRetryDelay: TimeInterval = 1.0
+    var menuRetries = 0
+    var menuRetryDelays = ContextMonitor.menuRetryDelays
+    public nonisolated static let menuRetryDelays: [TimeInterval] = [0.5, 1, 2]
     /// what `refresh` computes; nil means the engine. Tests put a stand-in here.
     var computeContext: ((pid_t, String, String) -> Context)?
 
@@ -277,7 +283,7 @@ public struct ContextEngine: @unchecked Sendable {
         guard let app, app.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
         timer?.invalidate()
         timer = nil
-        menuRetry?.invalidate(); menuRetry = nil; menuRetried = false
+        menuRetry?.invalidate(); menuRetry = nil; menuRetries = 0
         engine.resetChanges()
         if engine.config.terminals.contains(app.bundleIdentifier ?? "") {
             let interval = max(0.25, engine.config.pollInterval)
@@ -309,11 +315,13 @@ public struct ContextEngine: @unchecked Sendable {
         }
     }
 
-    /// An app that has just started can show no menu bar yet, and a busy one can miss the AX timeout: read once more.
+    /// An app that has just started can show no menu bar yet, and a busy one can miss the AX timeout: read again, up to
+    /// `menuRetryDelays.count` times, each after a longer wait.
     func retryMenu(_ app: NSRunningApplication) {
-        guard !menuRetried else { return }
-        menuRetried = true
-        let t = Timer(timeInterval: menuRetryDelay, repeats: false) { [weak self] _ in
+        guard menuRetries < menuRetryDelays.count else { return }
+        let delay = menuRetryDelays[menuRetries]
+        menuRetries += 1
+        let t = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh(app) }
         }
         RunLoop.main.add(t, forMode: .common)

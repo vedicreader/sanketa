@@ -203,7 +203,7 @@ final class Calls { var titles: [String?] = [] }
     }
 }
 
-/// An empty or timed-out menu read is read once more after a short delay, without another activation.
+/// An empty or timed-out menu read is read again after short waits (3 times at most), without another activation.
 @MainActor @Suite(.serialized) struct ContextMonitorMenuRetryTests {
     /// Waits with the main queue free, so `refresh` can hand its result back on it.
     func idle(_ s: TimeInterval, until ok: () -> Bool = { false }) async throws {
@@ -220,7 +220,7 @@ final class Calls { var titles: [String?] = [] }
     func monitor(_ reads: Reads, emptyReads: Int) -> ContextMonitor {
         let m = ContextMonitor(config: Config(), library: PackLibrary(packs: [:]))
         m.isTrusted = { false }   // no title watcher
-        m.menuRetryDelay = 0.2
+        m.menuRetryDelays = [0.1, 0.2, 0.3]
         m.computeContext = { pid, bid, name in
             let n = reads.next()
             let keys = n <= emptyReads ? [] : [MenuShortcut(path: ["File", "New Window"], keys: "⌘N")]
@@ -244,15 +244,22 @@ final class Calls { var titles: [String?] = [] }
         #expect(reads.n == 2)
     }
 
-    @Test func readsAgainOnlyOncePerActivation() async throws {
+    @Test func readsAgainThreeTimesPerActivation() async throws {
         let reads = Reads(), m = monitor(reads, emptyReads: 99)
         m.activated(try finder())
-        try await idle(3) { reads.n >= 2 }
-        try await idle(1)           // the delay is 0.2 s: a second retry would come in this time
-        #expect(reads.n == 2 && m.context.packs.first?.keys.isEmpty == true)
-        m.activated(try finder())   // a new activation may try once more
         try await idle(3) { reads.n >= 4 }
+        try await idle(1)           // the waits are 0.1, 0.2 and 0.3 s: a fourth retry would come in this time
+        #expect(reads.n == 4 && m.context.packs.first?.keys.isEmpty == true)
+        m.activated(try finder())   // a new activation may try again
+        try await idle(3) { reads.n >= 8 }
         try await idle(1)
-        #expect(reads.n == 4)
+        #expect(reads.n == 8)
+    }
+
+    @Test func slackLikeAppGivesItsMenuOnTheThirdRead() async throws {
+        let reads = Reads(), m = monitor(reads, emptyReads: 2)
+        m.activated(try finder())
+        try await idle(3) { m.context.packs.first?.keys.count == 1 }
+        #expect(m.context.packs.first?.keys.count == 1 && reads.n == 3)
     }
 }

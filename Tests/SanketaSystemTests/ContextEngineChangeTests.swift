@@ -61,6 +61,7 @@ import Testing
         let lock = NSLock()
         var title: String? = "[1/2] project", window = 7, snap = ContextEngineChangeTests.tree()
         var menu: [MenuShortcut] = [MenuShortcut(path: ["Shell", "New Tab"], keys: "⌘T")], menuDelay = 0.0, menuReads = 0
+        var timeouts: [TimeInterval] = []
     }
 
     func engine(_ r: Runner, _ w: World) -> ContextEngine {
@@ -70,8 +71,8 @@ import Testing
         e.snapshot = { _ in w.lock.withLock { w.snap } }
         e.focusedWindow = { _ in w.lock.withLock { (w.title, w.window) } }
         e.kakuCLI = { _ in Self.kaku }
-        e.readMenu = { _ in
-            let (m, d) = w.lock.withLock { w.menuReads += 1; return (w.menu, w.menuDelay) }
+        e.readMenu = { _, timeout in
+            let (m, d) = w.lock.withLock { w.menuReads += 1; w.timeouts.append(timeout); return (w.menu, w.menuDelay) }
             Thread.sleep(forTimeInterval: d)
             return m
         }
@@ -195,5 +196,7 @@ import Testing
         #expect(!d.menuIncomplete && d.packs.first?.keys.count == 1 && w.menuReads == 4)
         _ = e.compute(pid: 4343, bundleID: "org.example.new", appName: "New")
         #expect(w.menuReads == 4)
+        // after an empty or slow read the app gets the long AX timeout, as Slack needs
+        #expect(w.timeouts == [AXReader.timeout, AXReader.slowTimeout, AXReader.timeout, AXReader.slowTimeout])
     }
 }

@@ -64,7 +64,7 @@ import Testing
         e.snapshot = { _ in w.lock.withLock { w.snap } }
         e.focusedWindow = { _ in w.lock.withLock { (w.title, w.window) } }
         e.kakuCLI = { _ in Self.kaku }
-        e.readMenu = { _ in [MenuShortcut(path: ["Shell", "New Tab"], keys: "⌘T")] }
+        e.readMenu = { _, _ in [MenuShortcut(path: ["Shell", "New Tab"], keys: "⌘T")] }
         return e
     }
     func names(_ e: ContextEngine) -> [String] { e.compute(pid: 28331, bundleID: "fun.tw93.kaku", appName: "Kaku").layers.map(\.name) }

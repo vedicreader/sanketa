@@ -14,6 +14,8 @@ Do these three steps:
 
 `make test` does not draw the shots. They are off by default, because they take time and they write files. The `RenderTests` suite draws them only when `SANKETA_RENDER=1` is set. Without `SHOTS`, the files go to a temporary folder. The test prints the folder.
 
+To check that Sanketa reads the menu keys of the common apps that run now, run `SANKETA_LIVE_APPS=1 make test FILTER=CommonAppsLiveTests`. This test only reads the menus. It does not move the focus.
+
 ## Rules for tests
 
 - Write tests that check real behaviour: real files, real processes and real tmux. A test that passes when the feature is broken is not a test.
