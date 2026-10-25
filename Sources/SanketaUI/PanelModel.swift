@@ -263,6 +263,15 @@ struct StackState {
 
     public func selectLayer(at index: Int) { if let id = sectionID(forLayerAt: index) { selectedLayer = id } }
 
+    /// A breadcrumb click: selects the section at `index`, opens it and opens each of its groups, so all its keys show.
+    /// Tab and ↑/↓ use `selectLayer`, and the folded index stays.
+    public func openLayer(at index: Int) {
+        guard let s = sections.first(where: { $0.index == index }) else { return }
+        selectedLayer = s.id
+        collapsed.remove(s.id)
+        for g in s.groups where g.folds { folds[Self.groupID(s, g)] = false }
+    }
+
     /// Moves the selected section by `by`, wrapping; starts at the first (or last) when none is selected.
     public func cycleLayer(_ by: Int) {
         guard !sections.isEmpty else { return }

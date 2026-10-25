@@ -138,7 +138,7 @@ public final class SanketaPanel: NSPanel {
     }
 
     func clickLayer(_ i: Int) {
-        model.selectLayer(at: i)
+        model.openLayer(at: i)
         mouseUp()
     }
 
