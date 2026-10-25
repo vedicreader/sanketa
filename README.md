@@ -58,9 +58,11 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Show or Hide Panel
 - Search (with the hotkey)
 - Translucency: Low, Medium or High
-- OpenAI Model: the model for OpenAI search
+- Use OpenAI: turns OpenAI search on or off. When you turn it on, Sanketa looks for the key in the environment, in your login shell and in your Keychain. The next line tells where it found the key, for example "Key: environment". If Sanketa finds no key, the key box opens. Click Save to keep the key in your Keychain and turn OpenAI on. Click Cancel to keep it off.
+- OpenAI Model: the model for OpenAI search, when Use OpenAI is on
 - OpenAI Key…: save an API key for the server in your Keychain
-- On-Device Model: download or remove the on-device model
+- Use On-Device Model: turns the on-device model on or off. If no model is downloaded, the model choice opens. Sanketa does not download a model until you choose one. On a Mac with less than 8 GB of memory, this item is off.
+- On-Device Model: download, use or remove a model, when Use On-Device Model is on
 - Reload Packs
 - Open Packs Folder
 - Open Config

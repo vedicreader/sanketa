@@ -136,7 +136,7 @@ private func smart(_ c: (any Choosing)?) -> SmartSearch {
 
     @Test func modelMenuOffMakesOneDisabledLine() {
         #expect(StatusMenus.modelLines(config: openAI(false), models: ["gpt-5-nano"], loading: true, failure: nil)
-                == [MenuLine("Turn on with [llm] openai = true in config.toml", enabled: false)])
+                == [MenuLine("Turn on Use OpenAI first", enabled: false)])
     }
 
     @Test func modelMenuListsCachedModelsWithCheapestFirst() {

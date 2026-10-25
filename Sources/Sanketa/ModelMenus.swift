@@ -9,6 +9,7 @@ import SanketaMLX
 @MainActor final class ModelMenus: NSObject, NSMenuDelegate {
     let modelMenu = NSMenu(), onDeviceMenu = NSMenu()
     private(set) var modelItem: NSMenuItem?, keyItem: NSMenuItem?
+    private(set) var openAIItem: NSMenuItem?, keySourceItem: NSMenuItem?, onDeviceItem: NSMenuItem?, deviceItem: NSMenuItem?
     let llm: () -> LLMSetup
     let config: () -> LLMConfig
     /// sets `[llm]` in the app's config and rebuilds the router
@@ -28,14 +29,32 @@ import SanketaMLX
         for m in [modelMenu, onDeviceMenu] { m.delegate = self; m.autoenablesItems = false }
     }
 
-    /// Adds the three items to the status menu.
+    /// The two toggles and what they do: the key lookup, the key box and the model choice.
+    lazy var toggles = LLMToggles(.init(
+        config: { [unowned self] in config() }, apply: { [unowned self] in change($0) }, save: saveLLM,
+        keySource: { [unowned self] in await llm().keys?.lookup()?.source },
+        askKey: { [unowned self] in askKey() }, saveKey: { [unowned self] in saveKey($0) },
+        installed: { [unowned self] in installedModels() }, showPicker: { [unowned self] in showPicker() }))
+
+    /// Adds the items to the status menu: "Use OpenAI" with its key line, model list and key box, then "Use On-Device
+    /// Model" with its model choice. A list is enabled only while its toggle is on.
     func add(to m: NSMenu) {
+        m.autoenablesItems = false
         let provider = llm().providerName
+        openAIItem = m.addItem(withTitle: LLMToggles.useOpenAI, action: #selector(toggleOpenAI), keyEquivalent: "")
+        openAIItem?.target = self
+        keySourceItem = m.addItem(withTitle: "", action: nil, keyEquivalent: "")
+        keySourceItem?.isEnabled = false
         modelItem = m.addItem(withTitle: StatusMenus.modelTitle(provider: provider), action: nil, keyEquivalent: "")
         modelItem?.submenu = modelMenu
         keyItem = m.addItem(withTitle: StatusMenus.keyTitle(provider: provider), action: #selector(enterKey), keyEquivalent: "")
         keyItem?.target = self
-        m.addItem(withTitle: "On-Device Model", action: nil, keyEquivalent: "").submenu = onDeviceMenu
+        onDeviceItem = m.addItem(withTitle: LLMToggles.useOnDevice, action: #selector(toggleOnDevice), keyEquivalent: "")
+        onDeviceItem?.target = self
+        deviceItem = m.addItem(withTitle: "On-Device Model", action: nil, keyEquivalent: "")
+        deviceItem?.submenu = onDeviceMenu
+        refreshToggles()
+        if config().openai { Task { @MainActor in await toggles.findKeySource(); refreshToggles() } }
         // a submenu with no items does not open, so each gets its lines now; menuWillOpen refreshes them. The on-device
         // menu gets only its status line: the full menu looks for the MLX shaders, and that waits until the user opens it
         renderModelMenu()
@@ -49,6 +68,79 @@ import SanketaMLX
         if l.baseURL != oldBase { modelIDs = nil; modelFailure = nil }
         modelItem?.title = StatusMenus.modelTitle(provider: l.providerName)
         keyItem?.title = StatusMenus.keyTitle(provider: l.providerName)
+        refreshToggles()
+    }
+
+    /// Check marks, the key line and which lists are enabled, from `[llm]`.
+    func refreshToggles() {
+        let c = config()
+        let ai = LLMToggles.openAILines(config: c, source: toggles.keySource)
+        openAIItem?.state = ai[0].checked ? .on : .off
+        keySourceItem?.isHidden = ai.count < 2
+        keySourceItem?.title = ai.count < 2 ? "" : ai[1].title
+        modelItem?.isEnabled = c.openai
+        let (dev, note) = LLMToggles.onDeviceLine(config: c, memory: ProcessInfo.processInfo.physicalMemory)
+        onDeviceItem?.state = dev.checked ? .on : .off
+        onDeviceItem?.isEnabled = dev.enabled
+        onDeviceItem?.toolTip = note
+        deviceItem?.isEnabled = c.onDevice
+    }
+
+    @objc func toggleOpenAI() {
+        let on = !config().openai
+        Task { @MainActor in
+            if case .notSaved(let why) = await toggles.setOpenAI(on) { KeyBox.tell("Key not saved", why) }
+            refreshToggles()
+        }
+    }
+
+    @objc func toggleOnDevice() {
+        let on = !config().onDevice
+        _ = toggles.setOnDevice(on)
+        if !on { Task { await MLXChooser.unloadAll() } }
+        refreshToggles()
+    }
+
+    func installedModels() -> Set<MLXModelChoice> {
+        Set(MLXModelChoice.allCases.filter { installer.isInstalled(ModelCatalog.spec($0)) })
+    }
+
+    /// The model choice as a menu at the pointer, after the status menu has closed. Nothing downloads until the user
+    /// chooses a download line.
+    func showPicker() {
+        DispatchQueue.main.async { [self] in
+            renderOnDeviceMenu()
+            let p = NSMenu()
+            p.autoenablesItems = false
+            fill(p, deviceLines, #selector(pickDevice(_:)))
+            p.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+        }
+    }
+
+    /// The key box for the server; nil on Cancel or when there is no server address.
+    func askKey() -> String? {
+        let l = llm()
+        guard let url = l.baseURL, let keys = l.keys else {
+            KeyBox.tell("No server address", "Set base_url in [llm] in config.toml to an https address.")
+            return nil
+        }
+        let name = keys.varName ?? ""
+        return KeyBox.ask(host: OpenAIModels.host(url), status: { KeyBox.statusText(await keys.lookup()?.source, varName: name) })
+    }
+
+    /// `APIKey.clean`, then the Keychain item for the server's host; nil when saved, else why not. The key is not logged.
+    func saveKey(_ typed: String) -> String? {
+        let l = llm()
+        guard let url = l.baseURL else { return "Set base_url in [llm] in config.toml to an https address." }
+        guard let key = APIKey.clean(typed) else { return "The key is empty, or it has spaces or control characters in it." }
+        do {
+            try KeychainStore().write(key, account: APIKey.account(for: url))
+            modelFailure = nil
+            if let models = l.models { Task { await models.reset() } }
+            return nil
+        } catch {
+            return "\(error)"
+        }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -118,24 +210,8 @@ import SanketaMLX
     /// Opens the key box at once; its last line says where the key is when the lookup ends. A saved key goes through
     /// `APIKey.clean` into the Keychain.
     @objc func enterKey() {
-        let l = llm()
-        guard let url = l.baseURL, let keys = l.keys else {
-            return KeyBox.tell("No server address", "Set base_url in [llm] in config.toml to an https address.")
-        }
-        let name = keys.varName ?? ""
-        guard let typed = KeyBox.ask(host: OpenAIModels.host(url), status: {
-            KeyBox.statusText(await keys.lookup()?.source, varName: name)
-        }) else { return }
-        guard let key = APIKey.clean(typed) else {
-            return KeyBox.tell("Key not saved", "The key is empty, or it has spaces or control characters in it.")
-        }
-        do {
-            try KeychainStore().write(key, account: APIKey.account(for: url))
-            modelFailure = nil
-            if let models = l.models { Task { await models.reset() } }
-        } catch {
-            KeyBox.tell("Key not saved", "\(error)")
-        }
+        guard let typed = askKey() else { return }
+        if let why = saveKey(typed) { KeyBox.tell("Key not saved", why) }
     }
 
     // MARK: on-device model

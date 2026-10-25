@@ -16,7 +16,7 @@ public struct MenuLine: Equatable {
 
 /// The lines of the "OpenAI Model" and "On-Device Model" submenus.
 public enum StatusMenus {
-    public static let turnOn = "Turn on with [llm] openai = true in config.toml"
+    public static let turnOn = "Turn on Use OpenAI first"
     public static let loading = "Loading models…"
     public static let failed = "Could not load the model list"
 
