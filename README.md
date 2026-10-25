@@ -82,9 +82,9 @@ The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search
 
 ### Layers and sections
 
-The breadcrumb at the top lists the layers, the innermost first, for example `htop › tmux › fish › Kaku`. Click a layer to go to its section. When you click the panel outside a search, the focus goes back to the app that you used.
+The breadcrumb at the top lists the layers, the innermost first, for example `htop › tmux › fish › Kaku`. Click a layer to go to its section and open all its groups. When you click the panel outside a search, the focus goes back to the app that you used. When you click the search field, the search starts and the field keeps the focus.
 
-The panel is an index of the layers. When the innermost layer has keys, its section comes first and is open. It shows the keys of its first two groups. Each other section shows the keys of its first group. The other groups show as one line with a count, such as `› View 10`. Click the line to open the group. A group with two keys or fewer is always open.
+The panel is an index of the layers. When the innermost layer has keys, its section comes first and is open. It shows the keys of its first two groups. Each other section shows the keys of its first group. The other groups show as one line with a count, such as `› View 10`. Click the line to open the group. A group with two keys or fewer is always open. Click a key to see all its text and its full command. Click it again to make it short. Put the pointer on a key to see all its text, and a copy button at the right. The copy button copies the keys, or the snippet of a tip. The panel then shows "Copied" for a short time. The focus does not change.
 
 When you go to a different program, the panel goes back to the top. If you go back to a stack of layers that you used a short time ago, the panel shows it as you left it. It keeps the groups that you opened and the scroll position. It remembers the last eight stacks.
 

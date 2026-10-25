@@ -4,7 +4,14 @@ import SanketaCore
 struct TipCard: View {
     let item: SearchItem
     var prefix: String?
+    var copy: (String) -> Void = { _ in }
     let mark: (TipMark) -> Void
+    @State var hover = false
+
+    /// What the copy button copies: a key tip's keys as shown, else the snippet.
+    static func copyText(_ item: SearchItem, prefix: String?) -> String {
+        item.kind == .key ? KeyNotation.display(item.detail, prefix: prefix) : item.detail
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -29,5 +36,10 @@ struct TipCard: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onHover { hover = $0 }
+        .overlay(alignment: .topTrailing) {
+            if hover { CopyButton { copy(Self.copyText(item, prefix: prefix)) }.offset(x: 13, y: 18) }
+        }
     }
 }

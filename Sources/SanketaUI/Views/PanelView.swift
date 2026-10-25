@@ -59,6 +59,7 @@ struct PanelView: View {
             }
             if model.showsFooter { Footer(model: model, grant: grantAccessibility, open: openFile) }
         }
+        .overlay(alignment: .bottom) { if let t = model.toast { Toast(text: t) } }
         // the top row sits in the title bar, so the safe area there would only add dead space
         .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 260, minHeight: 240)
@@ -72,14 +73,15 @@ struct PanelView: View {
             case .tips:
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(model.tipCards.enumerated()), id: \.offset) { _, t in
-                        TipCard(item: t, prefix: model.sections.first { $0.pack.id == t.packID }?.pack.prefix) { model.mark(t, $0) }
+                        TipCard(item: t, prefix: model.sections.first { $0.pack.id == t.packID }?.pack.prefix, copy: { model.copy($0) }) { model.mark(t, $0) }
                     }
                 }
                 .padding(.horizontal, 6)
             case .section(let s):
                 LayerSection(data: s, collapsed: model.collapsed.contains(s.id), selected: model.selectedLayer == s.id,
                              showsName: model.showsSectionNames,
-                             folded: { model.isFolded(s, $0) }, toggleGroup: { model.toggle(s, $0) }) { model.toggle(s.id) }
+                             folded: { model.isFolded(s, $0) }, toggleGroup: { model.toggle(s, $0) },
+                             expandedRow: model.expandedRow, toggleRow: { model.toggleRow($0) }, copy: { model.copy($0) }) { model.toggle(s.id) }
                     .id(s.id)
             case .noPack(let l, _):
                 NoPackSection(layer: l, makePack: makePack)
@@ -198,6 +200,25 @@ struct Breadcrumb: View {
         }
         .font(Theme.small)
         .lineLimit(1)
+    }
+}
+
+/// A short line at the bottom of the panel, such as "Copied": a saffron bar and muted text on the panel's own tint.
+struct Toast: View {
+    let text: String
+    @Environment(\.colorScheme) var scheme
+    var body: some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 1).fill(Theme.accent).frame(width: 2.5, height: 13)
+            Text(text).font(Theme.small).foregroundStyle(Theme.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Theme.pad).padding(.vertical, 7)
+        .frame(maxWidth: .infinity)
+        .background(Theme.tint(scheme == .dark).opacity(0.92))
+        .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
+        .allowsHitTesting(false)
+        .accessibilityAddTraits(.updatesFrequently)
     }
 }
 

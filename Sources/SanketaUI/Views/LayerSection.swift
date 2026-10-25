@@ -10,6 +10,10 @@ struct LayerSection: View {
     var showsName = true
     var folded: (RowGroup) -> Bool = { _ in false }
     var toggleGroup: (RowGroup) -> Void = { _ in }
+    /// the row id (`PanelModel.rowID`) that shows all its text
+    var expandedRow: String?
+    var toggleRow: (String) -> Void = { _ in }
+    var copy: (String) -> Void = { _ in }
     let toggle: () -> Void
 
     var body: some View {
@@ -51,15 +55,9 @@ struct LayerSection: View {
                             Text(n).font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, 2)
                         }
                     }
-                    if !shut { ForEach(Array(g.keys.enumerated()), id: \.offset) { _, k in
-                        HStack(alignment: .firstTextBaseline) {
-                            // disabled menu items stay listed, dimmed: their state changes with context
-                            Text(k.action).font(Theme.text).foregroundStyle(k.enabled == false ? Theme.secondary : .primary).lineLimit(2)
-                            Spacer(minLength: 10)
-                            KeyChip(keys: k.keys, prefix: data.pack.prefix, dimmed: k.enabled == false)
-                                .frame(minWidth: Theme.keyColumn, alignment: .trailing).layoutPriority(1)
-                        }
-                        .padding(.vertical, Theme.rowPad)
+                    if !shut { ForEach(Array(g.keys.enumerated()), id: \.offset) { i, k in
+                        let id = PanelModel.rowID(data, g, i)
+                        KeyRow(key: k, prefix: data.pack.prefix, expanded: expandedRow == id, toggle: { toggleRow(id) }, copy: copy)
                     } }
                 }
             }
@@ -69,6 +67,59 @@ struct LayerSection: View {
         .overlay(alignment: .topLeading) {
             if selected { RoundedRectangle(cornerRadius: 1).fill(Theme.accent).frame(width: 2.5, height: 14).offset(x: -1, y: 4) }
         }
+    }
+}
+
+/// One key: the action on the left and the keys on the right, one or two lines. A click shows all the text, with the
+/// full command when the key has one; a second click makes it short again. It never folds the group. On hover, a copy
+/// button at the trailing edge copies the keys as shown, and a tooltip gives the full text.
+struct KeyRow: View {
+    let key: KeyEntry
+    let prefix: String?
+    let expanded: Bool
+    let toggle: () -> Void
+    let copy: (String) -> Void
+    @State var hover = false
+
+    var full: String { [key.action, KeyNotation.display(key.keys, prefix: prefix), key.command].compactMap { $0 }.joined(separator: "\n") }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                // disabled menu items stay listed, dimmed: their state changes with context
+                Text(key.action).font(Theme.text).foregroundStyle(key.enabled == false ? Theme.secondary : .primary)
+                    .lineLimit(expanded ? nil : 2).fixedSize(horizontal: false, vertical: expanded)
+                Spacer(minLength: 10)
+                KeyChip(keys: key.keys, prefix: prefix, dimmed: key.enabled == false)
+                    .frame(minWidth: Theme.keyColumn, alignment: .trailing).layoutPriority(1)
+            }
+            if expanded, let c = key.command, c != key.action {
+                Text(c).font(Theme.snippet).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(.vertical, Theme.rowPad)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
+        .onHover { hover = $0 }
+        .help(full)
+        .overlay(alignment: .topTrailing) {
+            if hover { CopyButton { copy(PanelModel.copyText(key, prefix: prefix)) }.offset(x: 13) }
+        }
+    }
+}
+
+/// A small copy icon in the secondary colour, with no box. A click copies and does not take focus.
+struct CopyButton: View {
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "doc.on.doc").font(.system(size: 9.5, weight: .medium)).foregroundStyle(Theme.secondary)
+                .frame(width: 12, height: 16).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Copy")
+        .accessibilityLabel("Copy")
     }
 }
 

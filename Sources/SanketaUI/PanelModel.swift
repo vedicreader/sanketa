@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Combine
 import SanketaCore
@@ -96,8 +97,44 @@ struct StackState {
         }
     }
 
-    public init(tips: TipStore, seed: UInt64 = .random(in: 0...UInt64.max)) {
-        store = tips; self.seed = seed
+    /// the key row that shows all its text (one at a time), by `rowID`
+    @Published public private(set) var expandedRow: String?
+    /// a short line at the bottom of the panel, such as "Copied"; it goes after `toastSeconds`
+    @Published public private(set) var toast: String?
+    var toastUntil: Date?
+    public static let copied = "Copied"
+    public nonisolated static let toastSeconds: TimeInterval = 1.2
+    let pasteboard: NSPasteboard
+    /// the clock for the toast; tests set it
+    var now: () -> Date = Date.init
+
+    public init(tips: TipStore, seed: UInt64 = .random(in: 0...UInt64.max), pasteboard: NSPasteboard = .general) {
+        store = tips; self.seed = seed; self.pasteboard = pasteboard
+    }
+
+    /// Id of key `i` of group `g` in section `s`, for `expandedRow`.
+    public nonisolated static func rowID(_ s: LayerSectionData, _ g: RowGroup, _ i: Int) -> String { groupID(s, g) + "#\(i)" }
+
+    /// A click on a key row: it shows all its text, or goes back to one short line. It never folds the group.
+    public func toggleRow(_ id: String) { expandedRow = expandedRow == id ? nil : id }
+
+    /// The text that the copy button of a key row copies: the keys as the row shows them.
+    public nonisolated static func copyText(_ k: KeyEntry, prefix: String?) -> String { KeyNotation.display(k.keys, prefix: prefix) }
+
+    /// Puts `text` on the pasteboard and shows "Copied" for `toastSeconds`. Focus does not change.
+    public func copy(_ text: String) {
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        toast = Self.copied
+        toastUntil = now().addingTimeInterval(Self.toastSeconds)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.toastSeconds) { [weak self] in self?.expireToast() }
+    }
+
+    /// Removes the toast when its time is over.
+    public func expireToast() {
+        guard let u = toastUntil, now() >= u else { return }
+        toast = nil
+        toastUntil = nil
     }
 
     public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || configError != nil || configNote != nil || hotkeyConflict != nil }
@@ -207,6 +244,7 @@ struct StackState {
             let st = old == new ? StackState(collapsed: collapsed, folds: folds, scroll: scrollOffset)
                 : memory.first { $0.key == new }?.state ?? StackState(collapsed: [], folds: [:], scroll: 0)
             collapsed = st.collapsed; folds = st.folds; scrollTarget = st.scroll; scrollOffset = st.scroll
+            expandedRow = nil
             if let s = sections.first, s.index == 0 { collapsed.remove(s.id) }   // the tool in front always opens
             scrollToken &+= 1
         }
