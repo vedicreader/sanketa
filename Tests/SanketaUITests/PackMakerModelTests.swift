@@ -25,7 +25,7 @@ private final class FakeModel: @unchecked Sendable {
 
 @MainActor private func maker(openAI: FakeModel? = nil, onDevice: FakeModel? = nil, dir: URL? = nil, confirm: Bool = true,
                               asked: ((URL) -> Void)? = nil, app: PackMaker.App = rt, existing: String? = nil, userPack: URL? = nil,
-                              provider: String = "OpenAI") throws -> (PackMakerModel, NSPasteboard, URL) {
+                              provider: String = "OpenAI", saved: @escaping (URL) -> Void = { _ in }) throws -> (PackMakerModel, NSPasteboard, URL) {
     let pb = NSPasteboard(name: .init("sanketa-test-\(UUID().uuidString)"))
     let d = try dir ?? tempURL("packs")
     var c = LLMConfig()
@@ -33,7 +33,7 @@ private final class FakeModel: @unchecked Sendable {
     let m = PackMakerModel(.init(app: app, menu: menu, existing: existing, userPack: userPack, config: c, provider: provider, onDeviceReady: true,
                                  sendOpenAI: openAI.map { f in { try await f.send($0) } },
                                  sendOnDevice: onDevice.map { f in { try await f.send($0) } },
-                                 packsDir: d, pasteboard: pb, confirmReplace: { asked?($0); return confirm }, saved: { _ in }))
+                                 packsDir: d, pasteboard: pb, confirmReplace: { asked?($0); return confirm }, saved: saved))
     return (m, pb, d)
 }
 
@@ -64,7 +64,8 @@ private final class FakeModel: @unchecked Sendable {
         #expect(m.busy == .openAI && m.status == PackMakerModel.sending(.openAI, provider: "OpenAI"))
         await m.work?.value
         #expect(ai.prompts == [m.prompt])
-        #expect(m.notes.contains("Sanketa changed 1 key to the Mac key style.") && m.notes.contains("Sanketa removed 1 key that the menus already show."))
+        #expect(m.notes.contains(.init(.fix, "Sanketa changed 1 key to the Mac key style."))
+                && m.notes.contains(.init(.fix, "Sanketa removed 1 key that the menus already show.")))
         #expect(m.outcome?.canSave == true && m.busy == nil)
         m.save()
         let f = d.appendingPathComponent("rawtherapee.toml")
@@ -230,5 +231,172 @@ private final class FakeModel: @unchecked Sendable {
         #expect(!FileManager.default.fileExists(atPath: d.appendingPathComponent("rawtherapee.toml").path))
         await m.work?.value
         #expect(m.canSave)
+    }
+
+    // MARK: finish, keyboard and the default action
+
+    /// Save writes the file, tells the app (which reloads the library and shows the toast), then asks to close the
+    /// window; the close gives the focus back.
+    @Test func saveTellsTheAppThenAsksToClose() async throws {
+        var log: [String] = []
+        let (m, _, d) = try maker(openAI: FakeModel([.success(key("⌃S", "Save the image"))]), saved: { log.append("saved " + $0.lastPathComponent) })
+        m.requestClose = { log.append("close") }
+        m.send(.openAI)
+        await m.work?.value
+        m.save()
+        #expect(log == ["saved rawtherapee.toml", "close"])
+        #expect(m.savedFile == d.appendingPathComponent("rawtherapee.toml"))
+        #expect(FileManager.default.fileExists(atPath: d.appendingPathComponent("rawtherapee.toml").path))
+    }
+
+    /// The replace question comes first; on Cancel nothing is written, the app is not told and the window stays open.
+    @Test func replaceThenCancelKeepsTheWindowOpen() async throws {
+        let d = try tempURL("packs")
+        try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        let f = d.appendingPathComponent("rawtherapee.toml")
+        let old = "id = \"rawtherapee\"\nname = \"RawTherapee\"\n"
+        try old.write(to: f, atomically: true, encoding: .utf8)
+        var log: [String] = []
+        let (m, _, _) = try maker(openAI: FakeModel([.success(key("⌃S", "Save the image"))]), dir: d, confirm: false,
+                                  asked: { _ in log.append("asked") }, saved: { _ in log.append("saved") })
+        m.requestClose = { log.append("close") }
+        m.send(.openAI)
+        await m.work?.value
+        m.save()
+        #expect(log == ["asked"] && m.savedFile == nil && m.canSave)
+        #expect(try String(contentsOf: f, encoding: .utf8) == old)
+    }
+
+    /// Sanketa does not load a draft, so the window stays open and tells where it went.
+    @Test func draftKeepsTheWindowOpen() async throws {
+        var closed = 0
+        let (m, _, d) = try maker(openAI: FakeModel([.success(dupAnswer)]))
+        m.requestClose = { closed += 1 }
+        m.send(.openAI)
+        await m.work?.value
+        m.saveDraft()
+        #expect(FileManager.default.fileExists(atPath: d.appendingPathComponent("rawtherapee.toml.draft").path) && closed == 0)
+    }
+
+    /// Esc closes the window when no request runs. While a request runs, Esc stops it first.
+    @Test func escStopsARequestThenCloses() async throws {
+        var closed = 0
+        let (m, _, _) = try maker(openAI: FakeModel([.success("")]))
+        m.requestClose = { closed += 1 }
+        m.cancel()
+        #expect(closed == 1)
+        var c = LLMConfig(); c.openai = true
+        let slow = PackMakerModel(.init(app: rt, menu: [], existing: nil, config: c, provider: "OpenAI", onDeviceReady: false,
+                                        sendOpenAI: { _ in try await Task.sleep(for: .seconds(30)); return "" }, sendOnDevice: nil,
+                                        packsDir: try tempURL("p"), pasteboard: NSPasteboard(name: .init("sanketa-test-\(UUID().uuidString)")),
+                                        confirmReplace: { _ in true }, saved: { _ in }))
+        var slowClosed = 0
+        slow.requestClose = { slowClosed += 1 }
+        slow.send(.openAI)
+        #expect(slow.busySince != nil)
+        slow.cancel()
+        await slow.work?.value
+        #expect(slowClosed == 0 && slow.busy == nil && slow.busySince == nil && slow.status == PackMakerModel.stopped)
+        slow.cancel()
+        #expect(slowClosed == 1)
+    }
+
+    /// Return does the main action of each step: the best model, then Check for a pasted result, then Save, Ask Again
+    /// or Save as Draft. Nothing while a request runs.
+    @Test func defaultActionFollowsTheStep() async throws {
+        let (copyOnly, _, _) = try maker()
+        #expect(copyOnly.primary == .send(.copy))
+        copyOnly.copyPrompt()
+        #expect(copyOnly.primary == .send(.copy))
+        copyOnly.pasted = dupAnswer
+        #expect(copyOnly.primary == .check)
+        copyOnly.performPrimary()
+        #expect(copyOnly.outcome?.canSave == false && copyOnly.primary == .check, "a pasted result with errors: fix the text, then Check")
+
+        let dev = FakeModel([.success(#"{"keys":[{"keys":"⌃S","action":"Save the image","group":"Editor"}],"tips":[]}"#)])
+        let (both, _, _) = try maker(openAI: FakeModel([.success(dupAnswer), .success(dupAnswer)]), onDevice: dev)
+        #expect(both.primary == .send(.openAI))
+        both.performPrimary()
+        #expect(both.primary == nil, "nothing while a request runs")
+        await both.work?.value
+        #expect(both.primary == .askAgain)
+        both.performPrimary()
+        await both.work?.value
+        #expect(both.primary == .saveDraft)
+
+        let (devOnly, _, _) = try maker(onDevice: dev)
+        #expect(devOnly.primary == .send(.copy), "the on-device model needs the docs text first")
+        devOnly.docs = "Ctrl+S saves the image."
+        #expect(devOnly.primary == .send(.onDevice))
+        devOnly.performPrimary()
+        await devOnly.work?.value
+        #expect(devOnly.primary == .save)
+    }
+
+    /// The check lines keep their kind, so the window can label errors and warnings.
+    @Test func notesKeepTheirKind() async throws {
+        let answer = key("Ctrl+s", "Save the image") + "\n" + key("b", "Show the image before and after the edit") + "\n" + key("b", "Before", "Other")
+        let (m, _, _) = try maker(openAI: FakeModel([.success(answer)]))
+        m.send(.openAI)
+        await m.work?.value
+        #expect(m.notes.first == .init(.fix, "Sanketa changed 1 key to the Mac key style."))
+        #expect(m.notes.contains { $0.kind == .warning && $0.text.contains("the action has 8 words") })
+        #expect(m.notes.allSatisfy { !$0.text.hasPrefix("warning:") })
+    }
+}
+
+/// The keys in the text areas of the window. The window is never shown and never key; the views get the events directly.
+@MainActor @Suite struct PackMakerKeyTests {
+    static func window(_ m: PackMakerModel) -> (NSWindow, NSView, [EditorTextView]) {
+        _ = NSApplication.shared
+        let host = PackMakerHostingView(rootView: PackMakerView(model: m, provider: "OpenAI"))
+        let w = NSWindow(contentRect: NSRect(origin: .zero, size: PackMakerWindow.size), styleMask: [.titled], backing: .buffered, defer: false)
+        w.isReleasedWhenClosed = false
+        w.contentView = host
+        for _ in 0..<3 { host.layoutSubtreeIfNeeded(); RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+        func editors(_ v: NSView) -> [EditorTextView] { (v as? EditorTextView).map { [$0] } ?? v.subviews.flatMap(editors) }
+        return (w, host, editors(host))
+    }
+
+    static func key(_ code: UInt16, _ chars: String, _ flags: NSEvent.ModifierFlags = []) -> NSEvent {
+        NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil,
+                         characters: chars, charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code)!
+    }
+
+    @Test func returnMakesALineAndCommandReturnDoesTheDefault() throws {
+        let (m, pb, _) = try maker()
+        let (w, host, eds) = Self.window(m)
+        let urls = try #require(eds.first)
+        #expect(w.makeFirstResponder(urls))
+        #expect(!host.performKeyEquivalent(with: Self.key(36, "\r")), "the default button does not take Return from a text area")
+        urls.keyDown(with: Self.key(36, "\r", .command))
+        #expect(m.copied && pb.string(forType: .string) == m.prompt, "⌘Return did Copy Prompt, the default of a copy-only window")
+    }
+
+    @Test func escInATextAreaClosesAndTabTypesNoTab() throws {
+        let (m, _, _) = try maker()
+        var closed = 0
+        m.requestClose = { closed += 1 }
+        let (w, _, eds) = Self.window(m)
+        let urls = try #require(eds.first)
+        urls.cancelOperation(nil)
+        #expect(closed == 1)
+        #expect(w.makeFirstResponder(urls))
+        urls.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        #expect(urls.string.isEmpty && m.urls.isEmpty)
+    }
+
+    /// The key view loop has only visible views, so this one shows the window.
+    @Test(.focusTest) func tabMovesToTheNextControl() throws {
+        let (m, _, _) = try maker()
+        let (w, _, eds) = Self.window(m)
+        defer { w.orderOut(nil) }
+        w.makeKeyAndOrderFront(nil)
+        let urls = try #require(eds.first)
+        #expect(w.makeFirstResponder(urls))
+        urls.doCommand(by: #selector(NSResponder.insertTab(_:)))
+        #expect(w.firstResponder !== urls && urls.string.isEmpty)
+        (w.firstResponder as? NSView).map { $0.window?.selectPreviousKeyView($0) }
+        #expect(w.firstResponder === urls, "⇧Tab comes back")
     }
 }

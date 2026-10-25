@@ -120,10 +120,14 @@ public final class SanketaPanel: NSPanel {
         handBack(to: app)
     }
 
-    func handBack(to app: NSRunningApplication?) {
-        panel.makeFirstResponder(nil)
-        panel.orderOut(nil)
-        panel.orderFrontRegardless()
+    /// Gives the focus to `app`. A visible panel resigns key and stays in front; a hidden panel stays hidden. The Make a
+    /// Pack window uses it too, when it closes.
+    public func handBack(to app: NSRunningApplication?) {
+        if panel.isVisible {
+            panel.makeFirstResponder(nil)
+            panel.orderOut(nil)
+            panel.orderFrontRegardless()
+        }
         app?.activate()
     }
 

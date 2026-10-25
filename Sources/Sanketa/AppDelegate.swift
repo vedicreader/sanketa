@@ -215,7 +215,10 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             return KeyBox.tell("No bundle id", "This app has no bundle id. Sanketa cannot make a pack for it.")
         }
         if let w = packMaker, w.model.app.bundleID == bid { return w.show() }
-        packMaker?.window.close()
+        // the window for another app closes quietly: the new window takes the focus, so there is nothing to give back
+        let old = packMaker
+        packMaker = nil
+        old?.window.close()
         let version = a.bundleURL.flatMap(Bundle.init(url:))?.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         // a user pack for the app keeps its file and id, so a save never makes a second pack for the app
         let user = PackMaker.userPackFile(bundleID: bid, in: packsDir)
@@ -223,24 +226,35 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         let pid = a.processIdentifier
         Task.detached {
             let menu = AXReader.isTrusted ? AXReader.menuShortcuts(pid: pid) : []
-            await MainActor.run { self.showPackMaker(app, menu: menu, userPack: user?.url) }
+            await MainActor.run { self.showPackMaker(app, menu: menu, userPack: user?.url, previous: a) }
         }
     }
 
     /// The prompt gets the user pack (keys and tips, no comments) when there is one, else the bundled pack for the app.
-    func showPackMaker(_ app: PackMaker.App, menu: [MenuShortcut], userPack: URL?) {
+    /// A save reloads the packs and shows the panel with a "Saved" toast; then the window closes. Each close gives the
+    /// focus back to `previous`, the app that was in front, as Esc does in the panel.
+    func showPackMaker(_ app: PackMaker.App, menu: [MenuShortcut], userPack: URL?, previous: NSRunningApplication) {
         let bundled = PackMaker.userPackFile(bundleID: app.bundleID, in: bundledPacks())
         let existing = bundled.flatMap { try? String(contentsOf: $0.url, encoding: .utf8) }
         let sender = llm.packMaker(), mlx = llm.router.onDevice as? MLXChooser
-        let model = PackMakerModel(.init(
+        let maker = PackMakerModel(.init(
             app: app, menu: menu, existing: existing, userPack: userPack, config: config.llm, provider: llm.providerName,
             onDeviceReady: mlx?.status() == .available,
             sendOpenAI: sender.map { s in { try await s.send($0) } },
             sendOnDevice: mlx.map { m in { try await m.makePack($0) } },
             packsDir: packsDir, confirmReplace: { PackMakerWindow.confirmReplace($0) },
-            saved: { [weak self] _ in self?.reloadPacks(); self?.panel.show() }))
-        let w = PackMakerWindow(model: model, provider: llm.providerName)
-        w.onClose = { [weak self, weak w] in if self?.packMaker === w { self?.packMaker = nil } }
+            saved: { [weak self] _ in
+                guard let self else { return }
+                reloadPacks()
+                panel.show()
+                model.showToast(PanelModel.saved)
+            }))
+        let w = PackMakerWindow(model: maker, provider: llm.providerName)
+        w.onClose = { [weak self, weak w] in
+            guard let self, packMaker === w else { return }
+            packMaker = nil
+            panel.handBack(to: previous)
+        }
         packMaker = w
         w.show()
     }

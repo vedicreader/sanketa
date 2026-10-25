@@ -55,8 +55,21 @@ import SanketaCore
     @Published public private(set) var copied = false
     @Published public private(set) var showsPaste = false
     @Published public private(set) var outcome: PackMaker.Outcome?
-    /// the lines under the status: style fixes, removed menu copies, lint errors and warnings
-    @Published public private(set) var notes: [String] = []
+    /// A line of the check: a fix that Sanketa made, or a lint error or warning.
+    public struct Note: Equatable {
+        public enum Kind { case fix, warning, error }
+        public var kind: Kind
+        public var text: String
+        public init(_ kind: Kind, _ text: String) { self.kind = kind; self.text = text }
+    }
+
+    /// The main action of the step, which Return does.
+    public enum Primary: Equatable { case send(PackMaker.Action), check, askAgain, save, saveDraft }
+
+    /// the lines of the check: style fixes, removed menu copies, lint errors and warnings
+    @Published public private(set) var notes: [Note] = []
+    /// when the request that runs started, for the elapsed time
+    @Published public private(set) var busySince: Date?
     @Published public private(set) var preview: Pack?
     @Published public private(set) var diff: PackMaker.Diff?
     @Published public private(set) var savedFile: URL?
@@ -65,6 +78,8 @@ import SanketaCore
     /// where the last answer came from, and how many times the model got the errors back
     var source: PackMaker.Action?
     var retries = 0
+    /// closes the window; the window gives the focus back to the app that was in front
+    public var requestClose: () -> Void = {}
 
     public init(_ world: World) {
         self.world = world
@@ -106,7 +121,7 @@ import SanketaCore
     }
 
     public static func sending(_ a: PackMaker.Action, provider: String) -> String {
-        if a == .onDevice { return "The on-device model is writing the pack." }
+        if a == .onDevice { return "The on-device model is writing the pack. This can take 2 minutes." }
         return provider == "OpenAI" ? "OpenAI is reading the docs. This can take 2 minutes."
             : "\(provider) is writing the pack. It cannot read web pages, so it uses only the prompt."
     }
@@ -119,6 +134,9 @@ import SanketaCore
     public static func menuCopies(_ n: Int) -> String { "Sanketa removed \(count(n, "key")) that the menus already show." }
     public static func saved(_ file: String, app: String) -> String { "Saved \(file). The keys show when \(app) is in front." }
     public static func saveFailed(_ why: String) -> String { "Sanketa cannot write the file: \(why)." }
+    public static func ready(keys: Int, tips: Int) -> String { "The pack is ready: \(count(keys, "key")) and \(count(tips, "tip"))." }
+    /// The time that a request runs, as m:ss.
+    public static func elapsed(_ t: TimeInterval) -> String { let s = max(0, Int(t)); return String(format: "%d:%02d", s / 60, s % 60) }
 
     /// The text for a request that failed.
     public static func failure(_ e: Error, provider: String) -> String {
@@ -181,6 +199,36 @@ import SanketaCore
         work?.cancel()
     }
 
+    /// Esc and Cancel: stop the request that runs, else close the window.
+    public func cancel() {
+        if busy != nil { stop() } else { requestClose() }
+    }
+
+    public var primary: Primary? {
+        guard busy == nil else { return nil }
+        if let o = outcome {
+            if o.canSave { return .save }
+            if canAskAgain { return .askAgain }
+            return source == .copy ? .check : .saveDraft
+        }
+        if showsPaste && !pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .check }
+        if actions.contains(.openAI) { return .send(.openAI) }
+        if actions.contains(.onDevice) && canSend(.onDevice) { return .send(.onDevice) }
+        return .send(.copy)
+    }
+
+    /// Return in the window, and ⌘Return in a text area.
+    public func performPrimary() {
+        switch primary {
+        case .send(let a): send(a)
+        case .check: check()
+        case .askAgain: askAgain()
+        case .save: save()
+        case .saveDraft: saveDraft()
+        case nil: break
+        }
+    }
+
     /// The pasted answer of a local agent goes through the same steps.
     public func check() {
         source = .copy
@@ -210,6 +258,7 @@ import SanketaCore
         let send = a == .openAI ? world.sendOpenAI : world.sendOnDevice
         guard let send else { status = a == .onDevice ? Self.notReady : StatusMenus.noKey(provider: world.provider) + " in the menu."; return }
         busy = a
+        busySince = Date()
         source = a
         status = Self.sending(a, provider: world.provider)
         work = Task { [weak self] in
@@ -224,7 +273,7 @@ import SanketaCore
     }
 
     func finish(answer: String, from a: PackMaker.Action) {
-        busy = nil
+        busy = nil; busySince = nil
         if a == .onDevice {
             guard let toml = PackMaker.toml(json: answer, app: world.app) else { return show(Self.notAPack) }
             take(toml)
@@ -234,7 +283,7 @@ import SanketaCore
     }
 
     func fail(_ e: Error, from a: PackMaker.Action) {
-        busy = nil
+        busy = nil; busySince = nil
         if e is CancellationError || (e as? URLError)?.code == .cancelled { return show(Self.stopped) }
         if a == .onDevice { return show(e is ChoiceError ? Self.notReady : "The on-device model stopped: \(e.localizedDescription)") }
         show(Self.failure(e, provider: world.provider))
@@ -252,10 +301,10 @@ import SanketaCore
             return show(Self.notAPack)
         }
         outcome = o
-        var n = [String]()
-        if o.styleFixes > 0 { n.append(Self.styleFixes(o.styleFixes)) }
-        if o.menuCopies > 0 { n.append(Self.menuCopies(o.menuCopies)) }
-        n += o.findings.map(\.description)
+        var n = [Note]()
+        if o.styleFixes > 0 { n.append(.init(.fix, Self.styleFixes(o.styleFixes))) }
+        if o.menuCopies > 0 { n.append(.init(.fix, Self.menuCopies(o.menuCopies))) }
+        n += o.findings.map { .init($0.level == .error ? .error : .warning, $0.message) }
         notes = n
         preview = try? PackLibrary.decode(Data(o.text.utf8))
         diff = preview.map { PackMaker.diff(old: onDisk, new: $0) }
@@ -270,7 +319,7 @@ import SanketaCore
     var onDisk: Pack? { (try? Data(contentsOf: file)).flatMap { try? PackLibrary.decode($0) } }
 
     /// Writes `<id>.toml` when the pack has no errors. An existing file is replaced only when the user says yes, and
-    /// its old text goes to a `.bak` file first.
+    /// its old text goes to a `.bak` file first. After the save, the app reloads the packs and the window closes.
     public func save() {
         guard canSave, let o = outcome else { return }
         write(o.text, draft: false)
@@ -290,7 +339,7 @@ import SanketaCore
             let f = target
             savedFile = f
             status = draft ? "Saved \(f.lastPathComponent). Sanketa does not load a draft." : Self.saved(f.lastPathComponent, app: world.app.name)
-            if !draft { world.saved(f) }
+            if !draft { world.saved(f); requestClose() }
         } catch {
             status = Self.saveFailed(error.localizedDescription)
         }

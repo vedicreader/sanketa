@@ -35,7 +35,9 @@ Sanketa can write the prompt for a pack for a GUI app. A model or a local agent,
    - **Copy Prompt** copies the prompt. Paste it in your agent. Then paste the result of the agent in the "Result" box, and click Check.
    - **Send to OpenAI** shows when Use OpenAI is on. Sanketa sends the prompt to OpenAI. The model reads the docs on the web. This can take 2 minutes.
    - **Send to On-Device Model** shows when Use On-Device Model is on and a model is ready. The on-device model cannot read web pages. Thus paste the text of the shortcut page in the "Docs text" box, or click "Choose a File…" to read a saved page. Sanketa uses at most 4,000 characters of shortcut lines.
-5. Look at the preview. Then click Save.
+5. Look at the preview. Then click Save, or press Return.
+
+Return clicks the blue button. In a text box, Return starts a new line and ⌘Return clicks the blue button. Tab goes to the next box. Esc stops a request that runs. When no request runs, Esc closes the window, and the app that was in front before gets the focus again.
 
 The prompt contains the app name, the version, the bundle id, the menu shortcuts and your URLs. If you have a pack for the app, the prompt also contains its keys and tips, with no comments, and the window tells you so. Else it can contain the keys of the bundled pack for the app. The prompt does not contain window titles, file names, paths or your history. Before Sanketa fills the prompt, it removes menu items that can name a file or a person. These are the items of menus with "Recent", "History", "Bookmark", "Favorite" or "Profile" in the name, the Window-menu items with a number key, and titles with `/`, `~`, `@` or a file extension. The window shows the full prompt before you copy or send it.
 
@@ -47,9 +49,9 @@ Sanketa does these steps on each result:
 2. It writes the pack again with only these fields: `id`, `name` and `apps` at the top, `keys`, `action` and `group` in each key, and `title`, `snippet`, `explain` and `tags` in each tip. It removes all other fields, such as `command`, `processes`, `mode` and `contexts`. The values of `id`, `name` and `apps` come from the app.
 3. It changes each key to the key style, for example `Ctrl+Shift+z` to `⌃⇧Z`.
 4. It removes the keys that the menus show already, when the action has the same words.
-5. It runs the lint. If the pack has errors, you cannot save it. Click "Ask Again with the Errors" to send the errors to the model one time. If the errors stay, you can save the pack as a draft (`<id>.toml.draft`). Sanketa does not load a draft.
+5. It runs the lint. If the pack has errors, you cannot save it. Click "Ask Again" to send the errors to the model one time. If the errors stay, you can save the pack as a draft (`<id>.toml.draft`). Sanketa does not load a draft.
 
-Save writes `~/.config/sanketa/packs/<id>.toml`. If you have a pack for the app in another file, Save writes that file, so that the app does not get two packs. If the file exists, Sanketa asks first. Then it copies the old file to `<id>.toml.bak` and writes the new file. Sanketa loads the pack at once.
+Save writes `~/.config/sanketa/packs/<id>.toml`. If you have a pack for the app in another file, Save writes that file, so that the app does not get two packs. If the file exists, Sanketa asks first. Then it copies the old file to `<id>.toml.bak` and writes the new file. If you click Cancel, the window stays open. After a save, Sanketa loads the pack at once, the panel shows it with the message "Saved", and the window closes. The app that was in front before gets the focus again.
 
 Check each key in the app before you trust it. A model can make a mistake. The docs can also be wrong or old. The bundled RawTherapee pack was made in this way, and then checked against the source code of the app.
 

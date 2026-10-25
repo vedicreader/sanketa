@@ -106,6 +106,7 @@ struct StackState {
     @Published public private(set) var toast: String?
     var toastUntil: Date?
     public static let copied = "Copied"
+    public static let saved = "Saved"
     public nonisolated static let toastSeconds: TimeInterval = 1.2
     let pasteboard: NSPasteboard
     /// the clock for the toast; tests set it
@@ -128,7 +129,12 @@ struct StackState {
     public func copy(_ text: String) {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-        toast = Self.copied
+        showToast(Self.copied)
+    }
+
+    /// Shows `text` at the bottom of the panel for `toastSeconds`, such as "Saved" after a pack is saved.
+    public func showToast(_ text: String) {
+        toast = text
         toastUntil = now().addingTimeInterval(Self.toastSeconds)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.toastSeconds) { [weak self] in self?.expireToast() }
     }
