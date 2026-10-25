@@ -81,6 +81,14 @@ func context(_ names: [String]) throws -> Context {
                    packs: names.map { $0 == "Terminal" ? terminal : p[$0]! }, axTrusted: true)
 }
 
+/// Tests that put a window on the screen, make one key or start an app take the user's focus, so they run only
+/// with `make test-focus` (SANKETA_FOCUS_TESTS=1), when nobody uses the Mac.
+extension Trait where Self == ConditionTrait {
+    static var focusTest: Self {
+        .enabled(if: ProcessInfo.processInfo.environment["SANKETA_FOCUS_TESTS"] == "1", "changes focus; run make test-focus")
+    }
+}
+
 @MainActor func controller() throws -> PanelController {
     _ = NSApplication.shared
     NSApp.setActivationPolicy(.accessory)
@@ -104,15 +112,15 @@ func threadCPUSeconds() -> Double {
 }
 
 @MainActor @Suite(.serialized) struct PanelTests {
-    @Test func visiblePanelIdlesWithoutCPU() throws {
+    @Test(.focusTest) func visiblePanelIdlesWithoutCPU() async throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
         c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
         c.show()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        await pause(0.5)
         let t0 = threadCPUSeconds()
-        RunLoop.main.run(until: Date().addingTimeInterval(3))
-        #expect(threadCPUSeconds() - t0 < 0.1)   // main thread under ~3% over 3 s, generous for a loaded machine
+        holdMain(3)
+        #expect(threadCPUSeconds() - t0 < 0.1)   // main thread under about 3 % over 3 s
     }
 
     @Test func markLoadsAsTemplateFromBrandFolder() throws {
@@ -129,12 +137,12 @@ func threadCPUSeconds() -> Double {
 
     /// The mark and the breadcrumb share one 32 pt row in the title bar; the search field follows 6 pt below it,
     /// with no dead space. The mark takes no clicks (it is not hit-testable), and the breadcrumb gets its clicks.
-    @Test func topRowHoldsMarkAndBreadcrumb() throws {
+    @Test(.focusTest) func topRowHoldsMarkAndBreadcrumb() async throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
         c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
         c.show()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        await pause(0.3)
         let root = try #require(c.panel.contentView)
         root.layoutSubtreeIfNeeded()
         let h = root.bounds.height
@@ -150,12 +158,12 @@ func threadCPUSeconds() -> Double {
     }
 
     /// The live panel (not the render-test path) draws the kolam mark: ink in its slot, none in the empty gap right of it.
-    @Test func liveMarkDrawsInkAtStartOfTopRow() throws {
+    @Test(.focusTest) func liveMarkDrawsInkAtStartOfTopRow() async throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
         c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
         c.show()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        await pause(0.5)
         let root = try #require((c.panel.contentView as? NSGlassEffectView)?.contentView)
         root.layoutSubtreeIfNeeded()
         let rep = try #require(root.bitmapImageRepForCachingDisplay(in: root.bounds))
@@ -176,7 +184,7 @@ func threadCPUSeconds() -> Double {
         #expect(ink(mark) > 20, "mark slot has \(ink(mark)) ink pixels")
     }
 
-    @Test func panelShowDoesNotStealFocus() throws {
+    @Test(.focusTest) func panelShowDoesNotStealFocus() throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
         c.show()
@@ -187,7 +195,7 @@ func threadCPUSeconds() -> Double {
         #expect(c.panel.contentView is NSGlassEffectView && !c.panel.isOpaque)
     }
 
-    @Test func beginSearchMakesPanelKeyAndEndSearchResigns() throws {
+    @Test(.focusTest) func beginSearchMakesPanelKeyAndEndSearchResigns() throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
         c.show()
@@ -205,7 +213,7 @@ func threadCPUSeconds() -> Double {
         #expect(!c.searching)
     }
 
-    @Test func returnCopiesAndEscapeEnds() throws {
+    @Test(.focusTest) func returnCopiesAndEscapeEnds() throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
         c.beginSearch(previousApp: nil)
@@ -427,7 +435,7 @@ func threadCPUSeconds() -> Double {
                          context: nil, characters: "\t", charactersIgnoringModifiers: "\t", isARepeat: false, keyCode: 48)!
     }
 
-    @Test func clicksOutsideSearchHandFocusBack() throws {
+    @Test(.focusTest) func clicksOutsideSearchHandFocusBack() throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
         c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
@@ -446,7 +454,7 @@ func threadCPUSeconds() -> Double {
         c.endSearch()
     }
 
-    @Test func tabMovesBetweenFieldAndLayerList() throws {
+    @Test(.focusTest) func tabMovesBetweenFieldAndLayerList() throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
         c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))
@@ -472,7 +480,7 @@ func threadCPUSeconds() -> Double {
     }
 
     /// With the layer list focused the results are hidden: ↩ must not copy one, and ↑/↓ move between sections.
-    @Test func hiddenResultsIgnoreReturn() throws {
+    @Test(.focusTest) func hiddenResultsIgnoreReturn() throws {
         let c = try controller()
         defer { c.panel.orderOut(nil) }
         c.model.update(try context(["htop", "tmux", "fish", "Terminal"]))

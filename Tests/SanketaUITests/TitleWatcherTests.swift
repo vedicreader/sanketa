@@ -9,6 +9,7 @@ import Testing
 final class TitleHost {
     let process = Process()
     let input = Pipe(), output = Pipe()
+    let exited = DispatchSemaphore(value: 0)
     var pid: pid_t { process.processIdentifier }
 
     static var binary: URL {
@@ -21,6 +22,7 @@ final class TitleHost {
         process.arguments = [title]
         process.standardInput = input
         process.standardOutput = output
+        process.terminationHandler = { [exited] _ in exited.signal() }
         try process.run()
         _ = output.fileHandleForReading.availableData   // "ready"
     }
@@ -30,14 +32,13 @@ final class TitleHost {
     /// end of input quits the helper; terminate is the fallback, for our own child only
     func close() {
         try? input.fileHandleForWriting.close()
-        let end = Date().addingTimeInterval(2)
-        while process.isRunning, Date() < end { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
-        if process.isRunning { process.terminate(); process.waitUntilExit() }
+        if exited.wait(timeout: .now() + 2) == .timedOut { process.terminate(); process.waitUntilExit() }
     }
 }
 
-/// Runs the main run loop for `s` seconds. The timer keeps it running in a process with no other sources.
-@MainActor func spin(_ s: TimeInterval) {
+/// Runs the main run loop for `s` seconds and keeps the main actor all that time, so no other test's main-thread
+/// work runs in it. Only for a CPU measurement of the main thread; to wait, use `pause` or `waitFor`.
+@MainActor func holdMain(_ s: TimeInterval) {
     let end = Date().addingTimeInterval(s)
     let t = Timer(fire: end, interval: 0, repeats: false) { _ in }
     RunLoop.main.add(t, forMode: .default)
@@ -45,57 +46,61 @@ final class TitleHost {
     t.invalidate()
 }
 
-@MainActor func waitFor(_ s: TimeInterval = 2, _ ok: () -> Bool) -> Bool {
-    let end = Date().addingTimeInterval(s)
-    while !ok(), Date() < end { spin(0.02) }
+/// Waits `s` seconds. It suspends, so it holds no thread and the main actor stays free for other tests.
+func pause(_ s: TimeInterval) async { try? await Task.sleep(for: .seconds(s)) }
+
+/// Checks `ok` every 20 ms for up to `s` seconds, with `pause` between the checks.
+@MainActor func waitFor(_ s: TimeInterval = 2, _ ok: () -> Bool) async -> Bool {
+    let end = ContinuousClock.now + .seconds(s)
+    while !ok(), ContinuousClock.now < end { await pause(0.02) }
     return ok()
 }
 
 final class Calls { var titles: [String?] = [] }
 
-@MainActor @Suite(.serialized) struct TitleWatcherTests {
+@MainActor @Suite(.serialized, .focusTest) struct TitleWatcherTests {
     @Test(.enabled(if: AXIsProcessTrusted()))
-    func watcherFollowsTitleAndFocusedWindow() throws {
+    func watcherFollowsTitleAndFocusedWindow() async throws {
         let host = try TitleHost("A0")
         defer { host.close() }
-        #expect(waitFor { AXReader.focusedWindowTitle(pid: host.pid) == "A0" })
+        #expect(await waitFor { AXReader.focusedWindowTitle(pid: host.pid) == "A0" })
         let calls = Calls()
         var w: AXTitleWatcher? = AXTitleWatcher(pid: host.pid) { calls.titles.append($0) }
         #expect(w != nil)
-        spin(0.3)   // the watcher registers on its own thread
+        await pause(0.3)   // the watcher registers on its own thread
 
         host.send("title A1")
-        #expect(waitFor { calls.titles.contains("A1") })
+        #expect(await waitFor { calls.titles.contains("A1") })
         host.send("title A2")
-        #expect(waitFor { calls.titles.contains("A2") })
+        #expect(await waitFor { calls.titles.contains("A2") })
 
         // a new focused window: the watcher moves to it
         host.send("window B0")
-        #expect(waitFor { calls.titles.contains("B0") })
+        #expect(await waitFor { calls.titles.contains("B0") })
         host.send("title B1")
-        #expect(waitFor { calls.titles.contains("B1") })
-        spin(0.3)
+        #expect(await waitFor { calls.titles.contains("B1") })
+        await pause(0.3)
         let n = calls.titles.count
         host.send("set 0 A9")   // the first window is no longer focused
-        spin(0.7)
+        await pause(0.7)
         #expect(calls.titles.count == n)
 
         // focus back to the first window
         host.send("front 0")
-        #expect(waitFor { calls.titles.last == "A9" })
+        #expect(await waitFor { calls.titles.last == "A9" })
 
         w = nil
         _ = w
-        spin(0.2)
+        await pause(0.2)
         let m = calls.titles.count
         host.send("set 0 A10")
-        spin(0.7)
+        await pause(0.7)
         #expect(calls.titles.count == m)
     }
 
     /// A page that ticks its title (a clock, an unread count) must not make Sanketa recompute: same pack, same scope.
     @Test(.enabled(if: AXIsProcessTrusted()))
-    func tickingTitleDoesNotRefresh() throws {
+    func tickingTitleDoesNotRefresh() async throws {
         let pack = try PackLibrary.decode(Data("""
         id = "ide"
         name = "IDE"
@@ -108,7 +113,7 @@ final class Calls { var titles: [String?] = [] }
         """.utf8))
         let host = try TitleHost("ide — inbox 0 · notebook")
         defer { host.close() }
-        #expect(waitFor { AXReader.focusedWindowTitle(pid: host.pid) != nil })
+        #expect(await waitFor { AXReader.focusedWindowTitle(pid: host.pid) != nil })
         let m = ContextMonitor(config: Config(), library: PackLibrary(packs: ["ide": pack]))
         m.isTrusted = { true }
         var refreshes = 0, changes = 0
@@ -116,22 +121,22 @@ final class Calls { var titles: [String?] = [] }
         m.makeWatcher = { pid, f in AXTitleWatcher(pid: pid) { changes += 1; f($0) } }
         m.watchTitle(pid: host.pid, bundleID: "org.example.browser")
         #expect(m.titles is AXTitleWatcher)
-        spin(0.3)
+        await pause(0.3)
         host.send("title ide — inbox 1 · notebook")
-        #expect(waitFor { refreshes == 1 })   // the first title sets the key
+        #expect(await waitFor { refreshes == 1 })   // the first title sets the key
 
         // the title ticks every 20 ms; the pack and scope stay the same
         host.send("tick 20 ide — inbox # · notebook")
-        spin(0.5)
+        await pause(0.5)
         let t0 = threadCPUSeconds()
-        spin(2)
+        holdMain(2)
         #expect(refreshes == 1)
         #expect(changes > 30)                     // the title did tick, and the watcher saw it
         #expect(threadCPUSeconds() - t0 < 0.1)   // ~100 title changes cost the main thread under 5 %
 
         host.send("tick 100000 ide — inbox · terminal")   // stops the fast tick
         host.send("title ide — inbox · terminal")
-        #expect(waitFor { refreshes == 2 })
+        #expect(await waitFor { refreshes == 2 })
     }
 }
 
@@ -156,33 +161,33 @@ final class Calls { var titles: [String?] = [] }
         return (m, { made }, { refreshes })
     }
 
-    @Test func refreshesOncePerChangeOfPackOrScope() throws {
+    @Test func refreshesOncePerChangeOfPackOrScope() async throws {
         let (m, made, refreshes) = try monitor()
         m.watchTitle(pid: 11, bundleID: "org.example.ide")
         let w = try #require(made().first)
         #expect(w.pid == 11 && m.titles === w)
         // a burst is debounced to one refresh
         w.fire("a · notebook"); w.fire("b · notebook"); w.fire("b · terminal")
-        spin(0.25)
+        await pause(0.25)
         #expect(refreshes() == 1)
         w.fire("c · terminal"); w.fire("d · terminal")   // same scope: nothing to do
-        spin(0.25)
+        await pause(0.25)
         #expect(refreshes() == 1)
         w.fire("d · notebook")
-        spin(0.25)
+        await pause(0.25)
         #expect(refreshes() == 2)
     }
 
-    @Test func appSwitchReplacesWatcher() throws {
+    @Test func appSwitchReplacesWatcher() async throws {
         let (m, made, refreshes) = try monitor()
         m.watchTitle(pid: 11, bundleID: "org.example.ide")
         m.watchTitle(pid: 22, bundleID: "com.google.Chrome")   // a browser that may host Leela
         #expect(made().count == 2 && m.titles === made()[1] && m.watched?.pid == 22)
         let chrome = made()[1]
-        chrome.fire("Inbox (3) - Google Chrome"); spin(0.15)
-        chrome.fire("Inbox (4) - Google Chrome"); spin(0.15)
+        chrome.fire("Inbox (3) - Google Chrome"); await pause(0.15)
+        chrome.fire("Inbox (4) - Google Chrome"); await pause(0.15)
         #expect(refreshes() == 1)                              // no pack either time: one refresh, for the first title
-        chrome.fire("leela — x"); spin(0.15)
+        chrome.fire("leela — x"); await pause(0.15)
         #expect(refreshes() == 2)
 
         m.watchTitle(pid: 33, bundleID: "com.apple.TextEdit")  // nothing reads its title
@@ -234,7 +239,7 @@ final class Calls { var titles: [String?] = [] }
     @Test func emptyFirstReadIsReadAgain() async throws {
         let reads = Reads(), m = monitor(reads, emptyReads: 1)
         m.activated(try finder())
-        try await idle(10) { m.context.packs.first?.keys.count == 1 }
+        try await idle(3) { m.context.packs.first?.keys.count == 1 }
         #expect(m.context.packs.first?.keys.count == 1)
         #expect(reads.n == 2)
     }
@@ -242,11 +247,11 @@ final class Calls { var titles: [String?] = [] }
     @Test func readsAgainOnlyOncePerActivation() async throws {
         let reads = Reads(), m = monitor(reads, emptyReads: 99)
         m.activated(try finder())
-        try await idle(10) { reads.n >= 2 }
+        try await idle(3) { reads.n >= 2 }
         try await idle(1)           // the delay is 0.2 s: a second retry would come in this time
         #expect(reads.n == 2 && m.context.packs.first?.keys.isEmpty == true)
         m.activated(try finder())   // a new activation may try once more
-        try await idle(10) { reads.n >= 4 }
+        try await idle(3) { reads.n >= 4 }
         try await idle(1)
         #expect(reads.n == 4)
     }

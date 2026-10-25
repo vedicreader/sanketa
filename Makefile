@@ -7,7 +7,7 @@ XCODE_DATA := build/xcode
 # the same zip with a name that does not change, so releases/latest/download/Sanketa.zip always works
 STABLE_ZIP := dist/Sanketa.zip
 
-.PHONY: test test-mlx build lint shots bundle app release zip publish run relaunch install verify gatekeeper remote-setup
+.PHONY: test test-focus test-mlx build lint shots bundle app release zip publish run relaunch install verify gatekeeper remote-setup
 
 # Values from the command line go to recipes only through the environment ("$$FILTER"), so the shell never parses
 # them. Each value must also pass this check, which reads the raw text with $(value) and so never expands it.
@@ -45,12 +45,17 @@ $(call check_var,HOST,$(SAFE_CHARS) @ :)$(call check_dash,HOST)
 $(foreach v,SIGN_ID RELEASE_ID,$(call check_identity,$v))
 export FILTER PACKS SHOTS HOST INSTALL_DIR ZIP SIGN_ID RELEASE_ID
 
-# release and publish notarize and upload, so they refuse make -n and its other forms
+# release and publish notarize and upload, so they refuse make -n, make -i and their other forms
 include $(MK_DIR)no-dry-run.mk
 
 # FILTER=<name> runs only the tests whose names match (letters, digits and _ . / - only)
 test:
 	swift test $(if $(value FILTER),--filter "$$FILTER")
+
+# also the tests that show the panel, make a window key or start a helper app: they take the focus, so run them
+# only when nobody uses the Mac
+test-focus:
+	SANKETA_FOCUS_TESTS=1 swift test $(if $(value FILTER),--filter "$$FILTER")
 
 # the MLX tests that need the Metal shaders, which only xcodebuild compiles
 test-mlx:

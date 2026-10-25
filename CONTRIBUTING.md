@@ -10,6 +10,8 @@ Do these three steps:
 2. Run `make lint`. It checks each bundled pack. It must show no errors and no warnings. To check a pack of your own, run `make lint PACKS=path/to/pack.toml`.
 3. If you change the panel, run `make shots SHOTS=/tmp/sanketa-shots`. This draws the panel for some typical stacks of layers to PNG files. Run it on main and on your branch. Then attach the two sets of files to the pull request.
 
+`make test` does not move the focus. It does not show the panel, make a window active or start an app. The tests that do these things are off in `make test`. To run them, use `make test-focus`. Run `make test-focus` only when you do not use the Mac, because these tests take the focus from the app that you use.
+
 `make test` does not draw the shots. They are off by default, because they take time and they write files. The `RenderTests` suite draws them only when `SANKETA_RENDER=1` is set. Without `SHOTS`, the files go to a temporary folder. The test prints the folder.
 
 ## Rules for tests
@@ -17,6 +19,7 @@ Do these three steps:
 - Write tests that check real behaviour: real files, real processes and real tmux. A test that passes when the feature is broken is not a test.
 - Tests must not read or write the files in your `~/.config` folder. Use a temporary folder.
 - Each tmux test starts its own server on a private socket and stops it at the end.
+- A test that shows a window, makes a window active or starts an app must have the `.focusTest` trait. Then it runs only in `make test-focus`.
 - Do not copy, rename or sign a program again so that it looks like a different program.
 
 ## Rules for the panel
