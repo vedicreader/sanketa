@@ -33,18 +33,24 @@ import SanketaCore
         }
     }
 
-    public enum OpenAIResult: Equatable { case on(KeySource), off, cancelled, notSaved(String) }
+    /// `busy`: a flow from an earlier click still runs, so this click does nothing.
+    public enum OpenAIResult: Equatable { case on(KeySource), off, cancelled, notSaved(String), busy }
     public enum OnDeviceResult: Equatable { case on(MLXModelChoice), off, needsModel, notEnoughMemory }
 
     let world: World
     /// where the key came from when OpenAI went on; the menu shows it
     public private(set) var keySource: KeySource?
+    /// true while a "Use OpenAI" flow runs (the key lookup or the key box)
+    public private(set) var openAIBusy = false
 
     public init(_ world: World) { self.world = world }
 
     /// On: the key is looked up first. With a key, OpenAI goes on. With none, the key box opens; Save stores the key
     /// in the Keychain and turns OpenAI on, Cancel leaves it off. The key is never shown or logged.
     public func setOpenAI(_ on: Bool) async -> OpenAIResult {
+        guard !openAIBusy else { return .busy }
+        openAIBusy = true
+        defer { openAIBusy = false }
         guard on else {
             set { $0.openai = false }
             world.save("openai", "false")

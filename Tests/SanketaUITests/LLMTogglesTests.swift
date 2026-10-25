@@ -14,10 +14,11 @@ import Testing
         var keychain: [String] = []
         var installed: Set<MLXModelChoice> = []
         var memory: UInt64 = 16 << 30
+        var lookupDelay: Duration = .zero
 
         func toggles() -> LLMToggles {
             LLMToggles(.init(config: { self.config }, apply: { self.config = $0 }, save: { self.saved[$0] = $1 },
-                             keySource: { self.lookups += 1; return self.source },
+                             keySource: { self.lookups += 1; try? await Task.sleep(for: self.lookupDelay); return self.source },
                              askKey: { self.boxes += 1; return self.typed },
                              saveKey: { t in
                                  guard !t.isEmpty, !t.contains(" ") else { return "The key is empty, or it has spaces or control characters in it." }
@@ -110,5 +111,19 @@ import Testing
         var on = off
         on.onDevice = true
         #expect(LLMToggles.onDeviceItems(config: on, memory: 16 << 30).pickerEnabled)
+    }
+
+    /// Two quick clicks on "Use OpenAI" start one flow: the second one does nothing while the first runs.
+    @Test func secondClickWhileTheFirstRunsDoesNothing() async {
+        let f = Fake()
+        f.source = .shell
+        f.lookupDelay = .milliseconds(200)
+        let t = f.toggles()
+        let first = Task { await t.setOpenAI(true) }
+        for _ in 0..<100 where f.lookups == 0 { try? await Task.sleep(for: .milliseconds(10)) }
+        #expect(await t.setOpenAI(true) == .busy)
+        #expect(await first.value == .on(.shell))
+        #expect(f.lookups == 1 && f.boxes == 0 && f.config.openai)
+        #expect(await t.setOpenAI(false) == .off, "after the first flow ends, a click works again")
     }
 }
