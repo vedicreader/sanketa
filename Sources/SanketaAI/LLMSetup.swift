@@ -58,6 +58,7 @@ public struct LLMSetup: Sendable {
     public let keys: KeyLookup?
     public let models: ModelListCache?
     public let router: ModelRouter
+    let session: URLSession
 
     /// `makeKeys` gets the Keychain account (the server's host) and the variable to read, from `keyVariable(for:)`.
     /// It is called only when `previous` can't be reused. `onDevice` is made only while `[llm] on_device` is on, so with
@@ -65,6 +66,7 @@ public struct LLMSetup: Sendable {
     public init(config: LLMConfig, previous: LLMSetup? = nil, makeKeys: (_ account: String, _ varName: String?) -> KeyLookup,
                 session: URLSession = .shared, onDevice: @autoclosure () -> (any OnDeviceChooser)?, appleFM: (any Choosing)?) {
         self.config = config
+        self.session = session
         let url = URL(string: config.baseURL).flatMap { $0.host == nil ? nil : $0 }
         baseURL = url
         if let previous, previous.config.baseURL == config.baseURL, previous.config.apiKeyEnv == config.apiKeyEnv {
@@ -88,6 +90,14 @@ public struct LLMSetup: Sendable {
                                    key: { await keys.key() }, session: session, timeout: config.timeoutSeconds)
         }
         router = ModelRouter(config: config, onDevice: config.onDevice ? onDevice() : nil, appleFM: appleFM, remote: remote)
+    }
+
+    /// "Send to OpenAI" for Make a Pack while Use OpenAI is on: the same server, key lookup and model as search.
+    public func packMaker() -> PackMakerSender? {
+        guard config.openai, let baseURL, let keys, let models else { return nil }
+        let pinned = config.openaiModel
+        return PackMakerSender(baseURL: baseURL, model: { pinned.isEmpty ? await models.cheapest() : pinned },
+                               key: { await keys.key() }, session: session)
     }
 
     /// "OpenAI" for api.openai.com, else the server's host, for menu titles.

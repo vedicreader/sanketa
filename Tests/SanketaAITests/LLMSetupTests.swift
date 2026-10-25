@@ -181,4 +181,17 @@ private func search(_ base: String, apiKeyEnv: String? = nil, env: [String: Stri
         #expect(d.router.remote?.name == "llm.example.com")
         #expect(setup(stub, llm(openai: false)).router.remote == nil)
     }
+
+    /// Make a Pack uses the same key lookup and model choice as search, and nothing while Use OpenAI is off.
+    @Test func packMakerSenderFollowsTheConfig() async throws {
+        let stub = Stub([modelsPath: [(200, modelsReply)],
+                         "/v1/responses": [(200, #"{"output":[{"type":"message","content":[{"type":"output_text","text":"id = \"x\""}]}]}"#)]])
+        #expect(setup(stub, llm(openai: false)).packMaker() == nil)
+        let s = try #require(setup(stub, llm()).packMaker())
+        #expect(try await s.send("p") == "id = \"x\"")
+        _ = try await setup(stub, llm(model: "gpt-4.1")).packMaker()?.send("p")
+        let models = stub.requests.filter { $0.url?.path == "/v1/responses" }.compactMap { $0.json?["model"] as? String }
+        #expect(models == ["gpt-5-nano", "gpt-4.1"])
+        #expect(stub.requests.allSatisfy { $0.header("Authorization") == "Bearer sk-test" })
+    }
 }

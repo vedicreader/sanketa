@@ -85,3 +85,41 @@ public enum ModelList {
         return OpenAIModels.chatCapable(r.data.map(\.id), openAI: OpenAIModels.isOpenAI(baseURL))
     }
 }
+
+/// "Send to OpenAI" for Make a Pack: one request with the prompt that the user saw and the model id. It has the same
+/// guards as the chooser: https only (plain http only to this Mac), the key only in the header of a request to
+/// `baseURL`, and no redirects. The prompt and the answer are not logged.
+public struct PackMakerSender: Sendable {
+    /// The model reads web pages, so the request can take minutes; the search timeout is too short.
+    public static let timeout: TimeInterval = 180
+
+    public let baseURL: URL
+    let model: @Sendable () async -> String?
+    let key: @Sendable () async -> String?
+    let session: URLSession
+    let timeout: TimeInterval
+
+    public init(baseURL: URL, model: @escaping @Sendable () async -> String?, key: @escaping @Sendable () async -> String?,
+                session: URLSession = .shared, timeout: TimeInterval = PackMakerSender.timeout) {
+        self.baseURL = baseURL; self.model = model; self.key = key; self.session = session; self.timeout = timeout
+    }
+
+    public var name: String { OpenAIModels.isOpenAI(baseURL) ? "OpenAI" : OpenAIModels.host(baseURL) }
+
+    /// The answer text of the model.
+    public func send(_ prompt: String) async throws -> String {
+        guard OpenAIModels.isAllowed(baseURL) else { throw ChoiceError.notAllowed }
+        let key = await key()
+        if (key ?? "").isEmpty && !OpenAIModels.isLocal(baseURL) { throw ChoiceError.noKey }
+        guard let model = await model(), !model.isEmpty else { throw ChoiceError.badResponse }
+        try Task.checkCancellation()
+        let openAI = OpenAIModels.isOpenAI(baseURL)
+        var r = authorized(baseURL.appendingPathComponent(PackMakerRequest.path(openAI: openAI)), key: key, timeout: timeout)
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = PackMakerRequest.body(model: model, prompt: prompt, openAI: openAI)
+        let (data, resp) = try await session.data(for: r, delegate: NoRedirect.shared)
+        _ = try checked(resp)
+        return try PackMakerRequest.parse(data, openAI: openAI)
+    }
+}
