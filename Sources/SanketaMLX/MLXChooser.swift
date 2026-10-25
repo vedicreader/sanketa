@@ -201,9 +201,10 @@ public struct MLXChooser: OnDeviceChooser {
     /// Unloads every on-device model, such as before its files are removed.
     public static func unloadAll() async { await Holders.shared.dropOthers(nil) }
 
-    static func status(installed: Bool, ready: Bool) -> ModelStatus {
+    /// `ready` is asked only for an installed model, so a status check does not look for the MLX shaders before then.
+    static func status(installed: Bool, ready: @autoclosure () -> Bool) -> ModelStatus {
         if !installed { return .unavailable("on-device model not downloaded") }
-        if !ready { return .unavailable("on-device model needs the app build") }
+        if !ready() { return .unavailable("on-device model needs the app build") }
         return .available
     }
 

@@ -60,9 +60,10 @@ public struct LLMSetup: Sendable {
     public let router: ModelRouter
 
     /// `makeKeys` gets the Keychain account (the server's host) and the variable to read, from `keyVariable(for:)`.
-    /// It is called only when `previous` can't be reused.
+    /// It is called only when `previous` can't be reused. `onDevice` is made only while `[llm] on_device` is on, so with
+    /// it off nothing of the on-device runtime starts.
     public init(config: LLMConfig, previous: LLMSetup? = nil, makeKeys: (_ account: String, _ varName: String?) -> KeyLookup,
-                session: URLSession = .shared, onDevice: (any OnDeviceChooser)?, appleFM: (any Choosing)?) {
+                session: URLSession = .shared, onDevice: @autoclosure () -> (any OnDeviceChooser)?, appleFM: (any Choosing)?) {
         self.config = config
         let url = URL(string: config.baseURL).flatMap { $0.host == nil ? nil : $0 }
         baseURL = url
@@ -86,7 +87,7 @@ public struct LLMSetup: Sendable {
             remote = OpenAIChooser(baseURL: url, model: { pinned.isEmpty ? await models.cheapest() : pinned },
                                    key: { await keys.key() }, session: session, timeout: config.timeoutSeconds)
         }
-        router = ModelRouter(config: config, onDevice: onDevice, appleFM: appleFM, remote: remote)
+        router = ModelRouter(config: config, onDevice: config.onDevice ? onDevice() : nil, appleFM: appleFM, remote: remote)
     }
 
     /// "OpenAI" for api.openai.com, else the server's host, for menu titles.

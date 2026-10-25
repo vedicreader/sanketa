@@ -22,8 +22,36 @@ public enum MLXModelChoice: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// The memory a Mac needs before Sanketa offers this model: Gemma 4 E4B uses about 5.2 GB while it runs.
-    public var minMemory: UInt64 { self == .gemma4e4b ? 16 << 30 : 0 }
+    /// The most memory the model used while it ran in the bench (.superpowers/phase2/model-bench.md): the larger of
+    /// the peak Metal memory and the peak RSS, in GB.
+    public var peakMemoryGB: Double {
+        switch self {
+        case .gemma4e4b: 5.71
+        case .qwen4b6: 4.65
+        case .qwen4b: 3.66
+        case .qwen2b: 2.28
+        }
+    }
+
+    /// The memory a Mac needs before Sanketa offers this model. The rule: the model's peak memory plus 3 GB for macOS
+    /// and the apps that you use, rounded up to a multiple of 8 GB. That gives 16 GB for Gemma 4 E4B and 8 GB for each
+    /// Qwen model.
+    public var minMemory: UInt64 {
+        let gb = UInt64((peakMemoryGB + Self.headroomGB).rounded(.up))
+        return (gb + 7) / 8 * 8 << 30
+    }
+
+    /// The memory that macOS and the user's apps keep, on top of the model.
+    public static let headroomGB = 3.0
+
+    /// The smallest `minMemory`: below it, no on-device model can run.
+    public static var memoryFloor: UInt64 { allCases.map(\.minMemory).min() ?? 0 }
+
+    /// True when the Mac has the memory for at least one model.
+    public static func anyFits(memory: UInt64) -> Bool { memory >= memoryFloor }
+
+    /// The menu line and the config note on a Mac below `memoryFloor`.
+    public static let notEnoughMemory = "This Mac does not have enough memory for an on-device model. Search uses plain search."
 
     /// Gemma 4 E4B on a Mac with 16 GB or more, else Qwen3.5-4B.
     public static func recommended(memory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> MLXModelChoice {
@@ -67,8 +95,11 @@ public struct CoachConfig: Codable, Equatable, Sendable {
 }
 
 /// `[llm]`: the model tiers for natural-language search and suggestions. OpenAI stays off until the user turns it on.
+/// The on-device model is off too, until the user chooses one in the On-Device Model menu or with `--install-model`.
 public struct LLMConfig: Codable, Equatable, Sendable {
-    public var onDevice = true
+    public var onDevice = false
+    /// True when config.toml did not set `on_device`; then `chooseOnDevice` turns it on for a model already installed.
+    public var onDeviceUnset = true
     public var mlxModel = MLXModelChoice.recommended()
     public var appleFM = true
     public var suggest = true
@@ -88,7 +119,7 @@ public struct LLMConfig: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        onDevice = try c.decodeIfPresent(Bool.self, forKey: .onDevice) ?? onDevice
+        if let v = try c.decodeIfPresent(Bool.self, forKey: .onDevice) { onDevice = v; onDeviceUnset = false }
         mlxModel = try c.decodeIfPresent(MLXModelChoice.self, forKey: .mlxModel) ?? mlxModel
         appleFM = try c.decodeIfPresent(Bool.self, forKey: .appleFM) ?? appleFM
         suggest = try c.decodeIfPresent(Bool.self, forKey: .suggest) ?? suggest
@@ -101,13 +132,23 @@ public struct LLMConfig: Codable, Equatable, Sendable {
         if timeoutSeconds <= 0 { timeoutSeconds = LLMConfig().timeoutSeconds }
     }
 
-    /// When `mlxModel` needs more than `memory`, it changes to `MLXModelChoice.recommended(memory:)`, and this gives
-    /// one line that says so; else nil.
+    /// With no `on_device` in config.toml, the on-device model is on only when `mlxModel` is already installed: a
+    /// user who downloaded it before keeps it, and on a new Mac nothing is used or downloaded.
+    public mutating func chooseOnDevice(installed: (MLXModelChoice) -> Bool) {
+        if onDeviceUnset { onDevice = installed(mlxModel) }
+    }
+
+    /// Below `MLXModelChoice.memoryFloor` the on-device model goes off. When `mlxModel` needs more than `memory`, it
+    /// changes to `MLXModelChoice.recommended(memory:)`. While the model is on, this gives one line that says so; else nil.
     public mutating func fitMemory(_ memory: UInt64) -> String? {
+        guard MLXModelChoice.anyFits(memory: memory) else {
+            defer { onDevice = false }
+            return onDevice ? MLXModelChoice.notEnoughMemory : nil
+        }
         guard memory < mlxModel.minMemory else { return nil }
         let want = mlxModel
         mlxModel = MLXModelChoice.recommended(memory: memory)
-        return MLXModelChoice.memoryWarning(want, memory: memory) + " Sanketa uses \(mlxModel.displayName)."
+        return onDevice ? MLXModelChoice.memoryWarning(want, memory: memory) + " Sanketa uses \(mlxModel.displayName)." : nil
     }
 
     /// The variable to read the key from for this server: `api_key_env` when set, else `OPENAI_API_KEY` for
@@ -188,15 +229,17 @@ public struct Config: Codable, Equatable {
     /// The config, why it did not load, and a note. A missing file gives defaults and no error; bad TOML gives defaults
     /// and a short message, such as `hotkey must be a string`. A `mlx_model` that needs more memory than `memory`
     /// changes to the model that fits, and the note says so: the file loaded, so that is not an error.
-    public static func load(_ url: URL, memory: UInt64 = ProcessInfo.processInfo.physicalMemory)
-        -> (config: Config, error: String?, note: String?) {
-        guard let data = try? Data(contentsOf: url) else { return (Config(), nil, nil) }
-        do {
-            var c = try TOMLDecoder().decode(Config.self, from: data)
-            let note = c.llm.fitMemory(memory)
-            return (c, nil, note)
+    /// `installed` tells if a model is downloaded, for a config with no `on_device` (see `LLMConfig.chooseOnDevice`).
+    public static func load(_ url: URL, memory: UInt64 = ProcessInfo.processInfo.physicalMemory,
+                            installed: (MLXModelChoice) -> Bool = { _ in false }) -> (config: Config, error: String?, note: String?) {
+        var c = Config(), failure: String?
+        if let data = try? Data(contentsOf: url) {
+            do { c = try TOMLDecoder().decode(Config.self, from: data) }
+            catch { failure = PackLint.describe(error, root: "") }
         }
-        catch { return (Config(), PackLint.describe(error, root: ""), nil) }
+        c.llm.chooseOnDevice(installed: installed)
+        let note = c.llm.fitMemory(memory)
+        return (c, failure, note)
     }
 }
 

@@ -90,7 +90,7 @@ struct CoachLLMConfigTests {
     @Test func llmDefaultsKeepOpenAIOff() throws {
         let (c, err, _) = Config.load(try writeConfig(""))
         #expect(err == nil)
-        #expect(c.llm.openai == false && c.llm.onDevice == true && c.llm.appleFM == true)
+        #expect(c.llm.openai == false && c.llm.onDevice == false && c.llm.appleFM == true)
         #expect(c.llm.openaiModel == "" && c.llm.baseURL == "https://api.openai.com/v1" && c.coach.enabled == true)
     }
 
@@ -110,10 +110,43 @@ struct CoachLLMConfigTests {
         #expect(gemma.mlxModel == .gemma4e4b)
         #expect(Config.load(try writeConfig("")).0.llm.mlxModel == MLXModelChoice.recommended())
         // a Mac with too little memory: one warning, and the model that fits
-        let (small, err, warn) = Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\""), memory: 8 << 30)
+        let (small, err, warn) = Config.load(try writeConfig("[llm]\non_device = true\nmlx_model = \"gemma-4-e4b\""), memory: 8 << 30)
         #expect(small.llm.mlxModel == .qwen4b && err == nil, "the file loaded: a note, not an error")
         #expect(warn == "Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB. Sanketa uses Qwen3.5-4B.")
         #expect(Config.load(try writeConfig("[llm]\nmlx_model = \"qwen3.5-2b\""), memory: 8 << 30).note == nil)
+    }
+
+    /// The rule: peak memory from the bench plus 3 GB, rounded up to a multiple of 8 GB.
+    @Test func modelsNeedTheirMemory() {
+        #expect(MLXModelChoice.allCases.map { $0.minMemory >> 30 } == [16, 8, 8, 8])
+        #expect(MLXModelChoice.memoryFloor == 8 << 30)
+        let offered: [UInt64: [MLXModelChoice]] = [4: [], 8: [.qwen4b, .qwen2b], 16: [.gemma4e4b, .qwen4b, .qwen2b],
+                                                   32: [.gemma4e4b, .qwen4b, .qwen2b]]
+        for (gb, want) in offered {
+            #expect(MLXModelChoice.offered(memory: gb << 30) == want, "\(gb) GB")
+            #expect(MLXModelChoice.anyFits(memory: gb << 30) == (gb >= 8), "\(gb) GB")
+        }
+    }
+
+    /// No model is used until the user chooses one; a model that is already installed and chosen stays on.
+    @Test func onDeviceIsOffUntilAModelIsChosen() throws {
+        let none = { (_: MLXModelChoice) in false }, gemma = { (c: MLXModelChoice) in c == .gemma4e4b }
+        #expect(Config().llm.onDevice == false)
+        #expect(Config.load(try tempDir().appendingPathComponent("missing.toml"), memory: 16 << 30, installed: none).0.llm.onDevice == false)
+        #expect(Config.load(try writeConfig(""), memory: 16 << 30, installed: none).0.llm.onDevice == false)
+        // a user who downloaded Gemma before this change: no on_device line, the default model is installed
+        #expect(Config.load(try tempDir().appendingPathComponent("missing.toml"), memory: 16 << 30, installed: gemma).0.llm.onDevice)
+        #expect(Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\""), memory: 16 << 30, installed: gemma).0.llm.onDevice)
+        // another model is chosen than the one installed: off
+        #expect(!Config.load(try writeConfig("[llm]\nmlx_model = \"qwen3.5-2b\""), memory: 16 << 30, installed: gemma).0.llm.onDevice)
+        // the user's own value wins
+        #expect(!Config.load(try writeConfig("[llm]\non_device = false"), memory: 16 << 30, installed: gemma).0.llm.onDevice)
+        #expect(Config.load(try writeConfig("[llm]\non_device = true"), memory: 16 << 30, installed: none).0.llm.onDevice)
+        // a 4 GB Mac: off, with one note when the user had turned it on
+        let (small, err, note) = Config.load(try writeConfig("[llm]\non_device = true"), memory: 4 << 30, installed: gemma)
+        #expect(!small.llm.onDevice && err == nil && note == MLXModelChoice.notEnoughMemory)
+        let quiet = Config.load(try writeConfig(""), memory: 4 << 30, installed: none)
+        #expect(!quiet.config.llm.onDevice && quiet.note == nil)
     }
 
     @Test func keyVariableOnlyForOpenAIUnlessSet() throws {

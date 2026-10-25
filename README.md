@@ -109,7 +109,7 @@ You can type a question, such as "how do I split the window side by side". When 
 
 Sanketa tries these models in this order, and it uses the first one that works:
 
-1. The on-device model. It runs on this Mac, after you download it from the On-Device Model menu. Gemma 4 E4B is the best choice. It is a 5.4 GB download and uses about 5.2 GB of memory while it runs, so Sanketa shows it only on a Mac with 16 GB of memory or more. Qwen3.5-4B is a 3.1 GB download and uses about 3.7 GB. Use it on a Mac with 8 GB. Qwen3.5-2B is a 1.7 GB download and uses about 2.3 GB. If Gemma 4 E4B does not load on your Mac, the menu then offers Qwen3.5-4B 6-bit. It is a 4.1 GB download. Sanketa loads the model when you start a search. While the model loads, the search is plain, and the next search uses the model. Sanketa frees the memory after one minute with no search. The download needs the app build of Sanketa, which has MLX. A build from `swift build` has no MLX, so its download items are off.
+1. The on-device model. It is off until you choose a model in the On-Device Model menu or with `--install-model`. Sanketa does not download a model by itself. When it is off, Sanketa does not start MLX and does not use the GPU for it. Each model needs a minimum of memory: its peak memory in our tests plus 3 GB for macOS and your apps, rounded up to a multiple of 8 GB. Gemma 4 E4B needs 16 GB. Each Qwen model needs 8 GB. The menu shows only the models that fit. On a Mac with less than 8 GB, the menu shows one line: "This Mac does not have enough memory for an on-device model. Search uses plain search." The menu item "No On-Device Model" turns the model off. Gemma 4 E4B is the best choice. It is a 5.4 GB download and uses about 5.2 GB of memory while it runs, so Sanketa shows it only on a Mac with 16 GB of memory or more. Qwen3.5-4B is a 3.1 GB download and uses about 3.7 GB. Use it on a Mac with 8 GB. Qwen3.5-2B is a 1.7 GB download and uses about 2.3 GB. If Gemma 4 E4B does not load on your Mac, the menu then offers Qwen3.5-4B 6-bit. It is a 4.1 GB download. Sanketa loads the model when you start a search. While the model loads, the search is plain, and the next search uses the model. Sanketa frees the memory after one minute with no search. The download needs the app build of Sanketa, which has MLX. A build from `swift build` has no MLX, so its download items are off.
 2. Apple Intelligence. Sanketa uses it if you turned it on in System Settings. You do not have to.
 3. An OpenAI server. This is off until you set `openai = true` in `[llm]`.
 4. Plain search, when no model works. One gray line under the results then tells why, such as "Plain search: Apple Intelligence is off". Sanketa shows no popup and makes no sound.
@@ -154,7 +154,7 @@ bash_history = "~/.bash_history"
 max_entries = 5000           # read at most this many of the last commands
 
 [llm]                        # natural-language search
-on_device = true             # the downloaded on-device model
+on_device = false            # true when you choose a model; off by default
 mlx_model = "gemma-4-e4b"    # or "qwen3.5-4b", "qwen3.5-2b" or "qwen3.5-4b-6bit"; the default is Qwen3.5-4B below 16 GB
 apple_fm = true              # Apple Intelligence, when it is on
 suggest = true               # on-device tips for the commands that you ran last
@@ -258,7 +258,7 @@ Sanketa --ask "how do I split the window side by side"   # natural-language sear
 Sanketa --install-model e4b                              # download Gemma 4 E4B (4b and 2b give Qwen)
 ```
 
-`--install-model` needs the MLX build. Without it, the command stops and makes no request. It also stops for Gemma 4 E4B on a Mac with less than 16 GB of memory. Add `--force` to download the model anyway. If the download stops, Sanketa tries the file again up to 4 times and goes on from the last byte. The bytes stay on disk, so the next download goes on from there too.
+`--install-model` needs the MLX build. Without it, the command stops and makes no request. It also stops for Gemma 4 E4B on a Mac with less than 16 GB of memory. Add `--force` to download the model anyway. On a Mac with less than 8 GB, it stops for each model, also with `--force`. When the model is installed, Sanketa uses it: the command sets `on_device = true` and `mlx_model` in config.toml. If the download stops, Sanketa tries the file again up to 4 times and goes on from the last byte. The bytes stay on disk, so the next download goes on from there too.
 
 ### Releases
 

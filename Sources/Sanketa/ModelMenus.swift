@@ -36,9 +36,11 @@ import SanketaMLX
         keyItem = m.addItem(withTitle: StatusMenus.keyTitle(provider: provider), action: #selector(enterKey), keyEquivalent: "")
         keyItem?.target = self
         m.addItem(withTitle: "On-Device Model", action: nil, keyEquivalent: "").submenu = onDeviceMenu
-        // a submenu with no items does not open, so each gets its lines now; menuWillOpen refreshes them
+        // a submenu with no items does not open, so each gets its lines now; menuWillOpen refreshes them. The on-device
+        // menu gets only its status line: the full menu looks for the MLX shaders, and that waits until the user opens it
         renderModelMenu()
-        renderOnDeviceMenu()
+        fill(onDeviceMenu, [MenuLine(config().onDevice ? StatusMenus.name(config().mlxModel) : StatusMenus.onDeviceOff, enabled: false)],
+             #selector(pickDevice(_:)))
     }
 
     /// The router was rebuilt: new titles, and a new server forgets the old list.
@@ -141,8 +143,8 @@ import SanketaMLX
     func renderOnDeviceMenu() {
         let installed = Set(MLXModelChoice.allCases.filter { installer.isInstalled(ModelCatalog.spec($0)) })
         let failed = Set(MLXModelChoice.allCases.filter { MLXChooser.didFail(installer.directory(ModelCatalog.spec($0))) })
-        deviceLines = StatusMenus.onDeviceLines(selected: config().mlxModel, installed: installed, progress: downloadProgress,
-                                                mlxReady: mlxReady, error: downloadError, failed: failed)
+        deviceLines = StatusMenus.onDeviceLines(on: config().onDevice, selected: config().mlxModel, installed: installed,
+                                                progress: downloadProgress, mlxReady: mlxReady, error: downloadError, failed: failed)
         fill(onDeviceMenu, deviceLines, #selector(pickDevice(_:)))
     }
 
@@ -151,6 +153,12 @@ import SanketaMLX
         switch deviceLines[sender.tag].action {
         case .download(let c): download(c)
         case .use(let c): use(c)
+        case .turnOff:
+            var c = config()
+            c.onDevice = false
+            change(c)
+            saveLLM("on_device", "false")
+            Task { await MLXChooser.unloadAll() }
         case .remove:
             // the loaded model goes out of memory first, so no file is in use when it goes
             Task { @MainActor in
@@ -159,18 +167,25 @@ import SanketaMLX
                     do { try installer.remove(ModelCatalog.spec(c)) } catch { downloadError = "Could not remove \(StatusMenus.name(c))." }
                 }
                 MLXChooser.forgetFailure(nil)
-                change(config())
+                // no model is left to use, so the on-device model goes off
+                var c = config()
+                c.onDevice = false
+                change(c)
+                saveLLM("on_device", "false")
                 renderOnDeviceMenu()
             }
         default: break
         }
     }
 
+    /// The user's choice: `m` becomes `[llm] mlx_model`, and `on_device` goes on.
     func use(_ m: MLXModelChoice) {
         var c = config()
         c.mlxModel = m
+        c.onDevice = true
         change(c)
         save("mlx_model", m.rawValue)
+        saveLLM("on_device", "true")
     }
 
     /// Downloads and checks the model; the status line shows the percent. When it is done, it becomes `[llm] mlx_model`.
@@ -203,9 +218,5 @@ import SanketaMLX
     }
 
     /// Writes one `[llm]` key as a TOML string.
-    func save(_ key: String, _ value: String) {
-        let quoted = "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
-        do { try Config.save(key, quoted, to: configURL, table: "llm") }
-        catch { FileHandle.standardError.write(Data("cannot save config: \(error.localizedDescription)\n".utf8)) }
-    }
+    func save(_ key: String, _ value: String) { saveLLM(key, tomlString(value)) }
 }

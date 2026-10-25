@@ -3,7 +3,7 @@ import SanketaCore
 
 /// One status-menu line and what a click on it does.
 public struct MenuLine: Equatable {
-    public enum Action: Equatable { case none, cheapest, model(String), download(MLXModelChoice), use(MLXModelChoice), remove }
+    public enum Action: Equatable { case none, cheapest, model(String), download(MLXModelChoice), use(MLXModelChoice), turnOff, remove }
     public var title: String
     public var enabled: Bool
     public var checked = false
@@ -55,30 +55,45 @@ public enum StatusMenus {
     /// Bytes as gigabytes with one decimal, e.g. "3.1 GB".
     public static func size(_ bytes: Int64) -> String { String(format: "%.1f GB", Double(bytes) / 1e9) }
 
-    /// A status line for the chosen model, then a line per catalog model and "Remove Downloaded Models". Downloads need
-    /// the MLX build (`mlxReady`); until then a disabled line says so. During a download the status line shows the percent.
-    /// `error` is why the last download failed, on its own disabled line. A model that needs more than `memory` shows
-    /// only when it is downloaded.
-    /// `failed` are the models that did not load; then the fallback model shows too.
-    public static func onDeviceLines(selected: MLXModelChoice, installed: Set<MLXModelChoice>, progress: Double?,
-                                     mlxReady: Bool, error: String? = nil,
+    /// The status line while no on-device model is in use.
+    public static let onDeviceOff = "Not in use. Search does not use an on-device model."
+    public static let noOnDevice = "No On-Device Model"
+
+    /// A status line, then a line per catalog model that fits in `memory`, "No On-Device Model" and "Remove Downloaded
+    /// Models". With `on` false no model is in use, and "No On-Device Model" is checked. Downloads need the MLX build
+    /// (`mlxReady`, asked only when a download line shows); until then a disabled line says so. During a download the
+    /// status line shows the percent. `error` is why the last download failed, on its own disabled line. `failed` are the
+    /// models that did not load; then the fallback model shows too. Below `MLXModelChoice.memoryFloor` there is one
+    /// line that says so, and no model lines.
+    public static func onDeviceLines(on: Bool = true, selected: MLXModelChoice, installed: Set<MLXModelChoice>, progress: Double?,
+                                     mlxReady: @autoclosure () -> Bool, error: String? = nil,
                                      memory: UInt64 = ProcessInfo.processInfo.physicalMemory,
                                      failed: Set<MLXModelChoice> = []) -> [MenuLine] {
+        let idle = progress == nil
+        guard MLXModelChoice.anyFits(memory: memory) else {
+            var out = [MenuLine(MLXModelChoice.notEnoughMemory, enabled: false)]
+            if !installed.isEmpty { out.append(MenuLine("Remove Downloaded Models", enabled: idle, action: .remove)) }
+            return out
+        }
         let state = failed.contains(selected) ? "did not load" : installed.contains(selected) ? "downloaded" : "not downloaded"
-        let status = progress.map { "Downloading… \(Int(($0 * 100).rounded(.down))) %" } ?? "\(name(selected)): \(state)"
+        let status = progress.map { "Downloading… \(Int(($0 * 100).rounded(.down))) %" } ?? (on ? "\(name(selected)): \(state)" : onDeviceOff)
         var out = [MenuLine(status, enabled: false)]
         if let error, progress == nil { out.append(MenuLine(error, enabled: false)) }
-        if !mlxReady { out.append(MenuLine(needsMLX, enabled: false)) }
-        let idle = progress == nil
-        for c in MLXModelChoice.allCases
-        where installed.contains(c) || c == selected || (memory >= c.minMemory && (!c.isFallback || !failed.isEmpty)) {
+        let shown = MLXModelChoice.allCases.filter { c in
+            memory >= c.minMemory && (!c.isFallback || !failed.isEmpty || installed.contains(c) || (on && c == selected))
+        }
+        let ready = shown.allSatisfy(installed.contains) || mlxReady()
+        if !ready { out.append(MenuLine(needsMLX, enabled: false)) }
+        for c in shown {
+            let current = on && c == selected
             if installed.contains(c) {
-                out.append(MenuLine("Use \(name(c))", enabled: idle && c != selected, checked: c == selected, action: .use(c)))
+                out.append(MenuLine("Use \(name(c))", enabled: idle && !current, checked: current, action: .use(c)))
             } else {
-                out.append(MenuLine("Download \(name(c)) (\(size(ModelCatalog.spec(c).downloadSize)))", enabled: idle && mlxReady,
+                out.append(MenuLine("Download \(name(c)) (\(size(ModelCatalog.spec(c).downloadSize)))", enabled: idle && ready,
                                     action: .download(c)))
             }
         }
+        out.append(MenuLine(noOnDevice, enabled: idle && on, checked: !on, action: .turnOff))
         out.append(MenuLine("Remove Downloaded Models", enabled: idle && !installed.isEmpty, action: .remove))
         return out
     }

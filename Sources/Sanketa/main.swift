@@ -28,7 +28,8 @@ func loadLibrary(config: Config = loadConfig()) -> PackLibrary {
 
 /// config.toml, why it did not load (nil when it loads) and a note such as the memory fallback; both also go to stderr.
 func readConfig() -> (config: Config, error: String?, note: String?) {
-    let r = Config.load(configURL)
+    let installer = ModelInstaller(root: ModelCatalog.defaultRoot)
+    let r = Config.load(configURL, installed: { installer.isInstalled(ModelCatalog.spec($0)) })
     if let err = r.error { FileHandle.standardError.write(Data("config error: \(err)\n".utf8)) }
     if let note = r.note { FileHandle.standardError.write(Data("config note: \(note)\n".utf8)) }
     return r
@@ -118,13 +119,26 @@ func dumpCoach(out: String?) {
 }
 
 /// The on-device slot: the `[llm] mlx_model` model. Until it is downloaded, or in a build without the MLX shaders, it
-/// is unavailable, and the router goes on to Apple Intelligence, OpenAI and plain search.
+/// is unavailable, and the router goes on to Apple Intelligence, OpenAI and plain search. `LLMSetup` calls this only
+/// while `[llm] on_device` is on.
 func makeOnDevice(_ llm: LLMConfig) -> (any OnDeviceChooser)? {
     MLXChooser(spec: ModelCatalog.spec(llm.mlxModel), installer: ModelInstaller(root: ModelCatalog.defaultRoot))
 }
 
-/// True when this build can run the on-device model; the "On-Device Model" menu enables downloads only then.
-let mlxReady = MLXRuntime.isReady
+/// True when this build can run the on-device model; the "On-Device Model" menu enables downloads only then. It looks
+/// for the MLX shaders only when something asks, not at launch.
+var mlxReady: Bool { MLXRuntime.isReady }
+
+/// Writes one `[llm]` key; `value` is TOML text (a quoted string or a bool).
+func saveLLM(_ key: String, _ value: String) {
+    do { try Config.save(key, value, to: configURL, table: "llm") }
+    catch { FileHandle.standardError.write(Data("cannot save config: \(error.localizedDescription)\n".utf8)) }
+}
+
+/// `"text"` as a TOML string.
+func tomlString(_ value: String) -> String {
+    "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+}
 
 /// The model tiers for the app and `--ask`. The key comes from the environment, the login shell or the Keychain;
 /// `previous` keeps the key lookup and the model list when the server stays the same.
@@ -158,13 +172,15 @@ func ask(_ query: String, out: String?) {
 }
 
 /// `--install-model [e4b|4b|2b|4b-6bit] [--force]`: downloads and checks the on-device model (the `[llm] mlx_model` one by default).
-/// While this build can't run the model, it needs `--force`.
+/// While this build can't run the model, it needs `--force`. When the model is installed, it becomes `[llm] mlx_model`
+/// and `on_device` goes on: this is how the user chooses a model without the menu.
 func installModel(_ which: String?) {
     let force = CommandLine.arguments.contains("--force")
     let choice = loadConfig().llm.mlxModel
     Task.detached {
         let status = await InstallCLI.run(which: which, force: force, mlxReady: mlxReady, defaultChoice: choice,
                                           installer: ModelInstaller(root: ModelCatalog.defaultRoot),
+                                          chosen: { saveLLM("mlx_model", tomlString($0.rawValue)); saveLLM("on_device", "true") },
                                           out: { print($0); fflush(stdout) },
                                           err: { FileHandle.standardError.write(Data(($0 + "\n").utf8)) })
         exit(status)

@@ -202,7 +202,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # max_entries = \(k.maxEntries)
 
             # [llm]   # natural-language search; the model only picks from entries that Sanketa loaded
-            # on_device = \(l.onDevice)   # MLX model on this Mac
+            # on_device = \(l.onDevice)   # MLX model on this Mac; off until you choose a model in the On-Device Model menu
             # mlx_model = "\(l.mlxModel.rawValue)"   # one of: \(MLXModelChoice.allCases.map(\.rawValue).joined(separator: ", "))
             # apple_fm = \(l.appleFM)   # Apple Foundation Models
             # suggest = \(l.suggest)   # model tips in the tip slot

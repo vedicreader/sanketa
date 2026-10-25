@@ -52,6 +52,25 @@ private func search(_ base: String, apiKeyEnv: String? = nil, env: [String: Stri
 }
 
 @Suite struct LLMSetupTests {
+    /// The default config makes no on-device chooser at all, so the MLX runtime never starts; a chosen model does.
+    @Test func onDeviceChooserIsMadeOnlyWhenOn() {
+        final class Made: @unchecked Sendable { var n = 0 }
+        struct Fake: OnDeviceChooser {
+            var name: String { "fake" }
+            func status() -> ModelStatus { .available }
+            func choose(_ prompt: ChoicePrompt) async throws -> [String] { [] }
+        }
+        let made = Made()
+        func make() -> (any OnDeviceChooser)? { made.n += 1; return Fake() }
+        let keys = { (a: String, v: String?) in KeyLookup(varName: v, env: [:], shell: nil, runner: ProcessRunner(), store: MemoryKeyStore(), account: a) }
+        let off = LLMSetup(config: LLMConfig(), makeKeys: keys, onDevice: make(), appleFM: nil)
+        #expect(made.n == 0 && off.router.onDevice == nil && !LLMConfig().onDevice)
+        var on = LLMConfig()
+        on.onDevice = true
+        let used = LLMSetup(config: on, makeKeys: keys, onDevice: make(), appleFM: nil)
+        #expect(made.n == 1 && used.router.searchChooser()?.name == "fake")
+    }
+
     @Test func searchesShareOneModelListRequest() async throws {
         let stub = Stub([modelsPath: [(200, modelsReply)], chatPath: [(200, okReply)]])
         let s = setup(stub, llm())

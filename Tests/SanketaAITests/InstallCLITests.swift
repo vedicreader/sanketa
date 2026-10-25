@@ -12,14 +12,61 @@ private final class Lines: @unchecked Sendable {
 }
 
 @Suite struct InstallCLITests {
-    func run(_ which: String?, force: Bool, mlxReady: Bool, memory: UInt64 = 36 << 30) async throws -> (status: Int32, out: [String], err: [String], stub: Stub, root: URL) {
+    func run(_ which: String?, force: Bool, mlxReady: Bool, memory: UInt64 = 36 << 30, installed: MLXModelChoice? = nil) async throws
+        -> (status: Int32, out: [String], err: [String], stub: Stub, root: URL, chosen: [MLXModelChoice]) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-installcli-\(UUID().uuidString)")
         let stub = Stub([:])   // every path answers 404
         let installer = ModelInstaller(root: root, session: stub.session, freeSpace: { _ in Int64.max })
+        if let installed { try Self.fakeInstall(ModelCatalog.spec(installed), in: installer) }
         let out = Lines(), err = Lines()
+        var chosen: [MLXModelChoice] = []
         let s = await InstallCLI.run(which: which, force: force, mlxReady: mlxReady, defaultChoice: .qwen2b, installer: installer,
-                                     memory: memory, out: out.add, err: err.add)
-        return (s, out.lines, err.lines, stub, root)
+                                     memory: memory, chosen: { chosen.append($0) }, out: out.add, err: err.add)
+        return (s, out.lines, err.lines, stub, root, chosen)
+    }
+
+    /// An installed model as the installer leaves it: the `.verified` revision and each file at its size (sparse, so
+    /// the test writes no gigabytes).
+    static func fakeInstall(_ spec: ModelSpec, in installer: ModelInstaller) throws {
+        let d = installer.directory(spec)
+        try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        for f in spec.files {
+            let u = d.appendingPathComponent(f.name)
+            FileManager.default.createFile(atPath: u.path, contents: nil)
+            let h = try FileHandle(forWritingTo: u)
+            try h.truncate(atOffset: UInt64(f.size)); try h.close()
+        }
+        try spec.revision.write(to: d.appendingPathComponent(".verified"), atomically: true, encoding: .utf8)
+        try #require(installer.isInstalled(spec))
+    }
+
+    /// A Mac below 8 GB gets no model, not even with --force, and nothing is requested.
+    @Test func smallMacRefusesEveryModelEvenWithForce() async throws {
+        for which in [nil, "2b", "4b", "e4b", "4b-6bit"] as [String?] {
+            for force in [false, true] {
+                let r = try await run(which, force: force, mlxReady: true, memory: 4 << 30)
+                #expect(r.status == 2 && r.stub.requests.isEmpty && r.chosen.isEmpty, "\(String(describing: which)) force \(force)")
+                #expect(r.err == ["This Mac does not have enough memory for an on-device model. Search uses plain search. This Mac has 4 GB. The smallest model needs 8 GB."])
+            }
+        }
+    }
+
+    /// Each RAM size gets the models that fit without --force.
+    @Test func memoryDecidesWhichModelsNeedForce() async throws {
+        for (gb, fits) in [(8, ["2b", "4b", "4b-6bit"]), (16, ["2b", "4b", "4b-6bit", "e4b"]), (32, ["2b", "4b", "4b-6bit", "e4b"])] as [(UInt64, [String])] {
+            for which in ["2b", "4b", "4b-6bit", "e4b"] {
+                let r = try await run(which, force: false, mlxReady: true, memory: gb << 30)
+                #expect((r.stub.requests.count == 1) == fits.contains(which), "\(gb) GB \(which): \(r.err)")
+            }
+        }
+    }
+
+    /// A model that is installed becomes the chosen one, so `on_device` goes on.
+    @Test func installedModelIsChosen() async throws {
+        let r = try await run("2b", force: false, mlxReady: true, memory: 8 << 30, installed: .qwen2b)
+        #expect(r.status == 0 && r.chosen == [.qwen2b] && r.stub.requests.isEmpty)
+        let failed = try await run("4b", force: false, mlxReady: true)
+        #expect(failed.status == 1 && failed.chosen.isEmpty, "a failed download chooses nothing")
     }
 
     @Test func refusesWithoutForceWhileBuildCannotRunModel() async throws {

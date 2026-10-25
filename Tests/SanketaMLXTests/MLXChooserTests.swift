@@ -66,7 +66,9 @@ private func loadedChooser(_ runner: FakeRunner, idle: TimeInterval = 30, loads:
 }
 
 private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> ModelRouter {
-    ModelRouter(config: LLMConfig(), onDevice: c, appleFM: fm, remote: nil)
+    var config = LLMConfig()
+    config.onDevice = true   // the user chose a model
+    return ModelRouter(config: config, onDevice: c, appleFM: fm, remote: nil)
 }
 
 @Suite struct MLXChooserTests {
@@ -94,6 +96,10 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
         if !MLXRuntime.isReady { #expect(c.status() == .unavailable("on-device model needs the app build")) }
         #expect(MLXChooser.status(installed: true, ready: false) == .unavailable("on-device model needs the app build"))
         #expect(MLXChooser.status(installed: true, ready: true) == .available)
+        // a model that is not downloaded does not make the chooser look for the MLX shaders
+        var asked = 0
+        #expect(MLXChooser.status(installed: false, ready: { asked += 1; return true }()) == .unavailable("on-device model not downloaded"))
+        #expect(asked == 0)
         #expect(router(c, fm: Fixed(picks: [])).searchChooser()?.name == (MLXRuntime.isReady ? c.name : "fixed"))
     }
 

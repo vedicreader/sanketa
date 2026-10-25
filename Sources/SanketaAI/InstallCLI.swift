@@ -20,10 +20,17 @@ public enum InstallCLI {
     public static let notReady = "This build cannot run on-device models yet. Use --force to download anyway."
     public static let usage = "usage: Sanketa --install-model [e4b|4b|2b|4b-6bit] [--force]"
 
+    /// The line for a Mac below `MLXModelChoice.memoryFloor`.
+    public static func notEnoughMemory(_ memory: UInt64) -> String {
+        MLXModelChoice.notEnoughMemory + " This Mac has \(memory >> 30) GB. The smallest model needs \(MLXModelChoice.memoryFloor >> 30) GB."
+    }
+
     /// The exit status: 0 when the model is installed, 1 when the download fails, 2 for a wrong size name, or when this
-    /// build can't run the model or the Mac has too little memory for it, and `force` is not set. Nothing is requested in the cases that give 2.
+    /// build can't run the model or the Mac has too little memory for it, and `force` is not set. Below
+    /// `MLXModelChoice.memoryFloor` it gives 2 also with `force`. Nothing is requested in the cases that give 2.
+    /// `chosen` gets the model when it is installed, so that it becomes the user's on-device model.
     public static func run(which: String?, force: Bool, mlxReady: Bool, defaultChoice: MLXModelChoice, installer: ModelInstaller,
-                           memory: UInt64 = ProcessInfo.processInfo.physicalMemory,
+                           memory: UInt64 = ProcessInfo.processInfo.physicalMemory, chosen: (MLXModelChoice) -> Void = { _ in },
                            out: @escaping @Sendable (String) -> Void, err: (String) -> Void) async -> Int32 {
         let choice: MLXModelChoice
         switch which {
@@ -34,19 +41,21 @@ public enum InstallCLI {
         case "4b-6bit": choice = .qwen4b6
         default: err(usage); return 2
         }
+        guard MLXModelChoice.anyFits(memory: memory) else { err(notEnoughMemory(memory)); return 2 }
         guard mlxReady || force else { err(notReady); return 2 }
         if memory < choice.minMemory && !force {
             err(MLXModelChoice.memoryWarning(choice, memory: memory) + " Use --force to download it anyway.")
             return 2
         }
         let spec = ModelCatalog.spec(choice)
-        if installer.isInstalled(spec) { out("installed \(installer.directory(spec).path)"); return 0 }
+        if installer.isInstalled(spec) { chosen(choice); out("installed \(installer.directory(spec).path)"); return 0 }
         out("downloading \(spec.repo) (\(String(format: "%.1f GB", Double(spec.downloadSize) / 1e9)))")
         let steps = ProgressSteps()
         do {
             try await installer.install(spec) { done, total in
                 if let p = steps.next(done: done, total: total) { out("\(p) %  \(done / 1_000_000) MB of \(total / 1_000_000) MB") }
             }
+            chosen(choice)
             out("installed \(installer.directory(spec).path)")
             return 0
         } catch {

@@ -161,7 +161,7 @@ func bundledContext(_ names: [String]) throws -> Context {
     @Test func configNoteIsNotAnError() throws {
         let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
         let d = try tempURL("x").deletingLastPathComponent().appendingPathComponent("config.toml")
-        try "[llm]\nmlx_model = \"gemma-4-e4b\"\n".write(to: d, atomically: true, encoding: .utf8)
+        try "[llm]\non_device = true\nmlx_model = \"gemma-4-e4b\"\n".write(to: d, atomically: true, encoding: .utf8)
         let (_, err, note) = Config.load(d, memory: 8 << 30)
         m.configError = err.map { PackLoadError(file: d.path, message: $0) }
         m.configNote = note
