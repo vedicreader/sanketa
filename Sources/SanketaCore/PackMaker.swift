@@ -9,14 +9,17 @@ public enum PackMaker {
         public var name: String
         public var bundleID: String
         public var version: String
-        public init(name: String, bundleID: String, version: String) { self.name = name; self.bundleID = bundleID; self.version = version }
-        public var packID: String { PackStarter.id(name) }
+        /// the id of the user pack for the app when there is one, else an id from the name
+        public var packID: String
+        public init(name: String, bundleID: String, version: String, packID: String? = nil) {
+            self.name = name; self.bundleID = bundleID; self.version = version; self.packID = PackStarter.id(packID ?? name)
+        }
     }
 
     // MARK: prompt
 
-    /// Menus whose items name documents or pages.
-    static let privateMenus: Set<String> = ["open recent", "recent", "recent items", "history", "bookmarks"]
+    /// Words in the name of a menu whose items can name documents, pages or people.
+    static let privateMenus = ["recent", "history", "bookmark", "favorite", "favourite", "profile"]
 
     /// True for a menu title that can name a file, a person or a place: `/`, `~`, `@`, a file extension, or the user name.
     static func isPrivate(_ title: String) -> Bool {
@@ -25,12 +28,13 @@ public enum PackMaker {
         return [NSUserName(), NSFullUserName()].contains { $0.count > 2 && title.localizedCaseInsensitiveContains($0) }
     }
 
-    /// The menu shortcuts that may go into a prompt. Items in recent-file and history menus go, and so do items with a
-    /// private title. Window-menu items with ⌘ and a digit name an open window, so they go too.
+    /// The menu shortcuts that may go into a prompt. Items in menus such as "Open Recent", "History" or "Bookmarks" go,
+    /// and so do items with a private title. Window-menu items with a digit key name an open window, so they go too.
     public static func menuLines(_ shortcuts: [MenuShortcut]) -> [MenuShortcut] {
         shortcuts.filter { s in
-            guard !s.keys.isEmpty, !s.path.contains(where: { privateMenus.contains($0.lowercased()) || isPrivate($0) }) else { return false }
-            let windowList = s.path.first == "Window" && s.keys.range(of: #"^⌘[0-9]$"#, options: .regularExpression) != nil
+            guard !s.keys.isEmpty, !s.path.contains(where: { t in privateMenus.contains { t.lowercased().contains($0) } || isPrivate(t) })
+            else { return false }
+            let windowList = s.path.first == "Window" && s.keys.range(of: #"^[⌃⌥⇧⌘🌐]*[0-9]$"#, options: .regularExpression) != nil
             return !windowList
         }
     }
@@ -195,54 +199,7 @@ public enum PackMaker {
 
     // MARK: result
 
-    /// One table of the TOML text, with its header line (none for the top), and the comment lines before it.
-    struct Block { var name: String?; var lines: [String] }
-
-    /// The change in `[` `]` depth of a TOML line, outside strings and comments.
-    static func depth(_ line: String) -> Int {
-        var d = 0, quote: Character?, escape = false
-        for c in line {
-            if let q = quote {
-                if escape { escape = false } else if c == "\\" && q == "\"" { escape = true } else if c == q { quote = nil }
-                continue
-            }
-            switch c {
-            case "\"", "'": quote = c
-            case "#": return d
-            case "[": d += 1
-            case "]": d -= 1
-            default: break
-            }
-        }
-        return d
-    }
-
     static func isNote(_ l: String) -> Bool { let t = l.trimmingCharacters(in: .whitespaces); return t.isEmpty || t.hasPrefix("#") }
-
-    /// The text as the top block and one block for each table. The comments just before a header go with that table.
-    static func blocks(_ text: String) -> [Block] {
-        var out = [Block(name: nil, lines: [])], d = 0
-        for line in text.components(separatedBy: "\n") {
-            if d == 0, let m = line.firstMatch(of: #/^\s*\[\[?\s*([A-Za-z0-9_.-]+)\s*\]\]?/#) {
-                var notes = [String]()
-                while let last = out[out.count - 1].lines.last, isNote(last) { notes.insert(out[out.count - 1].lines.removeLast(), at: 0) }
-                out.append(Block(name: String(m.1), lines: notes + [line]))
-                continue
-            }
-            out[out.count - 1].lines.append(line)
-            d = max(0, d + depth(line))
-        }
-        return out
-    }
-
-    static func join(_ b: [Block]) -> String { b.flatMap(\.lines).joined(separator: "\n") }
-
-    /// The fields of a table block, read as TOML; the header line does not count.
-    static func table(_ b: Block) -> [String: TOMLValue]? {
-        let header = b.name == nil ? -1 : b.lines.firstIndex { $0.firstMatch(of: #/^\s*\[/#) != nil } ?? -1
-        let body = b.lines.dropFirst(header + 1)
-        return try? TOMLDecoder().decode(TOMLValue.self, from: Data(body.joined(separator: "\n").utf8)).table
-    }
 
     /// The TOML of a model answer: the text in a Markdown code fence, from the first `id =` or `[[keys]]` line (with the
     /// comments just before it) to the last TOML line. Nil when the answer has no such line.
@@ -251,10 +208,10 @@ public enum PackMaker {
         let fences = t.components(separatedBy: "```")
         if fences.count >= 3 {
             let inner = stride(from: 1, to: fences.count - 1, by: 2).map { fences[$0] }
-            if let f = inner.first(where: { $0.contains("[[keys]]") || $0.contains("id =") }) { t = String(f.drop { $0 != "\n" }) }
+            if let f = inner.first(where: { $0.contains("keys") || $0.contains("id") }) { t = String(f.drop { $0 != "\n" }) }
         }
         var lines = t.components(separatedBy: "\n")
-        guard var start = lines.firstIndex(where: { $0.firstMatch(of: #/^\s*(id\s*=|\[\[keys\]\])/#) != nil }) else { return nil }
+        guard var start = lines.firstIndex(where: { $0.firstMatch(of: #/^\s*(["']?id["']?\s*=|\[\[)/#) != nil }) else { return nil }
         while start > 0, isNote(lines[start - 1]) { start -= 1 }
         lines = Array(lines[start...])
         let toml = #/^\s*([A-Za-z0-9_"'-]+\s*=|\[|\]|"|')/#
@@ -262,40 +219,62 @@ public enum PackMaker {
         return lines[...end].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Top-level fields that the pack must not have: Sanketa knows the app, so the pack shows only by its bundle id.
-    static let dropTop: Set = ["id", "name", "apps", "processes", "match", "prefix", "title_scope", "contexts"]
-
-    /// Sets `id`, `name` and `apps` to the app's values, and removes the other ways to show and the contexts.
-    public static func fixTop(_ text: String, app: App) -> String {
-        var b = blocks(text).filter { $0.name != "contexts" && $0.name?.hasPrefix("contexts.") != true }
-        var head = [String](), d = 0, dropping = false
-        for line in b[0].lines {
-            if d == 0, let m = line.firstMatch(of: #/^\s*([A-Za-z_]+)\s*=/#) { dropping = dropTop.contains(String(m.1)) }
-            else if d == 0 { dropping = false }
-            d = max(0, d + depth(line))
-            if !dropping { head.append(line) }
-        }
-        let lead = head.prefix { $0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
-        var rest = Array(head.dropFirst(lead.count))
-        while let f = rest.first, f.trimmingCharacters(in: .whitespaces).isEmpty { rest.removeFirst() }
-        b[0].lines = Array(lead) + (lead.isEmpty ? [] : [""]) + top(app) + rest
-        if b.count > 1, !(b[0].lines.last ?? "").isEmpty, !(b[1].lines.first ?? "").isEmpty { b[0].lines.append("") }
-        return join(b)
+    /// A pack as the allow-list keeps it: the comments at the top, and only the fields that a GUI-app pack needs.
+    struct Draft {
+        struct Key { var keys, action, group: String? }
+        struct Tip { var title, snippet, explain: String?; var tags: [String]? }
+        var comments: [String] = []
+        var keys: [Key] = []
+        var tips: [Tip] = []
     }
 
-    /// Writes each key in the Mac key style (`PackLint.styleFix`); the count of keys it changed.
-    public static func fixStyle(_ text: String) -> (text: String, fixes: Int) {
-        var b = blocks(text), n = 0
-        for i in b.indices where b[i].name == "keys" && table(b[i])?["command"] == nil {
-            for j in b[i].lines.indices {
-                guard let m = b[i].lines[j].firstMatch(of: #/^(\s*keys\s*=\s*)(.*)$/#),
-                      let v = try? TOMLDecoder().decode(TOMLValue.self, from: Data("v = \(m.2)".utf8)).table?["v"]?.string,
-                      let fix = PackLint.styleFix(v) else { continue }
-                b[i].lines[j] = "\(m.1)\(quote(fix))"
-                n += 1
-            }
+    /// The answer decoded as TOML, with only `keys` (keys, action, group) and `tips` (title, snippet, explain, tags).
+    /// Every other field goes, however it is written. Nil when the text is not valid TOML.
+    static func draft(_ toml: String) -> Draft? {
+        guard let root = try? TOMLDecoder().decode(TOMLValue.self, from: Data(toml.utf8)).table else { return nil }
+        func tables(_ k: String) -> [[String: TOMLValue]] { root[k]?.array?.compactMap(\.table) ?? [] }
+        var d = Draft()
+        d.comments = toml.components(separatedBy: "\n").prefix { isNote($0) }.map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix("#") }
+        d.keys = tables("keys").map { Draft.Key(keys: $0["keys"]?.string, action: $0["action"]?.string, group: $0["group"]?.string) }
+        d.tips = tables("tips").map { t in
+            Draft.Tip(title: t["title"]?.string, snippet: t["snippet"]?.string, explain: t["explain"]?.string,
+                      tags: t["tags"]?.array.map { $0.compactMap(\.string) })
         }
-        return (join(b), n)
+        return d
+    }
+
+    /// The TOML of a draft, written from scratch. `id`, `name` and `apps` come from the app, not from the model.
+    static func render(_ d: Draft, app: App, comments: Bool = true) -> String {
+        var out = (comments && !d.comments.isEmpty ? d.comments + [""] : []) + top(app)
+        func field(_ k: String, _ v: String?) { if let v { out.append("\(k) = \(quote(v))") } }
+        for k in d.keys {
+            out += ["", "[[keys]]"]
+            field("keys", k.keys); field("action", k.action); field("group", k.group)
+        }
+        for t in d.tips {
+            out += ["", "[[tips]]"]
+            field("title", t.title); field("snippet", t.snippet); field("explain", t.explain)
+            if let tags = t.tags { out.append("tags = [" + tags.map(quote).joined(separator: ", ") + "]") }
+        }
+        return out.joined(separator: "\n") + "\n"
+    }
+
+    /// The answer with only the allow-listed fields; nil when it is not valid TOML.
+    public static func sanitize(_ toml: String, app: App) -> String? { draft(toml).map { render($0, app: app) } }
+
+    /// A pack for the prompt: allow-listed fields only, with no comments.
+    public static func promptPack(_ toml: String, app: App) -> String? { draft(toml).map { render($0, app: app, comments: false) } }
+
+    /// Writes each key in the Mac key style (`PackLint.styleFix`); the count of keys it changed.
+    static func fixStyle(_ d: inout Draft) -> Int {
+        var n = 0
+        for i in d.keys.indices {
+            guard let k = d.keys[i].keys, let fix = PackLint.styleFix(k) else { continue }
+            d.keys[i].keys = fix
+            n += 1
+        }
+        return n
     }
 
     static func words(_ s: String) -> Set<String> {
@@ -304,20 +283,18 @@ public enum PackMaker {
 
     /// Removes each key that the menus show already: the same keys and the same action words. A key with other words
     /// stays, because it gives the menu item a clearer label.
-    public static func removeMenuCopies(_ text: String, menu: [MenuShortcut]) -> (text: String, removed: Int) {
-        var n = 0
-        let b = blocks(text).filter { blk in
-            guard blk.name == "keys", let t = table(blk), let k = t["keys"]?.string, let a = t["action"]?.string else { return true }
+    static func removeMenuCopies(_ d: inout Draft, menu: [MenuShortcut]) -> Int {
+        let before = d.keys.count
+        d.keys.removeAll { k in
+            guard let ks = k.keys, let a = k.action else { return false }
             let w = words(a)
-            let copy = menu.contains { s in
-                guard s.keys == k, let leaf = s.path.last else { return false }
+            return menu.contains { s in
+                guard s.keys == ks, let leaf = s.path.last else { return false }
                 let lw = words(leaf)
                 return !w.isEmpty && (w.isSubset(of: lw) || lw.isSubset(of: w))
             }
-            if copy { n += 1 }
-            return !copy
         }
-        return (join(b), n)
+        return before - d.keys.count
     }
 
     /// The result of the steps for one answer.
@@ -334,20 +311,26 @@ public enum PackMaker {
     }
 
     public static let minKeys = 15
+    /// An answer, a pasted text or a chosen file above these limits is not a pack.
+    public static let maxText = 256 * 1024, maxKeys = 200
 
     public static func fewKeys(_ n: Int) -> String {
         "The pack has only \(n) key\(n == 1 ? "" : "s"). You can save it, or ask again with more docs."
     }
 
-    /// Clean, fix the top, fix the key style, remove menu copies, then lint. Nil when the answer is not a pack.
+    /// Clean, keep only the allow-listed fields, fix the key style, remove menu copies, then lint. Nil when the answer is
+    /// not a pack or is too large. An answer that is not valid TOML stays as it is, with the lint errors.
     public static func process(_ raw: String, app: App, menu: [MenuShortcut]) -> Outcome? {
-        guard let c = clean(raw) else { return nil }
-        let (styled, fixes) = fixStyle(fixTop(c, app: app))
-        let (text, copies) = removeMenuCopies(styled, menu: menu)
+        guard raw.utf8.count <= maxText, let c = clean(raw) else { return nil }
+        guard var d = draft(c) else {
+            return Outcome(text: c + "\n", styleFixes: 0, menuCopies: 0, keyCount: 0, findings: PackLint.lint(Data(c.utf8)))
+        }
+        guard d.keys.count <= maxKeys else { return nil }
+        let fixes = fixStyle(&d), copies = removeMenuCopies(&d, menu: menu)
+        let text = render(d, app: app)
         var findings = PackLint.lint(Data(text.utf8))
-        let keys = blocks(text).filter { $0.name == "keys" }.count
-        if findings.allSatisfy({ $0.level != .error }) && keys < minKeys { findings.append(LintFinding(level: .warning, message: fewKeys(keys))) }
-        return Outcome(text: text.hasSuffix("\n") ? text : text + "\n", styleFixes: fixes, menuCopies: copies, keyCount: keys, findings: findings)
+        if findings.allSatisfy({ $0.level != .error }) && d.keys.count < minKeys { findings.append(LintFinding(level: .warning, message: fewKeys(d.keys.count))) }
+        return Outcome(text: text, styleFixes: fixes, menuCopies: copies, keyCount: d.keys.count, findings: findings)
     }
 
     // MARK: preview and save
@@ -368,16 +351,42 @@ public enum PackMaker {
     /// Writes `<id>.toml` (or `<id>.toml.draft`, which the loader does not read) in `dir`. An existing file is first
     /// copied to `<name>.bak`, or `.bak2`, `.bak3` when that exists, so no text is lost.
     @discardableResult public static func save(_ text: String, id: String, in dir: URL, draft: Bool = false) throws -> URL {
-        let fm = FileManager.default
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         let f = dir.appendingPathComponent(PackStarter.id(id) + (draft ? ".toml.draft" : ".toml"))
+        try save(text, to: f)
+        return f
+    }
+
+    /// Writes `f`; an existing file is first copied to a free `.bak` name.
+    public static func save(_ text: String, to f: URL) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: f.deletingLastPathComponent(), withIntermediateDirectories: true)
         if fm.fileExists(atPath: f.path) {
             var n = 1, bak: URL
             repeat { bak = URL(fileURLWithPath: f.path + ".bak" + (n == 1 ? "" : "\(n)")); n += 1 } while fm.fileExists(atPath: bak.path)
             try fm.copyItem(at: f, to: bak)
         }
         try text.write(to: f, atomically: true, encoding: .utf8)
-        return f
+    }
+
+    /// The user pack whose `apps` has the bundle id, in any `.toml` file of `dir`: a save goes to that file, so the app
+    /// never gets a second pack.
+    public static func userPackFile(bundleID: String, in dir: URL) -> (url: URL, pack: Pack)? {
+        let files = ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension == "toml" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        for f in files {
+            if let d = try? Data(contentsOf: f), let p = try? PackLibrary.decode(d), p.apps.contains(bundleID) { return (f, p) }
+        }
+        return nil
+    }
+
+    /// What Make a Pack works on.
+    public enum Target: Equatable { case app(String), program(Layer), none }
+
+    /// The GUI app in front, or the program in front in a terminal. Never Sanketa itself (`own`).
+    public static func target(bundleID: String, own: String?, terminals: [String], layers: [Layer]) -> Target {
+        guard !bundleID.isEmpty, bundleID != own else { return .none }
+        if terminals.contains(bundleID) { return layers.first { $0.kind == .program }.map(Target.program) ?? .none }
+        return .app(bundleID)
     }
 
     // MARK: buttons
@@ -391,8 +400,9 @@ public enum PackMaker {
     }
 
     /// The line under the prompt that tells what it contains.
-    public static func contents(menuCount: Int) -> String {
-        "This prompt contains the app name, version, bundle id, \(menuCount) menu shortcut\(menuCount == 1 ? "" : "s") and your URLs. "
+    public static func contents(menuCount: Int, userPack: Bool = false) -> String {
+        "This prompt contains the app name, version, bundle id, \(menuCount) menu shortcut\(menuCount == 1 ? "" : "s")"
+            + (userPack ? ", your URLs and the keys and tips of your pack, with no comments. " : " and your URLs. ")
             + "It does not contain window titles, file names or paths."
     }
 }

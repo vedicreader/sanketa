@@ -68,8 +68,8 @@ struct PackMakerView: View {
         if let o = model.outcome {
             HStack {
                 Spacer()
-                if !o.canSave && !model.canAskAgain { Button("Save as Draft") { model.saveDraft() } }
-                if o.canSave { Button("Save") { model.save() }.keyboardShortcut(.defaultAction) }
+                if !o.canSave && !model.canAskAgain { Button("Save as Draft") { model.saveDraft() }.disabled(model.busy != nil) }
+                if o.canSave { Button("Save") { model.save() }.keyboardShortcut(.defaultAction).disabled(!model.canSave) }
             }
         }
     }
@@ -154,8 +154,11 @@ struct PackMakerView: View {
         p.allowedContentTypes = [.plainText, .html, .text]
         p.allowsMultipleSelection = false
         p.beginSheetModal(for: window) { [weak self] r in
-            guard r == .OK, let u = p.url, let s = try? String(contentsOf: u, encoding: .utf8) else { return }
-            self?.model.docs = PackMaker.plainText(html: s)
+            guard r == .OK, let u = p.url else { return }
+            // a file above the limit is not read into memory as text
+            let size = (try? u.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            guard size <= PackMaker.maxText, let s = try? String(contentsOf: u, encoding: .utf8) else { self?.model.useFile(nil); return }
+            self?.model.useFile(s)
         }
     }
 

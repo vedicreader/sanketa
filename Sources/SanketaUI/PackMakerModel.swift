@@ -10,8 +10,10 @@ import SanketaCore
         public var app: PackMaker.App
         /// all the menu shortcuts of the app; the prompt gets them after the privacy filter
         public var menu: [MenuShortcut]
-        /// the TOML of the pack that the user has for the app, for the prompt
+        /// the TOML of the bundled pack for the app; the prompt gets it only when the user has no pack
         public var existing: String?
+        /// the user's pack file for the app; the prompt gets its keys and tips with no comments, and Save writes it
+        public var userPack: URL?
         public var config: LLMConfig
         /// "OpenAI", or the host of another server
         public var provider: String
@@ -26,18 +28,21 @@ import SanketaCore
         /// called after a save, with the file
         public var saved: (URL) -> Void
 
-        public init(app: PackMaker.App, menu: [MenuShortcut], existing: String?, config: LLMConfig, provider: String, onDeviceReady: Bool,
+        public init(app: PackMaker.App, menu: [MenuShortcut], existing: String?, userPack: URL? = nil, config: LLMConfig, provider: String,
+                    onDeviceReady: Bool,
                     sendOpenAI: ((String) async throws -> String)?, sendOnDevice: ((String) async throws -> String)?,
                     packsDir: URL, pasteboard: NSPasteboard = .general, confirmReplace: @escaping (URL) -> Bool, saved: @escaping (URL) -> Void) {
-            self.app = app; self.menu = menu; self.existing = existing; self.config = config; self.provider = provider
+            self.app = app; self.menu = menu; self.existing = existing; self.userPack = userPack; self.config = config; self.provider = provider
             self.onDeviceReady = onDeviceReady; self.sendOpenAI = sendOpenAI; self.sendOnDevice = sendOnDevice; self.packsDir = packsDir
             self.pasteboard = pasteboard; self.confirmReplace = confirmReplace; self.saved = saved
         }
     }
 
     let world: World
+    /// the pack text for the prompt: the user pack, else the bundled pack, with allow-listed fields and no comments
+    let context: String?
     /// the docs URLs that the user types, one on each line
-    @Published public var urls = "" { didSet { prompt = Self.promptA(world, urls) } }
+    @Published public var urls = "" { didSet { prompt = Self.promptA(world, context, urls) } }
     /// the docs text for the on-device model
     @Published public var docs = ""
     /// the answer of a local agent, pasted by the user
@@ -63,16 +68,18 @@ import SanketaCore
 
     public init(_ world: World) {
         self.world = world
-        prompt = Self.promptA(world, "")
+        let text = world.userPack.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? world.existing
+        context = text.flatMap { PackMaker.promptPack($0, app: world.app) }
+        prompt = Self.promptA(world, context, "")
     }
 
-    static func promptA(_ w: World, _ urls: String) -> String {
-        PackMaker.promptA(app: w.app, menu: w.menu, existing: w.existing, urls: PackMaker.urls(urls))
+    static func promptA(_ w: World, _ context: String?, _ urls: String) -> String {
+        PackMaker.promptA(app: w.app, menu: w.menu, existing: context, urls: PackMaker.urls(urls))
     }
 
     public var app: PackMaker.App { world.app }
     public var actions: [PackMaker.Action] { PackMaker.actions(world.config, onDeviceReady: world.onDeviceReady) }
-    public var contents: String { PackMaker.contents(menuCount: PackMaker.menuLines(world.menu).count) }
+    public var contents: String { PackMaker.contents(menuCount: PackMaker.menuLines(world.menu).count, userPack: world.userPack != nil) }
     public var docsCut: Bool { PackMaker.fitDocs(docs).cut }
     public var showsDocs: Bool { actions.contains(.onDevice) }
 
@@ -99,7 +106,9 @@ import SanketaCore
     }
 
     public static func sending(_ a: PackMaker.Action, provider: String) -> String {
-        a == .onDevice ? "The on-device model is writing the pack." : "\(provider) is reading the docs. This can take 2 minutes."
+        if a == .onDevice { return "The on-device model is writing the pack." }
+        return provider == "OpenAI" ? "OpenAI is reading the docs. This can take 2 minutes."
+            : "\(provider) is writing the pack. It cannot read web pages, so it uses only the prompt."
     }
 
     static func count(_ n: Int, _ word: String) -> String { "\(n) \(word)\(n == 1 ? "" : "s")" }
@@ -156,6 +165,16 @@ import SanketaCore
         }
         retries = 0
     }
+
+    /// A text or HTML file for the docs text; false (and "not a pack") when it is too large or nil (not readable).
+    @discardableResult public func useFile(_ text: String?) -> Bool {
+        guard let text, text.utf8.count <= PackMaker.maxText else { status = Self.notAPack; return false }
+        docs = PackMaker.plainText(html: text)
+        return true
+    }
+
+    /// Save works only for a pack with no errors, and not while a request runs.
+    public var canSave: Bool { busy == nil && outcome?.canSave == true }
 
     /// Ends the request that runs.
     public func stop() {
@@ -245,7 +264,7 @@ import SanketaCore
         else { status = retries > 0 ? Self.stillErrors(o.errors.count) : Self.errors(o.errors.count) }
     }
 
-    var file: URL { world.packsDir.appendingPathComponent(world.app.packID + ".toml") }
+    var file: URL { world.userPack ?? world.packsDir.appendingPathComponent(world.app.packID + ".toml") }
 
     /// The pack in the file that a save replaces.
     var onDisk: Pack? { (try? Data(contentsOf: file)).flatMap { try? PackLibrary.decode($0) } }
@@ -253,13 +272,13 @@ import SanketaCore
     /// Writes `<id>.toml` when the pack has no errors. An existing file is replaced only when the user says yes, and
     /// its old text goes to a `.bak` file first.
     public func save() {
-        guard let o = outcome, o.canSave else { return }
+        guard canSave, let o = outcome else { return }
         write(o.text, draft: false)
     }
 
     /// Writes `<id>.toml.draft`, which Sanketa does not load, for a pack that still has errors.
     public func saveDraft() {
-        guard let o = outcome else { return }
+        guard busy == nil, let o = outcome else { return }
         write(o.text, draft: true)
     }
 
@@ -267,7 +286,8 @@ import SanketaCore
         let target = draft ? URL(fileURLWithPath: file.path + ".draft") : file
         if FileManager.default.fileExists(atPath: target.path), !world.confirmReplace(target) { return }
         do {
-            let f = try PackMaker.save(text, id: world.app.packID, in: world.packsDir, draft: draft)
+            try PackMaker.save(text, to: target)
+            let f = target
             savedFile = f
             status = draft ? "Saved \(f.lastPathComponent). Sanketa does not load a draft." : Self.saved(f.lastPathComponent, app: world.app.name)
             if !draft { world.saved(f) }

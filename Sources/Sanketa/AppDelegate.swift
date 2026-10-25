@@ -72,7 +72,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         panel.openFile = { [weak self] in self?.openForEditing(URL(fileURLWithPath: $0)) }
         panel.makePack = { [weak self] layer in
             guard let self else { return }
-            if layer.kind == .app, let app = running(monitor.context.bundleID) { openPackMaker(app) } else { makeStarter(layer) }
+            if layer.kind == .app { if case .app(let app) = makePackTarget() { openPackMaker(app) } } else { makeStarter(layer) }
         }
         panel.setTranslucency(config.translucency)
         scheduleRotation()
@@ -170,11 +170,14 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// What "Make a Pack" works on: the GUI app in front, or the program in front in a terminal.
     enum MakePackTarget { case app(NSRunningApplication), program(Layer), none }
 
-    /// From the context of the app that was in front before the menu opened; the menu does not change it.
+    /// From the context of the app that was in front before the menu opened; the menu does not change it. Never Sanketa.
     func makePackTarget() -> MakePackTarget {
         let c = monitor.context
-        if config.terminals.contains(c.bundleID) { return c.layers.first { $0.kind == .program }.map(MakePackTarget.program) ?? .none }
-        return running(c.bundleID).map(MakePackTarget.app) ?? .none
+        switch PackMaker.target(bundleID: c.bundleID, own: Bundle.main.bundleIdentifier, terminals: config.terminals, layers: c.layers) {
+        case .app(let bid): return running(bid).map(MakePackTarget.app) ?? .none
+        case .program(let l): return .program(l)
+        case .none: return .none
+        }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -214,21 +217,23 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         if let w = packMaker, w.model.app.bundleID == bid { return w.show() }
         packMaker?.window.close()
         let version = a.bundleURL.flatMap(Bundle.init(url:))?.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-        let app = PackMaker.App(name: appName(a), bundleID: bid, version: version)
+        // a user pack for the app keeps its file and id, so a save never makes a second pack for the app
+        let user = PackMaker.userPackFile(bundleID: bid, in: packsDir)
+        let app = PackMaker.App(name: appName(a), bundleID: bid, version: version, packID: user?.pack.id)
         let pid = a.processIdentifier
         Task.detached {
             let menu = AXReader.isTrusted ? AXReader.menuShortcuts(pid: pid) : []
-            await MainActor.run { self.showPackMaker(app, menu: menu) }
+            await MainActor.run { self.showPackMaker(app, menu: menu, userPack: user?.url) }
         }
     }
 
-    func showPackMaker(_ app: PackMaker.App, menu: [MenuShortcut]) {
-        let existing = library.pack(bundleID: app.bundleID).flatMap { p in
-            [packsDir, bundledPacks()].lazy.compactMap { try? String(contentsOf: $0.appendingPathComponent(p.id + ".toml"), encoding: .utf8) }.first
-        }
+    /// The prompt gets the user pack (keys and tips, no comments) when there is one, else the bundled pack for the app.
+    func showPackMaker(_ app: PackMaker.App, menu: [MenuShortcut], userPack: URL?) {
+        let bundled = PackMaker.userPackFile(bundleID: app.bundleID, in: bundledPacks())
+        let existing = bundled.flatMap { try? String(contentsOf: $0.url, encoding: .utf8) }
         let sender = llm.packMaker(), mlx = llm.router.onDevice as? MLXChooser
         let model = PackMakerModel(.init(
-            app: app, menu: menu, existing: existing, config: config.llm, provider: llm.providerName,
+            app: app, menu: menu, existing: existing, userPack: userPack, config: config.llm, provider: llm.providerName,
             onDeviceReady: mlx?.status() == .available,
             sendOpenAI: sender.map { s in { try await s.send($0) } },
             sendOnDevice: mlx.map { m in { try await m.makePack($0) } },

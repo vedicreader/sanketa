@@ -37,19 +37,19 @@ Sanketa can write the prompt for a pack for a GUI app. A model or a local agent,
    - **Send to On-Device Model** shows when Use On-Device Model is on and a model is ready. The on-device model cannot read web pages. Thus paste the text of the shortcut page in the "Docs text" box, or click "Choose a File…" to read a saved page. Sanketa uses at most 4,000 characters of shortcut lines.
 5. Look at the preview. Then click Save.
 
-The prompt contains the app name, the version, the bundle id, the menu shortcuts and your URLs. It does not contain window titles, file names, paths or your history. Before Sanketa fills the prompt, it removes menu items that can name a file or a person. These are the items of "Open Recent", "History" and "Bookmarks", the window list in the Window menu, and titles with `/`, `~`, `@` or a file extension. The window shows the full prompt before you copy or send it.
+The prompt contains the app name, the version, the bundle id, the menu shortcuts and your URLs. If you have a pack for the app, the prompt also contains its keys and tips, with no comments, and the window tells you so. Else it can contain the keys of the bundled pack for the app. The prompt does not contain window titles, file names, paths or your history. Before Sanketa fills the prompt, it removes menu items that can name a file or a person. These are the items of menus with "Recent", "History", "Bookmark", "Favorite" or "Profile" in the name, the Window-menu items with a number key, and titles with `/`, `~`, `@` or a file extension. The window shows the full prompt before you copy or send it.
 
 Send to OpenAI sends the prompt and the model id from `[llm] openai_model`. It uses the same rules as search: https only, no redirects, and the key goes only to the server in `[llm] base_url`. For `api.openai.com`, the model can search the web. Another server gets the prompt only, and cannot read web pages.
 
 Sanketa does these steps on each result:
 
-1. It removes text before and after the TOML, such as a Markdown code fence.
-2. It sets `id`, `name` and `apps` to the values that it reads from the app. It removes `processes`, `match`, `prefix`, `title_scope` and `contexts`.
+1. It removes text before and after the TOML, such as a Markdown code fence. A result of more than 256 KB or more than 200 keys is not a pack.
+2. It writes the pack again with only these fields: `id`, `name` and `apps` at the top, `keys`, `action` and `group` in each key, and `title`, `snippet`, `explain` and `tags` in each tip. It removes all other fields, such as `command`, `processes`, `mode` and `contexts`. The values of `id`, `name` and `apps` come from the app.
 3. It changes each key to the key style, for example `Ctrl+Shift+z` to `⌃⇧Z`.
 4. It removes the keys that the menus show already, when the action has the same words.
 5. It runs the lint. If the pack has errors, you cannot save it. Click "Ask Again with the Errors" to send the errors to the model one time. If the errors stay, you can save the pack as a draft (`<id>.toml.draft`). Sanketa does not load a draft.
 
-Save writes `~/.config/sanketa/packs/<id>.toml`. If the file exists, Sanketa asks first. Then it copies the old file to `<id>.toml.bak` and writes the new file. Sanketa loads the pack at once.
+Save writes `~/.config/sanketa/packs/<id>.toml`. If you have a pack for the app in another file, Save writes that file, so that the app does not get two packs. If the file exists, Sanketa asks first. Then it copies the old file to `<id>.toml.bak` and writes the new file. Sanketa loads the pack at once.
 
 Check each key in the app before you trust it. A model can make a mistake. The docs can also be wrong or old. The bundled RawTherapee pack was made in this way, and then checked against the source code of the app.
 
