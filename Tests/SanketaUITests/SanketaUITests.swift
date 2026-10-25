@@ -663,3 +663,30 @@ func threadCPUSeconds() -> Double {
         #expect(s.results.first?.title == "Select next match")
     }
 }
+
+/// A click on the search field always starts or keeps search; it never hands focus back. The panel is never shown,
+/// so focus does not move.
+@MainActor struct SearchClickTests {
+    @Test func clickInTheFieldStaysInSearch() throws {
+        let c = try controller()
+        c.panel.contentView?.layoutSubtreeIfNeeded()
+        let inField = c.field.convert(NSPoint(x: c.field.bounds.midX, y: c.field.bounds.midY), to: nil)
+        #expect(c.inField(inField) && !c.inField(NSPoint(x: 2, y: 2)))
+        // the mouse-up of a click that the field editor took (the field had focus): search starts, nothing hands back
+        c.mouseUp(at: inField)
+        #expect(c.searching && !c.panel.isVisible)
+        let before = c.previousApp
+        c.mouseUp(at: inField)                // the same click once more: no change
+        #expect(c.searching && c.previousApp == before)
+        // a click elsewhere while search runs keeps search, too
+        c.mouseUp(at: NSPoint(x: 2, y: 2))
+        #expect(c.searching)
+    }
+
+    @Test func clickOutsideTheFieldDoesNotStartSearch() throws {
+        let c = try controller()
+        c.panel.contentView?.layoutSubtreeIfNeeded()
+        c.mouseUp(at: NSPoint(x: 2, y: 2))
+        #expect(!c.searching && !c.panel.isVisible)
+    }
+}

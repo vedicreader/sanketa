@@ -7,14 +7,14 @@ import SanketaSystem
 public final class SanketaPanel: NSPanel {
     public override var canBecomeKey: Bool { true }
     var onKey: (NSEvent) -> Bool = { _ in false }
-    var onMouseUp: () -> Void = {}
+    var onMouseUp: (NSEvent) -> Void = { _ in }
 
     /// Keys reaching the window itself, i.e. while the layer list (not the field) has focus.
     public override func keyDown(with e: NSEvent) { if !onKey(e) { super.keyDown(with: e) } }
 
     public override func sendEvent(_ e: NSEvent) {
         super.sendEvent(e)
-        if e.type == .leftMouseUp { onMouseUp() }
+        if e.type == .leftMouseUp { onMouseUp(e) }
     }
 }
 
@@ -60,7 +60,7 @@ public final class SanketaPanel: NSPanel {
         field.delegate = self
         field.onClick = { [weak self] in self?.clicked() }
         panel.onKey = { [weak self] in self?.key($0) ?? false }
-        panel.onMouseUp = { [weak self] in self?.mouseUp() }
+        panel.onMouseUp = { [weak self] in self?.mouseUp(at: $0.locationInWindow) }
 
         glass.cornerRadius = 18
         let host = NSHostingView(rootView: PanelView(model: model, search: search, field: field,
@@ -131,8 +131,12 @@ public final class SanketaPanel: NSPanel {
         NSWorkspace.shared.frontmostApplication.flatMap { $0 == .current ? nil : $0 }
     }
 
-    /// Outside search, a click must never leave the panel key, or the user's next shortcut lands here.
-    func mouseUp() {
+    /// Outside search, a click must never leave the panel key, or the user's next shortcut lands here. A click in the
+    /// search field (its text, its field editor or its clear button) is a search click: it starts or keeps search, and
+    /// focus stays. The field editor gets the mouse-down when the field already has focus, so `clicked` must come
+    /// from here too, or the mouse-up would hand focus back. `point` is in window coordinates.
+    func mouseUp(at point: NSPoint? = nil) {
+        if let point, inField(point) { return clicked() }
         guard !searching, panel.isKeyWindow else { return }
         handBack(to: Self.frontmostOther)
     }
@@ -170,7 +174,11 @@ public final class SanketaPanel: NSPanel {
         return true
     }
 
-    /// Clicking the field starts search without the hotkey; the terminal is still frontmost then.
+    /// True when `point` (window coordinates) is on the search field.
+    func inField(_ point: NSPoint) -> Bool { field.bounds.contains(field.convert(point, from: nil)) }
+
+    /// Clicking the field starts search without the hotkey; the terminal is still frontmost then. A second call for
+    /// the same click (mouse-down, then mouse-up) does nothing.
     func clicked() {
         model.listFocused = false
         guard !searching else { return }
@@ -199,9 +207,11 @@ public final class SanketaPanel: NSPanel {
         return true
     }
 
-    /// Clicking elsewhere ends search quietly.
+    /// Clicking elsewhere ends search quietly. The field gives up its field editor, so the next click on it goes to the
+    /// field itself and starts search again.
     public func windowDidResignKey(_ n: Notification) {
         guard searching else { return }
+        panel.makeFirstResponder(nil)
         searching = false
         previousApp = nil
         search.clear()
