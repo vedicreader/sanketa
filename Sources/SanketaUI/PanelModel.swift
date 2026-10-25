@@ -118,8 +118,8 @@ struct StackState {
     /// A click on a key row: it shows all its text, or goes back to one short line. It never folds the group.
     public func toggleRow(_ id: String) { expandedRow = expandedRow == id ? nil : id }
 
-    /// The text that the copy button of a key row copies: the keys as the row shows them.
-    public nonisolated static func copyText(_ k: KeyEntry, prefix: String?) -> String { KeyNotation.display(k.keys, prefix: prefix) }
+    /// The text that the copy button of a key row copies: its command. A key with no command has no copy button.
+    public nonisolated static func copyText(_ k: KeyEntry) -> String? { k.command.flatMap { $0.isEmpty ? nil : $0 } }
 
     /// Puts `text` on the pasteboard and shows "Copied" for `toastSeconds`. Focus does not change.
     public func copy(_ text: String) {

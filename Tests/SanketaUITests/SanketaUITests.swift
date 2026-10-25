@@ -16,16 +16,19 @@ prefix = "C-b"
 keys = "prefix %"
 action = "Split pane left/right"
 group = "Panes"
+command = "split-window -h"
 
 [[keys]]
 keys = "prefix c"
 action = "New window"
 group = "Windows"
+command = "new-window"
 
 [[keys]]
 keys = "prefix z"
 action = "Zoom pane"
 group = "Panes"
+command = "resize-pane -Z"
 """
 
 let fishTOML = """
@@ -249,16 +252,16 @@ func threadCPUSeconds() -> Double {
         let first = try #require(s.results.first)
         #expect(first.packID == "tmux" && first.title == "Split pane left/right" && first.detail == "prefix %")
         #expect(s.activate() == first)
-        #expect(pb.string(forType: .string) == "prefix %")
+        #expect(pb.string(forType: .string) == "split-window -h")
         s.query = "pane"
         #expect(s.results.count == 2)
         s.move(-1); #expect(s.selection == 0)
         s.move(5); #expect(s.selection == 1)
         s.activate()
-        #expect(pb.string(forType: .string) == "prefix z")
+        #expect(pb.string(forType: .string) == "resize-pane -Z")
         s.query = "zzzqqq"
         #expect(s.results.isEmpty && s.activate() == nil)
-        #expect(pb.string(forType: .string) == "prefix z")
+        #expect(pb.string(forType: .string) == "resize-pane -Z")
     }
 
     @Test func panelModelSectionsFollowContext() throws {

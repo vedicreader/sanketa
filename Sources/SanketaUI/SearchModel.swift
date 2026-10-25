@@ -11,6 +11,8 @@ import SanketaSystem
     @Published public private(set) var selection = 0
     /// ids of the results that the model chose
     @Published public private(set) var picked: Set<String> = []
+    /// the result that shows all its text, by id; one at a time
+    @Published public private(set) var expanded: String?
     /// one muted line under the results, such as why plain search was used
     @Published public private(set) var note: String?
     let provider: SearchProviding
@@ -58,6 +60,7 @@ import SanketaSystem
         let ctx = context.layers.compactMap(\.packID)
         results = query.trimmingCharacters(in: .whitespaces).isEmpty ? [] : Self.byPack(provider.results(query, items, context: ctx))
         selection = 0
+        expanded = nil
         picked = []
         note = nil
         guard let smart, query.split(whereSeparator: \.isWhitespace).count >= 3 else { return }
@@ -97,11 +100,18 @@ import SanketaSystem
 
     public func move(_ by: Int) { selection = max(0, min(results.count - 1, selection + by)) }
 
-    /// Copies the selected item's `detail`; nil when nothing is selected.
+    /// A click on a result: it is selected and shows all its text, or goes back to one short line.
+    public func click(_ i: Int) {
+        guard results.indices.contains(i) else { return }
+        selection = i
+        expanded = expanded == results[i].id ? nil : results[i].id
+    }
+
+    /// Copies the selected item's command or snippet; nil when nothing is selected or it has nothing to copy.
     @discardableResult public func activate() -> SearchItem? {
-        guard let s = selected else { return nil }
+        guard let s = selected, let t = s.copyText else { return nil }
         pasteboard.clearContents()
-        pasteboard.setString(s.detail, forType: .string)
+        pasteboard.setString(t, forType: .string)
         return s
     }
 
