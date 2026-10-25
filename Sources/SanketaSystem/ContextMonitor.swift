@@ -72,18 +72,20 @@ final class MenuCache: @unchecked Sendable {
     private var needsLong: Set<pid_t> = []
     private let lock = NSLock()
     let ttl: TimeInterval = 60
+    /// the clock that times a read; tests set it
+    var now: () -> Date = Date.init
 
     /// The shortcuts, and false when this read was empty or the first slow one. `read` gets the timeout to use.
     func get(_ pid: pid_t, slow: TimeInterval, _ read: (TimeInterval) -> [MenuShortcut]) -> (shortcuts: [MenuShortcut], full: Bool) {
-        let (e, long) = lock.withLock { (store[pid].flatMap { Date().timeIntervalSince($0.at) < ttl ? $0 : nil }, needsLong.contains(pid)) }
+        let (e, long) = lock.withLock { (store[pid].flatMap { now().timeIntervalSince($0.at) < ttl ? $0 : nil }, needsLong.contains(pid)) }
         if let e, !e.reread { return (e.shortcuts, true) }
-        let t0 = Date()
+        let t0 = now()
         let m = read(long ? AXReader.slowTimeout : AXReader.timeout)
-        let isSlow = Date().timeIntervalSince(t0) >= slow
+        let isSlow = now().timeIntervalSince(t0) >= slow
         if m.isEmpty || isSlow { lock.withLock { _ = needsLong.insert(pid) } }
         // the second read is final; an empty read is never kept, so the next compute reads again
         let first = e == nil
-        if !m.isEmpty { lock.withLock { store[pid] = (Date(), m, isSlow && first) } }
+        if !m.isEmpty { lock.withLock { store[pid] = (now(), m, isSlow && first) } }
         return (m.isEmpty ? e?.shortcuts ?? [] : m, !m.isEmpty && !(isSlow && first))
     }
 }

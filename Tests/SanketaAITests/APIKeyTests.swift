@@ -15,12 +15,14 @@ private final class RecordingRunner: CommandRunning, @unchecked Sendable {
     struct Call: Equatable { var path: String, args: [String], timeout: TimeInterval }
     private let lock = NSLock()
     private var log: [Call] = []
-    let answer: String?, delay: TimeInterval
-    init(answer: String? = nil, delay: TimeInterval = 0) { self.answer = answer; self.delay = delay }
+    let answer: String?
+    /// when set, each run waits for the test to open it; the run is on a GCD thread (KeyLookup), not the Swift pool
+    let gate: DispatchSemaphore?
+    init(answer: String? = nil, gate: DispatchSemaphore? = nil) { self.answer = answer; self.gate = gate }
     var calls: [Call] { lock.withLock { log } }
     func run(_ path: String, _ args: [String], timeout: TimeInterval) -> String? {
         lock.withLock { log.append(Call(path: path, args: args, timeout: timeout)) }
-        if delay > 0 { Thread.sleep(forTimeInterval: delay) }
+        gate?.wait()
         return answer
     }
 }
@@ -216,9 +218,14 @@ private func lookup(_ runner: CommandRunning, store: KeyStore = MemoryKeyStore()
     }
 
     @Test func lookupCallersShareOneShellRun() async {
-        let runner = RecordingRunner(answer: marked, delay: 0.3), l = lookup(runner)
+        let gate = DispatchSemaphore(value: 0)
+        let runner = RecordingRunner(answer: marked, gate: gate), l = lookup(runner)
         let keys = await withTaskGroup(of: String?.self) { g in
             for _ in 0..<5 { g.addTask { await l.key() } }
+            // the shell run has started and waits; the other callers come while it runs
+            for _ in 0..<200 where runner.calls.isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+            try? await Task.sleep(for: .milliseconds(100))
+            gate.signal()
             return await g.reduce(into: [String?]()) { $0.append($1) }
         }
         #expect(keys == Array(repeating: "sk-shell", count: 5))

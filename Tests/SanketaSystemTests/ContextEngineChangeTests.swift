@@ -62,6 +62,8 @@ import Testing
         var title: String? = "[1/2] project", window = 7, snap = ContextEngineChangeTests.tree()
         var menu: [MenuShortcut] = [MenuShortcut(path: ["Shell", "New Tab"], keys: "⌘T")], menuDelay = 0.0, menuReads = 0
         var timeouts: [TimeInterval] = []
+        /// the menu cache's clock: a read moves it by `menuDelay`, so a slow read needs no sleep
+        var clock = Date(timeIntervalSinceReferenceDate: 0)
     }
 
     func engine(_ r: Runner, _ w: World) -> ContextEngine {
@@ -72,11 +74,14 @@ import Testing
         e.focusedWindow = { _ in w.lock.withLock { (w.title, w.window) } }
         e.kakuCLI = { _ in Self.kaku }
         e.readMenu = { _, timeout in
-            let (m, d) = w.lock.withLock { w.menuReads += 1; w.timeouts.append(timeout); return (w.menu, w.menuDelay) }
-            Thread.sleep(forTimeInterval: d)
-            return m
+            w.lock.withLock {
+                w.menuReads += 1; w.timeouts.append(timeout)
+                w.clock = w.clock.addingTimeInterval(w.menuDelay)
+                return w.menu
+            }
         }
         e.slowMenu = 0.1
+        e.menus.now = { w.lock.withLock { w.clock } }
         return e
     }
 
