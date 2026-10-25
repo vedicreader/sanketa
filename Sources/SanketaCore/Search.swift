@@ -3,6 +3,12 @@ import Foundation
 /// `vault`: a document from a shelf of the vishalakshi vault, found by `VaultSearching`
 public enum ItemKind: String, Codable, Sendable { case key, tip, suggestion, vault }
 
+/// What ⌥Return does on a vault result: resume a ramabana session, or open the file of a ramabana memory entry.
+public enum VaultAlt: Hashable, Sendable {
+    case resume(String)
+    case file(URL)
+}
+
 public struct SearchItem: Hashable, Identifiable, Sendable {
     public var packID: String
     public var packName: String
@@ -19,6 +25,8 @@ public struct SearchItem: Hashable, Identifiable, Sendable {
     public var command: String?
     /// what Return opens instead of a copy, such as a vault document's web page or file
     public var open: URL?
+    /// what ⌥Return does, for some vault results
+    public var alt: VaultAlt?
     public var id: String { "\(packID)|\(kind.rawValue)|\(title)" }
 
     public init(packID: String, packName: String, kind: ItemKind, title: String, detail: String,

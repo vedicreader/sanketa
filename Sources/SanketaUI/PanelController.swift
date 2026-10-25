@@ -185,15 +185,30 @@ public final class SanketaPanel: NSPanel {
         return true
     }
 
-    /// In search, ⌘S saves the query in the vault and ⌘D saves the clipboard. Both keys are on the left hand.
-    func keyEquivalent(_ e: NSEvent) -> Bool {
-        guard searching, e.type == .keyDown, e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command else { return false }
-        switch Int(e.keyCode) {
-        case kS: search.saveToVault(clipboard: false)
-        case kD: search.saveToVault(clipboard: true)
-        default: return false
+    /// ⌥Return: a resumed session's tmux window shows in the terminal, so the terminal gets the focus back; an opened file
+    /// keeps the focus in its app.
+    func alt() {
+        switch search.activateAlt() {
+        case .resumed: endSearch()
+        case .opened: endSearch(refocus: false)
+        case .none: NSSound.beep()
         }
+    }
+
+    /// In search, ⌘S saves the query in the vault and ⌘D saves the clipboard. Both keys are on the left hand.
+    /// Every other ⌘ key goes on to the Edit menu (⌘A, ⌘C, ⌘X, ⌘V, ⌘Z, ⇧⌘Z) and the field editor.
+    func keyEquivalent(_ e: NSEvent) -> Bool {
+        guard e.type == .keyDown, let clipboard = Self.saveKey(keyCode: Int(e.keyCode), flags: e.modifierFlags, searching: searching)
+        else { return false }
+        search.saveToVault(clipboard: clipboard)
         return true
+    }
+
+    /// nil: not a save key. Else true for ⌘D (the clipboard), false for ⌘S (the query).
+    nonisolated static func saveKey(keyCode: Int, flags: NSEvent.ModifierFlags, searching: Bool) -> Bool? {
+        guard searching, flags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function]) == .command
+        else { return nil }
+        return keyCode == kS ? false : keyCode == kD ? true : nil
     }
 
     /// True when `point` (window coordinates) is on the search field.
@@ -225,6 +240,8 @@ public final class SanketaPanel: NSPanel {
         case #selector(NSResponder.moveUp(_:)): search.move(-1)
         case #selector(NSResponder.moveDown(_:)): search.move(1)
         case #selector(NSResponder.insertNewline(_:)): if let s = search.activate() { endSearch(refocus: s.open == nil) }
+        // ⌥Return
+        case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)): alt()
         case #selector(NSResponder.cancelOperation(_:)): endSearch()
         case #selector(NSResponder.insertTab(_:)): focusList()
         case #selector(NSResponder.insertBacktab(_:)): break

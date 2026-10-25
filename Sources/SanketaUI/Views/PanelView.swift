@@ -200,6 +200,9 @@ struct ResultRow: View {
                     if expanded, let e = item.explain, !e.isEmpty {
                         Text(e).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
                     }
+                    if selected, let h = SearchModel.keyHint(item) {
+                        Text(h).font(Theme.small).foregroundStyle(Theme.secondary).lineLimit(1).padding(.top, 1)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

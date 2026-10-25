@@ -106,7 +106,7 @@ func ready(_ c: MCPClient, _ seconds: Double = 10) async -> Bool {
     @Test func hybridResultsKeepEachShelfTogetherAndOpenTheirSource() async throws {
         let log = tempFile("log")
         defer { try? FileManager.default.removeItem(at: log) }
-        let h = VaultHybrid(keyword: VaultSearch(path: fixture, budget: 5), client: fakeClient(log: log), timeout: 5)
+        let h = VaultHybrid(keyword: VaultSearch(path: fixture, abhyasa: abhyasaUp, budget: 5), client: fakeClient(log: log), timeout: 5)
         defer { h.client.close() }
         #expect(await ready(h.client))
         let r = await h.search("sandhi")

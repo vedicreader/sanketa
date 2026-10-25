@@ -30,6 +30,8 @@ import SanketaSystem
     let open: (URL) -> Void
     /// saves a note in the vault on ⌘S or ⌘D; nil: no saving
     var writer: VaultWriting?
+    /// resumes a ramabana session on ⌥Return; false when it could not
+    public var resume: (String) -> Bool = { _ in false }
     var library = PackLibrary()
     var context = Context()
     /// items from outside the packs, such as coaching from shell history
@@ -187,15 +189,39 @@ import SanketaSystem
         expanded = expanded == results[i].id ? nil : results[i].id
     }
 
-    /// Opens the selected vault result that has a target. Else copies the selected item's command or snippet; nil when
+    /// Opens the selected vault result that has a target. A vault result with no target shows all its text, or goes
+    /// back to one line, and gives nil: search stays open. Else copies the selected item's command or snippet; nil when
     /// nothing is selected or it has nothing to copy.
     @discardableResult public func activate() -> SearchItem? {
         guard let s = selected else { return nil }
         if let u = s.open { open(u); return s }
+        if s.kind == .vault { click(selection); return nil }
         guard let t = s.copyText else { return nil }
         pasteboard.clearContents()
         pasteboard.setString(t, forType: .string)
         return s
+    }
+
+    public enum AltResult: Equatable { case none, resumed, opened }
+
+    /// ⌥Return: resumes the selected ramabana session, or opens the file of the selected memory entry.
+    @discardableResult public func activateAlt() -> AltResult {
+        switch selected?.alt {
+        case .resume(let id)?: return resume(id) ? .resumed : .none
+        case .file(let u)?: open(u); return .opened
+        case nil: return .none
+        }
+    }
+
+    /// The keys of a vault result, in Mac symbols, for its row: what Return and ⌥Return do.
+    public nonisolated static func keyHint(_ i: SearchItem) -> String? {
+        guard i.kind == .vault else { return nil }
+        let ret = i.open == nil ? "↩ Show all" : "↩ Open"
+        switch i.alt {
+        case .resume?: return ret + "     ⌥↩ Resume session"
+        case .file?: return ret + "     ⌥↩ Open file"
+        case nil: return ret
+        }
     }
 
     public func clear() { query = "" }

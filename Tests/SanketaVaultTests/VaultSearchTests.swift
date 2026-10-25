@@ -7,6 +7,8 @@ import SanketaCore
 /// Fixtures/vault.db comes from scripts/make_vault_fixture.py: vishalakshi and abhyasa wrote it, with the tokenizer
 /// chain of the real vault. Tests open it read-only.
 let fixture = Bundle.module.url(forResource: "vault", withExtension: "db", subdirectory: "Fixtures")!.path
+/// abhyasa on, and it answers; no request is made
+let abhyasaUp = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in true }
 
 @Suite struct VaultSearchTests {
     @Test func listsShelvesAndSkipsTestShelves() throws {
@@ -15,7 +17,7 @@ let fixture = Bundle.module.url(forResource: "vault", withExtension: "db", subdi
     }
 
     @Test func findsAConceptOnLearningAndADocOnTheMainShelf() async {
-        let r = await VaultSearch(path: fixture, budget: 5).search("sandhi")
+        let r = await VaultSearch(path: fixture, abhyasa: abhyasaUp, budget: 5).search("sandhi")
         let concept = r.first { $0.packID == "vault:learning" }
         #expect(concept?.title == "Vowel sandhi" && concept?.packName == "learning" && concept?.kind == .vault)
         #expect(concept?.open == URL(string: "http://127.0.0.1:5077/c/vowel-sandhi"))
@@ -28,11 +30,13 @@ let fixture = Bundle.module.url(forResource: "vault", withExtension: "db", subdi
         #expect(r.map(\.packID) == ["vault:learning", "vault:store"])
     }
 
-    @Test func aDocWithNoTargetCopiesItsSnippet() async {
+    @Test func aNoteOpensInTheAbhyasaViewerOnlyWhenAbhyasaIsOn() async {
         let r = await VaultSearch(path: fixture, budget: 5).search("zucchini")
         #expect(Set(r.map(\.title)) == ["Zucchini watering", "Garden reminder"], "the tmp shelf stays out")
-        let note = r.first { $0.title == "Garden reminder" }
-        #expect(note?.open == nil && note?.copyText?.contains("zucchini") == true)
+        #expect(r.allSatisfy { $0.open == nil }, "abhyasa off: a note and a concept have no target")
+        let on = await VaultSearch(path: fixture, abhyasa: abhyasaUp, budget: 5).search("zucchini")
+        #expect(on.first { $0.title == "Garden reminder" }?.open == URL(string: "http://127.0.0.1:5077/v/store/5a61bde5b95b6891"))
+        #expect(on.first { $0.title == "Zucchini watering" }?.open == URL(string: "http://127.0.0.1:5077/c/zucchini-watering"))
     }
 
     @Test func stemsAndPrefixes() async {
@@ -60,21 +64,51 @@ let fixture = Bundle.module.url(forResource: "vault", withExtension: "db", subdi
     @Test func openTargets() {
         let base = URL(string: "http://127.0.0.1:5077")
         let have = { (p: String) in p == "/Users/me/notes/a.md" }
-        func t(_ s: String) -> URL? { VaultSearch.target(s, learningURL: base, exists: have) }
+        func t(_ s: String, _ a: URL? = base) -> URL? { VaultLinks.open(s, shelf: "ramabana", doc: "d1", abhyasa: a, exists: have) }
         #expect(t("learning://concept/vowel-sandhi") == URL(string: "http://127.0.0.1:5077/c/vowel-sandhi"))
         #expect(t("learning://concept/") == nil)
         #expect(t("learning://concept/../admin") == nil)
-        #expect(t("learning://attempt/abc") == nil)
         #expect(t("https://example.com/a?b=1") == URL(string: "https://example.com/a?b=1"))
         #expect(t("http://example.com") == URL(string: "http://example.com"))
         #expect(t("/Users/me/notes/a.md") == URL(fileURLWithPath: "/Users/me/notes/a.md"))
         #expect(t("file:///Users/me/notes/a.md") == URL(string: "file:///Users/me/notes/a.md"))
-        #expect(t("/Users/me/notes/gone.md") == nil)
-        #expect(t("note:01d6786c1498") == nil)
-        #expect(t("research://289acd5a3356a8b7") == nil)
-        #expect(t("agent-note://0636d6fc") == nil)
-        #expect(t("report") == nil)
-        #expect(VaultSearch.target("learning://concept/x", learningURL: nil) == nil)
+        // anything else opens in the abhyasa viewer
+        let viewer = URL(string: "http://127.0.0.1:5077/v/ramabana/d1")
+        for s in ["/Users/me/notes/gone.md", "note:01d6786c1498", "ramabana://session/abc", "ramabana://memory/x", "report",
+                  "learning://attempt/abc"] {
+            #expect(t(s) == viewer, "\(s)")
+        }
+        #expect(VaultLinks.open("note:x", shelf: "store", doc: "a/../b", abhyasa: base) == nil, "a doc id must be safe in a path")
+        // abhyasa off (or not answering): web pages and files only
+        #expect(t("learning://concept/x", nil) == nil && t("note:x", nil) == nil && t("ramabana://session/abc", nil) == nil)
+        #expect(t("https://example.com/a", nil) == URL(string: "https://example.com/a"))
+        #expect(t("/Users/me/notes/a.md", nil) == URL(fileURLWithPath: "/Users/me/notes/a.md"))
+    }
+
+    @Test func altActions() {
+        let files = ["/r/memory/proj/MEMORY.md", "/r/learned/AGENTS.md", "/r/learned/skills/tdd/SKILL.md"]
+        func a(_ s: String) -> VaultAlt? { VaultLinks.alt(s, config: "/r", exists: files.contains) }
+        #expect(a("ramabana://session/2026-10-21-ab12") == .resume("2026-10-21-ab12"))
+        #expect(a("ramabana://memory/proj") == .file(URL(fileURLWithPath: files[0])))
+        #expect(a("ramabana://learned/AGENTS.md") == .file(URL(fileURLWithPath: files[1])))
+        #expect(a("ramabana://learned/skills/tdd") == .file(URL(fileURLWithPath: files[2])))
+        #expect(a("ramabana://memory/gone") == nil, "no file")
+        #expect(a("ramabana://session/a;rm") == nil && a("ramabana://memory/..") == nil && a("ramabana://session/") == nil)
+        #expect(a("learning://concept/x") == nil && a("https://example.com") == nil)
+    }
+
+    @Test func abhyasaProbeKeepsItsAnswer() async {
+        final class Count: @unchecked Sendable { var n = 0 }
+        let c = Count()
+        let p = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!, keep: 60) { _ in c.n += 1; return true }
+        let first = await p.up(), second = await p.up()
+        #expect(first == URL(string: "http://127.0.0.1:5077") && second != nil && c.n == 1)
+        let down = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in false }
+        #expect(await down.up() == nil)
+        // a real check on a port where nothing listens is quick and says no
+        let t = Date()
+        #expect(await AbhyasaProbe(base: URL(string: "http://127.0.0.1:9")!).up() == nil)
+        #expect(Date().timeIntervalSince(t) < 1)
     }
 
     @Test func snippetStartsNearTheWord() {
@@ -101,7 +135,8 @@ let fixture = Bundle.module.url(forResource: "vault", withExtension: "db", subdi
         let f = dir.appendingPathComponent("config.toml")
         try? "[vault]\nenabled = false\npath = \"/tmp/v.db\"\nlearning_url = \"http://localhost:9\"\n".write(to: f, atomically: true, encoding: .utf8)
         let (c, err, _) = Config.load(f)
-        #expect(err == nil && !c.vault.enabled && c.vault.path == "/tmp/v.db" && c.vault.learningURL == "http://localhost:9")
+        #expect(err == nil && !c.vault.enabled && c.vault.path == "/tmp/v.db" && c.abhyasa.url == "http://localhost:9")
+        #expect(!c.abhyasa.enabled && c.abhyasa.base == nil, "abhyasa is off by default")
         #expect(Config.load(dir.appendingPathComponent("none.toml")).config.vault == VaultConfig())
     }
 

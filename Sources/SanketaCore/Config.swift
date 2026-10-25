@@ -175,8 +175,8 @@ public struct LLMConfig: Codable, Equatable, Sendable {
 public struct VaultConfig: Codable, Equatable, Sendable {
     public var enabled = true
     public var path = ""
-    /// the abhyasa web app, which shows a concept at `<learning_url>/c/<slug>`
-    public var learningURL = "http://127.0.0.1:5077"
+    /// the old name of `[abhyasa] url`; it is used when `[abhyasa]` has no `url`
+    public var learningURL = AbhyasaConfig.defaultURL
     /// hybrid search and saving through vishalakshi's MCP server; off: keyword search only, and no saving
     public var mcp = true
     /// the `vishalakshi-mcp` program; empty: the first of `mcpCandidates` that exists
@@ -230,6 +230,32 @@ public struct VaultConfig: Codable, Equatable, Sendable {
     }
 }
 
+/// `[abhyasa]`: the abhyasa web app on this Mac. Off (the default), Sanketa works alone: it makes no abhyasa link and
+/// never connects to it. On, Return opens a vault result in abhyasa: a concept at `<url>/c/<slug>`, another document at
+/// `<url>/v/<shelf>/<doc_id>`, when abhyasa answers.
+public struct AbhyasaConfig: Codable, Equatable, Sendable {
+    public static let defaultURL = "http://127.0.0.1:5077"
+    public var enabled = false
+    public var url = AbhyasaConfig.defaultURL
+
+    public init() {}
+
+    enum CodingKeys: String, CodingKey { case enabled, url }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
+        url = try c.decodeIfPresent(String.self, forKey: .url) ?? url
+    }
+
+    /// The base URL when abhyasa is on and the URL is an http address on this Mac; else nil.
+    public var base: URL? {
+        guard enabled, let u = URL(string: url), ["http", "https"].contains(u.scheme?.lowercased() ?? ""),
+              ["127.0.0.1", "localhost", "::1"].contains(u.host?.lowercased() ?? "") else { return nil }
+        return u
+    }
+}
+
 public struct Config: Codable, Equatable {
     public var hotkey = "ctrl+opt+k"
     public var terminals = ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2", "fun.tw93.kaku"]
@@ -241,11 +267,12 @@ public struct Config: Codable, Equatable {
     public var coach = CoachConfig()
     public var llm = LLMConfig()
     public var vault = VaultConfig()
+    public var abhyasa = AbhyasaConfig()
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm, vault
+        case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm, vault, abhyasa
         case hyperLabel = "hyper_label"
     }
 
@@ -263,6 +290,9 @@ public struct Config: Codable, Equatable {
         coach = try c.decodeIfPresent(CoachConfig.self, forKey: .coach) ?? coach
         llm = try c.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? llm
         vault = try c.decodeIfPresent(VaultConfig.self, forKey: .vault) ?? vault
+        abhyasa = try c.decodeIfPresent(AbhyasaConfig.self, forKey: .abhyasa) ?? abhyasa
+        // the old key: `[vault] learning_url`, when `[abhyasa]` has no `url`
+        if abhyasa.url == AbhyasaConfig.defaultURL { abhyasa.url = vault.learningURL }
         translucency = (try? c.decodeIfPresent(String.self, forKey: .translucency)).flatMap { $0.flatMap(Translucency.init) } ?? .medium
     }
 

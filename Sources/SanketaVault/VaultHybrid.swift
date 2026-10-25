@@ -35,9 +35,9 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
     }
 
     /// The search for `[vault]`: hybrid when an MCP server can be used, else keyword only. nil: vault search is off.
-    public static func make(_ c: VaultConfig) -> (search: VaultSearching, writer: VaultWriting?)? {
+    public static func make(_ c: VaultConfig, abhyasa: AbhyasaConfig = AbhyasaConfig()) -> (search: VaultSearching, writer: VaultWriting?)? {
         guard c.enabled else { return nil }
-        let k = VaultSearch(path: c.resolvedPath(), learningURL: c.learningURL)
+        let k = VaultSearch(path: c.resolvedPath(), abhyasa: abhyasa.base.map { AbhyasaProbe(base: $0) })
         guard let m = client(for: c) else { return (k, nil) }
         let h = VaultHybrid(keyword: k, client: m, timeout: c.mcpTimeoutSeconds)
         return (h, h)
@@ -53,7 +53,7 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
             let r = try await client.call("federate", ["q": q, "limit": limit, "repo": false, "grep": false, "env": false,
                                                        "shelves": shelves.filter { $0 != "store" }], timeout: timeout)
             guard let hits = (r.first as? [String: Any])?["hits"] as? [[String: Any]] else { throw MCPError.protocolError("no hits") }
-            return await items(hits, words: words)
+            return await items(hits, words: words, abhyasa: keyword.probe?.up())
         } catch {
             return await keyword.search(q)
         }
@@ -76,7 +76,7 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
 
     /// Fused hits as vault results: one for each document. A shelf's results stay together under one heading, and
     /// the shelves come in the order of their best hit.
-    func items(_ hits: [[String: Any]], words: [String]) async -> [SearchItem] {
+    func items(_ hits: [[String: Any]], words: [String], abhyasa: URL? = nil) async -> [SearchItem] {
         struct Hit { let shelf, doc, title, text: String }
         let hs = hits.compactMap { h -> Hit? in
             guard let shelf = (h["source"] as? String).flatMap(Self.shelf), let ref = h["ref"] as? String else { return nil }
@@ -102,9 +102,8 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
             let (docTitle, source, kind) = docs["\(h.shelf)\u{1}\(h.doc)"] ?? (nil, nil, nil)
             let title = docTitle ?? (h.title.isEmpty ? VaultSearch.firstLine(h.text) : h.title)
             guard seen.insert("\(h.shelf)/\(h.doc)").inserted, seen.insert("\(h.shelf)|\(title)").inserted else { continue }
-            var i = SearchItem(packID: "vault:\(h.shelf)", packName: VaultSearch.label(h.shelf), kind: .vault, title: title,
-                               detail: VaultSearch.snippet(h.text, words), explain: source, tags: [kind].compactMap { $0 })
-            i.open = source.flatMap { VaultSearch.target($0, learningURL: keyword.learningURL) }
+            let i = VaultSearch.item(shelf: h.shelf, doc: h.doc, title: title, detail: VaultSearch.snippet(h.text, words),
+                                     source: source, kind: kind, abhyasa: abhyasa)
             if groups[h.shelf] == nil { order.append(h.shelf) }
             groups[h.shelf, default: []].append(i)
         }

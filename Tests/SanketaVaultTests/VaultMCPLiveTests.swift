@@ -41,7 +41,7 @@ let liveMCP: String? = {
         let client = MCPClient(startTimeout: 30, idle: 0) {
             try StdioTransport(command: liveMCP!, environment: ["VISHALAKSHI_VAULT": c.resolvedPath()])
         }
-        let h = VaultHybrid(keyword: VaultSearch(path: c.resolvedPath(), learningURL: c.learningURL), client: client, timeout: 10)
+        let h = VaultHybrid(keyword: VaultSearch(path: c.resolvedPath()), client: client, timeout: 10)
         defer { client.close() }
         let t0 = Date()
         let k = await h.keyword.search("tmux pane")
