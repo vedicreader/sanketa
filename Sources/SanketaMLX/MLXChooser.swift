@@ -38,8 +38,14 @@ struct TokenizerBridge: MLXLMCommon.Tokenizer {
 /// What the chooser runs: the MLX model, or a fake in tests. It gives the model's raw answer text.
 protocol PickRunner: Sendable {
     func run(_ prompt: ChoicePrompt, schema: String) async throws -> String
+    /// A longer answer that the JSON `schema` limits, such as a pack for Make a Pack.
+    func generate(system: String, user: String, schema: String, maxTokens: Int) async throws -> String
     /// Frees the model; called once, when the holder drops it.
     func release()
+}
+
+extension PickRunner {
+    func generate(system: String, user: String, schema: String, maxTokens: Int) async throws -> String { throw ChoiceError.badResponse }
 }
 
 /// The files of a model folder must be plain data: regular files, none executable, no links.
@@ -94,16 +100,20 @@ final class MLXRunner: PickRunner, @unchecked Sendable {
     static let cacheLimit = 256 << 20
 
     func run(_ p: ChoicePrompt, schema: String) async throws -> String {
+        try await generate(system: p.instructions, user: p.userText, schema: schema, maxTokens: Self.maxTokens)
+    }
+
+    func generate(system: String, user: String, schema: String, maxTokens: Int) async throws -> String {
         guard let c = lock.withLock({ container }) else { throw ChoiceError.badResponse }
         let g = grammar, ws = whitespace
         return try await c.perform { ctx in
             let input = try await ctx.processor.prepare(input: UserInput(
-                chat: [.system(p.instructions), .user(p.userText)], additionalContext: ["enable_thinking": false]))
+                chat: [.system(system), .user(user)], additionalContext: ["enable_thinking": false]))
             if input.text.tokens.size > Self.maxPromptTokens { throw ChoiceError.contextExceeded }
             var out = ""
             do {
                 let constraint = try GrammarConstraint(tokenizer: g, jsonSchema: schema, fastForward: true, hostTokenizer: ctx.tokenizer)
-                try GuidedGenerationLoop.run(input: input, context: ctx, constraint: constraint, maxTokens: Self.maxTokens,
+                try GuidedGenerationLoop.run(input: input, context: ctx, constraint: constraint, maxTokens: maxTokens,
                                              vocabSize: g.vocabSize, whitespaceBias: ws.bias, whitespaceTokenIDs: ws.tokenIDs) {
                     out += $0
                     return !Task.isCancelled
@@ -253,6 +263,20 @@ public struct MLXChooser: OnDeviceChooser {
     public func prewarm() {
         guard status() == .available else { return }
         startLoad()
+    }
+
+    /// The answer tokens for Make a Pack: about 25 keys and 6 tips in JSON.
+    public static let packTokens = 1500
+
+    /// Make a Pack: the JSON answer (`PackMaker.jsonSchema`) to the variant B prompt. It waits for the model to load,
+    /// runs off the caller's actor and stops when the caller is cancelled. The network is not used.
+    public func makePack(_ prompt: String) async throws -> String {
+        let holder = holder
+        let work = Task.detached(priority: .userInitiated) {
+            try await holder.use { try await $0.generate(system: "You write Sanketa shortcut packs. Output only JSON.", user: prompt,
+                                                         schema: PackMaker.jsonSchema, maxTokens: Self.packTokens) }
+        }
+        return try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
     }
 
     /// Loads the model and waits for it; for the live test and `--ask`. Throws why it did not load.
