@@ -38,6 +38,49 @@ private final class PackRunner: PickRunner, @unchecked Sendable {
     }
 }
 
+/// A fake model for Make a Pack that waits in `generate` until the test opens the gate.
+private final class HeldRunner: PickRunner, @unchecked Sendable {
+    let started: AsyncStream<Void>
+    private let startedCont: AsyncStream<Void>.Continuation
+    private let lock = NSLock()
+    private var gate: CheckedContinuation<Void, Never>?
+    private var opened = false
+    init() { (started, startedCont) = AsyncStream<Void>.makeStream() }
+    func run(_ prompt: ChoicePrompt, schema: String) async throws -> String { #"{"picks": []}"# }
+    func generate(system: String, user: String, schema: String, maxTokens: Int) async throws -> String {
+        startedCont.yield()
+        await withCheckedContinuation { c in
+            let go = lock.withLock { opened ? true : { gate = c; return false }() }
+            if go { c.resume() }
+        }
+        return #"{"keys":[],"tips":[]}"#
+    }
+    func open() { let c = lock.withLock { opened = true; defer { gate = nil }; return gate }; c?.resume() }
+    func release() {}
+}
+
+extension PackMakerMLXTests {
+    /// M-5: while a pack run holds the model, a search says that the model is busy, at once, and does not wait for it.
+    @Test func searchSaysBusyWhileAPackRuns() async throws {
+        let runner = HeldRunner()
+        let c = MLXChooser(name: "on-device (fake)", key: UUID().uuidString, registry: Holders(), idle: 30, failedNote: "x",
+                           available: { .available }, load: { runner })
+        try await c.load()
+        let pack = Task { try await c.makePack("p") }
+        var it = runner.started.makeAsyncIterator()
+        _ = await it.next()
+        var config = LLMConfig(); config.onDevice = true; config.appleFM = false
+        let s = SmartSearch(router: ModelRouter(config: config, onDevice: c, appleFM: nil, remote: nil), timeout: 30)
+        let item = SearchItem(packID: "p", packName: "P", kind: .key, title: "Split pane left right", detail: "x")
+        let r = await s.results("split the pane left right", [item], context: [])
+        #expect(r.note == "Plain search: on-device (fake) is busy writing a pack")
+        runner.open()
+        _ = try await pack.value
+        let after = await s.results("split the pane left right", [item], context: [])
+        #expect(after.note == nil)
+    }
+}
+
 // MARK: live, with a downloaded model (make test-mlx)
 
 /// The first downloaded model that fits this Mac, when the MLX shaders are present.

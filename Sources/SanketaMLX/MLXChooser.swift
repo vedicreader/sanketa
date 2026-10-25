@@ -138,6 +138,12 @@ final class Holders: @unchecked Sendable {
     private let lock = NSLock()
     private var all: [String: IdleHolder<any PickRunner>] = [:]
     private var failed: Set<String> = []
+    /// pack runs (Make a Pack) that use the model of each folder
+    private var packRuns: [String: Int] = [:]
+
+    func beginPack(_ key: String) { lock.withLock { packRuns[key, default: 0] += 1 } }
+    func endPack(_ key: String) { lock.withLock { packRuns[key, default: 1] -= 1 } }
+    func isBusy(_ key: String) -> Bool { lock.withLock { (packRuns[key] ?? 0) > 0 } }
 
     func holder(_ key: String, make: () -> IdleHolder<any PickRunner>) -> IdleHolder<any PickRunner> {
         lock.withLock {
@@ -245,6 +251,8 @@ public struct MLXChooser: OnDeviceChooser {
 
     public func choose(_ prompt: ChoicePrompt) async throws -> [String] {
         guard !prompt.refs.isEmpty else { return [] }
+        // a pack run holds the model for a minute or more; the search does not wait behind it
+        if registry.isBusy(key) { throw ChoiceError.busy }
         // no wait for a load: this search stays plain, and the load goes on for the next one
         guard await holder.isLoaded else { startLoad(); throw ChoiceError.loading }
         let holder = holder, schema = Self.schema(refs: prompt.refs, maxPicks: prompt.maxPicks)
@@ -271,7 +279,9 @@ public struct MLXChooser: OnDeviceChooser {
     /// Make a Pack: the JSON answer (`PackMaker.jsonSchema`) to the variant B prompt. It waits for the model to load,
     /// runs off the caller's actor and stops when the caller is cancelled. The network is not used.
     public func makePack(_ prompt: String) async throws -> String {
-        let holder = holder
+        let holder = holder, registry = registry, key = key
+        registry.beginPack(key)
+        defer { registry.endPack(key) }
         let work = Task.detached(priority: .userInitiated) {
             try await holder.use { try await $0.generate(system: "You write Sanketa shortcut packs. Output only JSON.", user: prompt,
                                                          schema: PackMaker.jsonSchema, maxTokens: Self.packTokens) }
