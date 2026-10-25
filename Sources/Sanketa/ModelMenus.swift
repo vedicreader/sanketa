@@ -158,6 +158,7 @@ import SanketaMLX
                 for c in MLXModelChoice.allCases where installer.isInstalled(ModelCatalog.spec(c)) {
                     do { try installer.remove(ModelCatalog.spec(c)) } catch { downloadError = "Could not remove \(StatusMenus.name(c))." }
                 }
+                MLXChooser.forgetFailure(nil)
                 change(config())
                 renderOnDeviceMenu()
             }
@@ -195,7 +196,7 @@ import SanketaMLX
             self.onMain {
                 self.downloadProgress = nil
                 self.downloadError = failure
-                if failure == nil { self.use(m) }
+                if failure == nil { MLXChooser.forgetFailure(installer.directory(spec)); self.use(m) }
                 self.renderOnDeviceMenu()
             }
         }

@@ -145,6 +145,8 @@ final class Holders: @unchecked Sendable {
 
     func markFailed(_ key: String, _ yes: Bool) { lock.withLock { if yes { failed.insert(key) } else { failed.remove(key) } } }
     func didFail(_ key: String) -> Bool { lock.withLock { failed.contains(key) } }
+    /// Forgets that the model for `key` (nil: every model) did not load, so the next search tries it again.
+    func forgetFailure(_ key: String?) { lock.withLock { if let key { failed.remove(key) } else { failed = [] } } }
 }
 
 /// The downloaded MLX model as the on-device chooser. It loads in the background, runs off the main thread, answers
@@ -192,6 +194,9 @@ public struct MLXChooser: OnDeviceChooser {
 
     /// True when the model in `dir` did not load in this process.
     public static func didFail(_ dir: URL) -> Bool { Holders.shared.didFail(dir.path) }
+
+    /// After a download or a remove: a model in `dir` (nil: any) that did not load gets a new try.
+    public static func forgetFailure(_ dir: URL?) { Holders.shared.forgetFailure(dir?.path) }
 
     /// Unloads every on-device model, such as before its files are removed.
     public static func unloadAll() async { await Holders.shared.dropOthers(nil) }

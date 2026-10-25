@@ -229,6 +229,30 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
         #expect(MLXChooser.failedNote(.qwen4b) == "Qwen3.5-4B did not load")
     }
 
+    /// A model that did not load (low memory, a bad file) gets a new try after Remove and a new download.
+    @Test func modelThatDidNotLoadIsTriedAgainAfterNewFiles() async throws {
+        let registry = Holders(), loads = Counts(), runner = FakeRunner { _ in #"{"picks": []}"# }
+        let c = MLXChooser(name: "on-device (fake)", key: "m", registry: registry, idle: 30, failedNote: "fake did not load",
+                           available: { .available }, load: {
+                               if loads.loaded() == 1 { throw ChoiceError.badResponse }
+                               return runner
+                           })
+        await #expect(throws: ChoiceError.badResponse) { try await c.load() }
+        #expect(c.status() == .unavailable("fake did not load"))
+        registry.forgetFailure("other")
+        #expect(c.status() == .unavailable("fake did not load"), "another model's new files change nothing")
+        registry.forgetFailure("m")                   // what a download of this model does
+        #expect(c.status() == .available)
+        try await c.load()
+        #expect(loads.loads == 2 && c.status() == .available)
+        #expect(await c.isLoaded)
+
+        let other = Holders(), d = fakeChooser(FakeRunner { _ in "" }, registry: other, fail: true)
+        await #expect(throws: ChoiceError.badResponse) { try await d.load() }
+        other.forgetFailure(nil)                      // what Remove does
+        #expect(d.status() == .available)
+    }
+
     @Test func modelFolderMustHoldOnlyFiles() throws {
         let d = try tempRoot()
         try Data("{}".utf8).write(to: d.appendingPathComponent("config.json"))
