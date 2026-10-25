@@ -49,7 +49,8 @@ private enum PackGate {
     static var ready: Bool { spec != nil && MLXRuntime.isReady }
 }
 
-@Suite(.serialized) struct PackMakerMLXLiveTests {
+/// In the serialized live suite, so that it never runs while the search test measures the memory of the same model.
+extension MLXChooserLiveTests {
     /// The real model writes JSON for docs text made from the RawTherapee pack; Sanketa makes it a pack with no lint error.
     @Test(.enabled(if: PackGate.ready), .timeLimit(.minutes(6))) func liveModelWritesAPackThatLints() async throws {
         let spec = try #require(PackGate.spec)
@@ -61,7 +62,7 @@ private enum PackGate {
             "\(k.keys.replacingOccurrences(of: "⌃", with: "Ctrl+").replacingOccurrences(of: "⌥", with: "Alt+").replacingOccurrences(of: "⇧", with: "Shift+")): \(k.action) (\(k.group ?? ""))"
         }.joined(separator: "\n")
         let menu = [MenuShortcut(path: ["RawTherapee", "Quit RawTherapee"], keys: "⌘Q"), MenuShortcut(path: ["RawTherapee", "Hide RawTherapee"], keys: "⌘H")]
-        let c = MLXChooser(spec: spec, installer: PackGate.installer, idle: 30)
+        let c = MLXChooser(spec: spec, installer: PackGate.installer, idle: 60)
         let t0 = ContinuousClock.now
         let answer = try await c.makePack(PackMaker.promptB(app: rt, menu: menu, docs: docs, json: true))
         let toml = try #require(PackMaker.toml(json: answer, app: rt), "not JSON: \(answer.prefix(300))")
