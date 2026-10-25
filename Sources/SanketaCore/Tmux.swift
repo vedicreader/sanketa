@@ -135,10 +135,11 @@ public final class TmuxClientStore: @unchecked Sendable {
     public init() {}
     public func clear() { lock.withLock { store = [:] } }
 
+    /// An empty read is not kept: a server that just started has no client yet, and the next compute asks again.
     func clients(_ key: String, state: String, maxAge: TimeInterval, _ read: () -> [TmuxClient]) -> [TmuxClient] {
         if let e = lock.withLock({ store[key] }), e.state == state, Date().timeIntervalSince(e.at) < maxAge { return e.clients }
         let c = read()
-        lock.withLock { store[key] = (state, Date(), c) }
+        lock.withLock { store[key] = c.isEmpty ? nil : (state, Date(), c) }
         return c
     }
 }

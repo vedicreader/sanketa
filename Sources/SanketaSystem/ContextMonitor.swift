@@ -31,11 +31,13 @@ final class TTLCache<K: Hashable, V>: @unchecked Sendable {
     }
 }
 
-/// The answer for the last key only: asked again when the key changes or after `clear()`. A failed answer (`failed`)
-/// is asked again for the same key too, but at most once per `retry` seconds, so a CLI that failed once does not
-/// stay failed and a CLI that keeps failing does not run at each poll.
-final class LastAnswer<K: Equatable, V>: @unchecked Sendable {
-    private var last: (key: K, value: V, at: Date)?
+/// The answer for the last key only: asked again when the key changes or after `clear()`. After a new key it is asked
+/// until two answers in a row agree, because the source can lag behind the key (Kaku's CLI names the old tab for a
+/// moment after the window title shows the new one). A failed answer (`failed`) is asked again for the same key too,
+/// but at most once per `retry` seconds, so a CLI that failed once does not stay failed and a CLI that keeps failing
+/// does not run at each poll.
+final class LastAnswer<K: Equatable, V: Equatable>: @unchecked Sendable {
+    private var last: (key: K, value: V, at: Date, sure: Bool)?
     private let lock = NSLock()
     let retry: TimeInterval
     let failed: (V) -> Bool
@@ -45,9 +47,11 @@ final class LastAnswer<K: Equatable, V>: @unchecked Sendable {
 
     func get(_ k: K, _ make: () -> V) -> V {
         let t = now()
-        if let l = lock.withLock({ last }), l.key == k, !failed(l.value) || t.timeIntervalSince(l.at) < retry { return l.value }
+        let l = lock.withLock { last }
+        if let l, l.key == k, l.sure, !failed(l.value) || t.timeIntervalSince(l.at) < retry { return l.value }
         let v = make()
-        lock.withLock { last = (k, v, t) }
+        let sure = l.map { $0.key == k && $0.value == v } ?? false
+        lock.withLock { last = (k, v, t, sure) }
         return v
     }
     func clear() { lock.withLock { last = nil } }

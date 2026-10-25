@@ -81,22 +81,26 @@ import Testing
 
     func kakuCompute(_ e: ContextEngine) -> Context { e.compute(pid: 28331, bundleID: "fun.tw93.kaku", appName: "Kaku") }
 
+    /// Each new key gets two CLI pairs: the second confirms the first (the CLI can lag behind the title), then the
+    /// answer is kept.
     @Test func kakuCLIRunsOnlyWhenTheWindowChanges() {
         let r = Runner(), w = World(), e = engine(r, w)
         for _ in 0..<5 { #expect(kakuCompute(e).layers.map(\.name) == ["ramabana", "fish", "Kaku"]) }
-        #expect(r.count("list-clients") - r.count("-L") == 1 && r.count("--no-auto-start") == 2, "one CLI pair for 5 polls")
+        #expect(r.count("list-clients") - r.count("-L") == 2 && r.count("--no-auto-start") == 4, "two CLI pairs for 5 polls")
         w.title = "[2/2] project"                     // another tab
         r.focusedPane = 4
         #expect(kakuCompute(e).layers.map(\.name) == ["fish", "Kaku"])
-        #expect(r.count("--no-auto-start") == 4)
-        _ = kakuCompute(e)
-        #expect(r.count("--no-auto-start") == 4)
-        w.window = 8                                  // another window with the same title
-        _ = kakuCompute(e)
         #expect(r.count("--no-auto-start") == 6)
-        e.resetChanges()                              // what an activation does
         _ = kakuCompute(e)
         #expect(r.count("--no-auto-start") == 8)
+        _ = kakuCompute(e)
+        #expect(r.count("--no-auto-start") == 8)
+        w.window = 8                                  // another window with the same title
+        _ = kakuCompute(e)
+        #expect(r.count("--no-auto-start") == 10)
+        e.resetChanges()                              // what an activation does
+        _ = kakuCompute(e)
+        #expect(r.count("--no-auto-start") == 12)
     }
 
     /// A failed CLI answer is asked again after 10 s with the same key, not at each poll and not only on a key change.
@@ -106,25 +110,24 @@ import Testing
         e.kakuFocus.now = { clock }
         r.kakuFailures = 2
         func clients() -> Int { r.count("list-clients") - r.count("-L") }
+        func at(_ s: Double) { clock = Date(timeIntervalSinceReferenceDate: s) }
         #expect(kakuCompute(e).layers.map(\.name) == ["fish", "Kaku"], "no answer: only the shared login shell")
-        #expect(clients() == 1)
-        for s in 1...9 {                              // polls each second: no new CLI run
-            clock = Date(timeIntervalSinceReferenceDate: Double(s))
+        at(1)
+        _ = kakuCompute(e)                            // the confirming try fails too
+        #expect(clients() == 2)
+        for s in 2...10 {                             // polls each second: no new CLI run
+            at(Double(s))
             _ = kakuCompute(e)
         }
-        #expect(clients() == 1)
-        clock = Date(timeIntervalSinceReferenceDate: 10)
-        _ = kakuCompute(e)                            // the second try fails too
-        #expect(clients() == 2)
-        clock = Date(timeIntervalSinceReferenceDate: 15)
-        _ = kakuCompute(e)
         #expect(clients() == 2, "at most one try per 10 s")
-        clock = Date(timeIntervalSinceReferenceDate: 20)
+        at(11)
         #expect(kakuCompute(e).layers.map(\.name) == ["ramabana", "fish", "Kaku"], "the CLI works again")
-        #expect(clients() == 3 && r.count("--no-auto-start") == 4)
-        clock = Date(timeIntervalSinceReferenceDate: 100)
+        at(12)
+        _ = kakuCompute(e)                            // the new answer is confirmed once
+        #expect(clients() == 4 && r.count("--no-auto-start") == 6)
+        at(100)
         _ = kakuCompute(e)                            // a good answer stays until the key changes
-        #expect(clients() == 3)
+        #expect(clients() == 4)
     }
 
     @Test func kakuCLIOnlyForKakuWithSeveralTTYs() {
@@ -169,7 +172,7 @@ import Testing
             w.lock.withLock { w.title = "[1/2] \(["⠋", "⠙", "⠹", "⠸"][i % 4]) claude \(i)s" }
             #expect(kakuCompute(e).layers.map(\.name) == ["ramabana", "fish", "Kaku"])
         }
-        #expect(r.count("list-clients") - r.count("-L") == 1 && r.count("--no-auto-start") == 2, "one Kaku CLI pair for 10 polls")
+        #expect(r.count("list-clients") - r.count("-L") == 2 && r.count("--no-auto-start") == 4, "two Kaku CLI pairs for 10 polls")
         #expect(r.count("ramabana-6a36be8b") == 1, "one tmux list-clients for 10 polls")
     }
 
