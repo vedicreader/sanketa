@@ -84,8 +84,14 @@ final class MLXRunner: PickRunner, @unchecked Sendable {
             eval(ws.bias)
             return (g, Biases(bias: ws.bias, tokenIDs: ws.tokenIDs))
         }
+        // the load leaves about as much again in MLX's buffer cache (5.3 GB for Gemma); free it, and keep it small
+        Memory.cacheLimit = cacheLimit
+        Memory.clearCache()
         return MLXRunner(container: c, grammar: g, whitespace: ws)
     }
+
+    /// MLX's buffer cache while a model is loaded: enough for the prompt and KV buffers of one search.
+    static let cacheLimit = 256 << 20
 
     func run(_ p: ChoicePrompt, schema: String) async throws -> String {
         guard let c = lock.withLock({ container }) else { throw ChoiceError.badResponse }
