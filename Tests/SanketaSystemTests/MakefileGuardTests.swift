@@ -32,13 +32,19 @@ import Testing
                      ["zip", "ZIP=x;touch \(marker.path)"],
                      // the xcodebuild paths go into recipes as text, so they are checked too
                      ["bundle", "XCODE_DATA=x;touch \(marker.path)"], ["test-mlx", "XCODE_DATA=$(shell touch \(marker.path))"],
-                     ["bundle", "XCODE_DATA=`id`"], ["verify", "APP=x;id"], ["bundle", "XCODE_DATA=-x"], ["zip", "STABLE_ZIP=x;touch \(marker.path)"]] {
+                     ["bundle", "XCODE_DATA=`id`"], ["verify", "APP=x;id"], ["bundle", "XCODE_DATA=-x"], ["zip", "STABLE_ZIP=x;touch \(marker.path)"],
+                     ["zip", "NOTES=x;touch \(marker.path)"], ["zip", "NOTES=-x"],
+                     // the check's own variables are override, so the command line cannot turn the check off
+                     ["test", "FILTER=x;id", "check_var="], ["test", "FILTER=x;id", "SAFE_CHARS=x ; i d"], ["test", "FILTER=x;id", "strip_chars="]] {
             let r = try make(args)
             #expect(r.status == 2, "\(args)")
             #expect(r.err.contains("is not safe") || r.err.contains("must not start with -"), "\(args): \(r.err)")
             #expect(r.out.isEmpty, "\(args): \(r.out)")
         }
         #expect(!FileManager.default.fileExists(atPath: marker.path))
+        // a recipe macro from the command line is ignored
+        let z = try make(["zip", "ZIP_APP=touch \(marker.path)"])
+        #expect(z.status == 0 && z.out.contains("ditto -c -k") && !z.out.contains(marker.path), "\(z.out) \(z.err)")
     }
 
     /// Runs /usr/bin/make on a temp makefile that includes mk/no-dry-run.mk and has a harmless `release` target, so
@@ -66,7 +72,9 @@ import Testing
     @Test func dryRunGuardRefusesEveryForm() throws {
         let cases: [[String]] = [["-n"], ["--dry-run"], ["--just-print"], ["--recon"], ["-nB"], ["-k", "-n"], ["-kn"],
                                  ["-n", "-j4"], ["-j4", "-n"], ["-n", "--no-print-directory"], ["--dry-run", "--no-print-directory"],
-                                 ["--warn-undefined-variables", "-n"]]
+                                 ["--warn-undefined-variables", "-n"],
+                                 // the guard's own variables are override, so the command line cannot empty them
+                                 ["-n", "ndr_words="], ["-n", "ndr_short=", "ndr_flags="], ["-n", "ndr_letters=x"]]
         for args in cases {
             let r = try guardMake(args)
             #expect(r.status == 2 && r.err.contains("release and publish do not run with -n"), "\(args): \(r.out) \(r.err)")
@@ -96,6 +104,82 @@ import Testing
             #expect(r.out.isEmpty, "\(v): \(r.out)")
         }
         #expect(!FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    /// Runs /usr/bin/make on a temp makefile that includes mk/release.mk with harmless stand-ins for codesign,
+    /// notarize.sh, stapler and gh (`echo GH-UPLOAD`), on a folder that stands in for the app. `check` replaces the
+    /// notarization check; nil keeps the real one (`xcrun stapler validate`, which fails on a folder with no ticket).
+    func releaseMake(_ args: [String], notarize: Int, check: String? = "true",
+                     env extra: [String: String] = [:]) throws -> (status: Int32, out: String, err: String, dir: URL) {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-rel-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let mk = Self.repo.appendingPathComponent("mk/release.mk").path
+        try """
+        APP := build/Sanketa.app
+        VERSION := 0.0.0
+        ifeq ($(origin ZIP),undefined)
+        ZIP := dist/Sanketa-$(VERSION).zip
+        endif
+        STABLE_ZIP := dist/Sanketa.zip
+        NOTES := dist/notes-$(VERSION).md
+        export ZIP
+        include \(mk)
+        override CODESIGN := :
+        override NOTARIZE := sh -c 'exit \(notarize)' sh
+        override STAPLE := :
+        \(check.map { "override CHECK_NOTARIZED = \($0)" } ?? "")
+        override GH := echo GH-UPLOAD
+        bundle:
+        \tmkdir -p $(APP)/Contents && echo app > $(APP)/Contents/Info.plist
+
+        """.write(to: dir.appendingPathComponent("Makefile"), atomically: true, encoding: .utf8)
+        let p = Process(), out = Pipe(), err = Pipe()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/make")
+        p.arguments = ["-C", dir.path] + args
+        let inherited: Set = ["MAKEFLAGS", "MFLAGS", "MAKELEVEL", "ZIP", "VERSION", "NOTARY_PROFILE", "NOTARY_CONFIG", "NOTARY_KEY_PATH"]
+        p.environment = ProcessInfo.processInfo.environment.filter { !inherited.contains($0.key) }.merging(extra) { $1 }
+        p.standardOutput = out; p.standardError = err
+        try p.run()
+        let o = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        let e = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        p.waitUntilExit()
+        return (p.terminationStatus, o, e, dir)
+    }
+
+    /// publish uploads only an app that is notarized, stapled and checked; release fails without notary credentials.
+    @Test func publishUploadsOnlyANotarizedApp() throws {
+        let fm = FileManager.default
+        for (notarize, check, why) in [(3, "true", "no credentials"), (1, "true", "notarization failed"),
+                                       (0, "false", "the check fails"), (0, nil, "real stapler validate, no ticket")] as [(Int, String?, String)] {
+            let r = try releaseMake(["publish"], notarize: notarize, check: check)
+            #expect(r.status != 0, "\(why): \(r.out) \(r.err)")
+            #expect(!r.out.contains("GH-UPLOAD"), "\(why): \(r.out)")
+            #expect(!fm.fileExists(atPath: r.dir.appendingPathComponent("dist/notes-0.0.0.md").path), "\(why): no notes")
+            #expect(!fm.fileExists(atPath: r.dir.appendingPathComponent("dist/Sanketa.zip").path), "\(why): no stable zip")
+        }
+        let none = try releaseMake(["release"], notarize: 3)
+        #expect(none.status != 0 && none.err.contains("found no notary credentials"), "\(none.out) \(none.err)")
+
+        let ok = try releaseMake(["publish"], notarize: 0)
+        #expect(ok.status == 0, "\(ok.out) \(ok.err)")
+        #expect(ok.out.contains("GH-UPLOAD release create v0.0.0 dist/Sanketa-0.0.0.zip dist/Sanketa.zip --target main"), "\(ok.out)")
+        let notes = try String(contentsOf: ok.dir.appendingPathComponent("dist/notes-0.0.0.md"), encoding: .utf8)
+        #expect(notes.contains("Apple notarized it") && notes.contains("Sanketa.zip has a name that does not change"), "\(notes)")
+        #expect(fm.contentsEqual(atPath: ok.dir.appendingPathComponent("dist/Sanketa.zip").path,
+                                 andPath: ok.dir.appendingPathComponent("dist/Sanketa-0.0.0.zip").path))
+    }
+
+    /// release and publish take VERSION only from Info.plist (here the makefile), and publish its own ZIP name.
+    @Test func releaseRefusesVersionAndZipFromOutside() throws {
+        for (args, env) in [(["publish", "VERSION=9.9.9"], [:]), (["release", "VERSION=9.9.9"], [:]),
+                            (["-e", "publish"], ["VERSION": "9.9.9"]), (["publish", "ZIP=dist/x.zip"], [:]),
+                            (["publish"], ["ZIP": "dist/x.zip"])] as [([String], [String: String])] {
+            let r = try releaseMake(args, notarize: 0, env: env)
+            #expect(r.status == 2 && (r.err.contains("Do not set VERSION") || r.err.contains("Do not set ZIP")), "\(args) \(env): \(r.err)")
+            #expect(!r.out.contains("mkdir") && !r.out.contains("GH-UPLOAD"), "\(args) \(env): \(r.out)")
+        }
+        // the version in the file still works, and so does a ZIP for release alone
+        #expect(try releaseMake(["release", "ZIP=dist/x.zip"], notarize: 0).status == 0)
     }
 
     @Test func safeValuesPassThroughTheEnvironment() throws {
