@@ -10,6 +10,8 @@ public struct Context: Equatable {
     public var axTrusted: Bool
     /// the app's menu read was empty or hit the AX timeout; the monitor reads it once more
     public var menuIncomplete = false
+    /// a pack (bundled or user) lists the app's bundle id in `apps`; without one, the panel shows "Make a pack"
+    public var appHasPack = false
     public init(appName: String = "", bundleID: String = "", layers: [Layer] = [], packs: [Pack] = [], axTrusted: Bool = false) {
         self.appName = appName; self.bundleID = bundleID; self.layers = layers; self.packs = packs; self.axTrusted = axTrusted
     }
@@ -158,6 +160,7 @@ public struct ContextEngine: @unchecked Sendable {
         let withContexts = LayerResolver.applyContexts(layers, packs: paired, title: title)
         var c = Context(appName: appName, bundleID: bundleID, layers: withContexts, packs: packs, axTrusted: trusted)
         c.menuIncomplete = incomplete
+        c.appHasPack = library.pack(bundleID: bundleID) != nil
         return c
     }
 

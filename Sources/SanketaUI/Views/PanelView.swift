@@ -85,6 +85,8 @@ struct PanelView: View {
                     .id(s.id)
             case .noPack(let l, _):
                 NoPackSection(layer: l, makePack: makePack)
+            case .makePack(let l, _):
+                MakePackLink(layer: l, makePack: makePack)
             }
         }
         if model.blocks.isEmpty {

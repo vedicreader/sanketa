@@ -352,6 +352,7 @@ func threadCPUSeconds() -> Double {
             case .section(let s): s.pack.id
             case .tips: "tips"
             case .noPack(let l, _): "nopack:" + l.name
+            case .makePack(let l, _): "makepack:" + l.name
             }
         }
     }
@@ -370,6 +371,25 @@ func threadCPUSeconds() -> Double {
         #expect(kinds(m) == ["nopack:yazi", "tips", "fish", "app:com.apple.Terminal"])
         #expect(NoPackSection.message("yazi") == "Sanketa has no keys for yazi.")
         #expect(NoPackSection.link("yazi") == "Make a pack for yazi")
+    }
+
+    /// A GUI app with no pack gets the "Make a pack" link under its menu keys; with a pack, or in a terminal, it does not.
+    @Test func appWithoutPackGetsTheMakePackLink() throws {
+        let bid = "com.rawtherapee.RawTherapee"
+        let menu = Pack(id: "app:\(bid)", name: "RawTherapee", keys: [KeyEntry(keys: "⌘Q", action: "Quit RawTherapee", group: "RawTherapee")])
+        let layer = Layer(kind: .app, name: "RawTherapee", packID: menu.id)
+        var c = Context(appName: "RawTherapee", bundleID: bid, layers: [layer], packs: [menu], axTrusted: true)
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 3)
+        m.update(c)
+        #expect(kinds(m) == ["app:\(bid)", "tips", "makepack:RawTherapee"])
+        // an empty menu bar (a GTK app) still gets the link
+        m.update(Context(appName: "RawTherapee", bundleID: bid, layers: [layer], packs: [Pack(id: menu.id, name: "RawTherapee")], axTrusted: true))
+        #expect(kinds(m) == ["makepack:RawTherapee"])
+        c.appHasPack = true
+        m.update(c)
+        #expect(kinds(m) == ["app:\(bid)", "tips"])
+        m.update(try yaziContext(withPack: true))
+        #expect(!kinds(m).contains { $0.hasPrefix("makepack") })
     }
 
     /// With no keys in the innermost layer the tips lead, as before.

@@ -127,6 +127,18 @@ struct CopyButton: View {
     }
 }
 
+/// The link under the menu keys of a GUI app with no pack. It opens Make a Pack.
+struct MakePackLink: View {
+    let layer: Layer
+    var makePack: (Layer) -> Void = { _ in }
+
+    var body: some View {
+        Button { makePack(layer) } label: { Text(NoPackSection.link(layer.name)).underline() }
+            .buttonStyle(.plain).font(Theme.small).foregroundStyle(.primary)
+            .padding(.vertical, 4).padding(.horizontal, 6)
+    }
+}
+
 /// A program or shell with no pack: its name as a header, one line that says so, and a link that makes a pack.
 struct NoPackSection: View {
     let layer: Layer

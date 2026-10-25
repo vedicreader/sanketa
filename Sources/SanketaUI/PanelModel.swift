@@ -29,12 +29,15 @@ public enum PanelBlock: Identifiable, Equatable {
     case tips
     /// a program or shell layer with no pack: one line that says how to add one
     case noPack(Layer, index: Int)
+    /// a GUI app with no pack: a link under its menu keys that opens Make a Pack
+    case makePack(Layer, index: Int)
 
     public var id: String {
         switch self {
         case .section(let s): s.id
         case .tips: "tips"
         case .noPack(let l, let i): "nopack|" + PanelModel.sectionID(i, l)
+        case .makePack(let l, let i): "makepack|" + PanelModel.sectionID(i, l)
         }
     }
 }
@@ -251,7 +254,7 @@ struct StackState {
         let packs = Set(sections.map(\.pack.id))
         let coach = Set(coachPool.map(\.id))
         if tipCards.isEmpty || tipCards.contains(where: { !packs.contains($0.packID) && !coach.contains($0.id) }) { seed &+= 1; pickTips() }
-        else { blocks = Self.blocks(layers: c.layers, sections: sections, tips: !tipCards.isEmpty) }
+        else { blocks = Self.blocks(layers: c.layers, sections: sections, tips: !tipCards.isEmpty, makePack: makePackLayer) }
     }
 
     func remember(_ key: String) {
@@ -262,21 +265,22 @@ struct StackState {
     }
 
     /// Tool bindings beat tips: when the innermost layer has keys (or is a program with no pack), it leads and
-    /// the tip cards follow it; otherwise the tip cards lead.
-    public static func blocks(layers: [Layer], sections: [LayerSectionData], tips: Bool) -> [PanelBlock] {
+    /// the tip cards follow it; otherwise the tip cards lead. The "Make a pack" link of an app comes last.
+    public static func blocks(layers: [Layer], sections: [LayerSectionData], tips: Bool, makePack: (Layer, Int)? = nil) -> [PanelBlock] {
+        let link = makePack.map { [PanelBlock.makePack($0.0, index: $0.1)] } ?? []
         var out = [PanelBlock]()
         for (i, l) in layers.enumerated() {
             if let s = sections.first(where: { $0.index == i }) { out.append(.section(s)) }
             else if l.kind == .program || l.kind == .shell { out.append(.noPack(l, index: i)) }
         }
-        guard tips else { return out }
+        guard tips else { return out + link }
         let leads: Bool = switch out.first {
         case .section(let s): s.index == 0 && !s.pack.keys.isEmpty
         case .noPack(_, let i): i == 0
         default: false
         }
         out.insert(.tips, at: leads ? 1 : 0)
-        return out
+        return out + link
     }
 
     public func rotate() { seed &+= 1; pickTips() }
@@ -337,6 +341,13 @@ struct StackState {
         let first = coach.isEmpty ? store.pick(from: inner, count: 1, seed: seed) : coach
         let rest = store.pick(from: tipPool.filter { !first.contains($0) }, count: Self.tipCount - first.count, seed: seed &+ 0x9E37)
         tipCards = first + rest
-        blocks = Self.blocks(layers: context.layers, sections: sections, tips: !tipCards.isEmpty)
+        blocks = Self.blocks(layers: context.layers, sections: sections, tips: !tipCards.isEmpty, makePack: makePackLayer)
+    }
+
+    /// The app layer in front when no pack lists the app: it gets the "Make a pack" link.
+    var makePackLayer: (Layer, Int)? {
+        guard !context.appHasPack, !context.bundleID.isEmpty else { return nil }
+        return context.layers.enumerated().first { $0.element.kind == .app && $0.element.packID == "app:\(context.bundleID)" }
+            .map { ($0.element, $0.offset) }
     }
 }
