@@ -26,6 +26,14 @@ Click the Download for macOS button at the top, or get [the latest zip](https://
 
 Each release has a Developer ID signature, and Apple notarized it.
 
+### Homebrew
+
+```sh
+brew install --cask vedicreader/tap/sanketa
+```
+
+Then open Sanketa and allow Accessibility. To get a new version, run `brew upgrade --cask sanketa`. To remove the app and its settings, packs, tips and on-device models, run `brew uninstall --zap --cask sanketa`.
+
 ## Build from source
 
 ```sh
@@ -289,6 +297,8 @@ make release NOTARY_PROFILE=sanketa-notary
 Without credentials, `make release` stops, because Gatekeeper rejects a zip that Apple did not notarize. For a local build, use `make app` or `make zip`. These builds are not notarized. After notarization, `make gatekeeper` shows "accepted, source=Notarized Developer ID".
 
 Releases are signed and notarized only on the maintainer's Mac. GitHub has no signing keys or notary keys. To publish a release, push main first, then run `make publish`. It runs `make release`, and then it checks the ticket again. If the check fails, it stops before it uploads. Then it uses `gh release create --target main` to make the release `v<version>`. This also pushes the tag. The release has two zips with the same contents: `Sanketa-<version>.zip` and `Sanketa.zip`. The name `Sanketa.zip` does not change, so the download button always gets the latest release.
+
+After a release, run `make cask`. It writes the version and the SHA-256 hash of `dist/Sanketa-<version>.zip` into the cask in the [tap](https://github.com/vedicreader/homebrew-tap). The tap is at `../homebrew-tap` by default; set `TAP=<folder>` for another folder. Then commit and push the tap.
 
 The GitHub Actions job builds and tests each push to main and each pull request. It uploads a bundle with an ad-hoc signature as `Sanketa-<sha>.zip`. The job does not make or change a release.
 

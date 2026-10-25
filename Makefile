@@ -7,7 +7,7 @@ XCODE_DATA := build/xcode
 # the same zip with a name that does not change, so releases/latest/download/Sanketa.zip always works
 STABLE_ZIP := dist/Sanketa.zip
 
-.PHONY: test test-focus test-mlx build lint shots bundle app release zip publish run relaunch install verify gatekeeper remote-setup
+.PHONY: test test-focus test-mlx build lint shots bundle app release zip publish run relaunch install cask verify gatekeeper remote-setup
 
 # Values from the command line go to recipes only through the environment ("$$FILTER"), so the shell never parses
 # them. Each value must also pass this check, which reads the raw text with $(value) and so never expands it.
@@ -40,10 +40,11 @@ ZIP := dist/Sanketa-$(VERSION).zip
 endif
 NOTES := dist/notes-$(VERSION).md
 PACKS ?= Resources/Packs
-$(foreach v,FILTER PACKS SHOTS INSTALL_DIR ZIP APP XCODE_DATA STABLE_ZIP NOTES,$(call check_var,$v,$(SAFE_CHARS))$(call check_dash,$v))
+TAP ?= ../homebrew-tap
+$(foreach v,FILTER PACKS SHOTS INSTALL_DIR ZIP APP XCODE_DATA STABLE_ZIP NOTES TAP,$(call check_var,$v,$(SAFE_CHARS))$(call check_dash,$v))
 $(call check_var,HOST,$(SAFE_CHARS) @ :)$(call check_dash,HOST)
 $(foreach v,SIGN_ID RELEASE_ID,$(call check_identity,$v))
-export FILTER PACKS SHOTS HOST INSTALL_DIR ZIP SIGN_ID RELEASE_ID
+export FILTER PACKS SHOTS HOST INSTALL_DIR ZIP SIGN_ID RELEASE_ID TAP
 
 # release and publish notarize and upload, so they refuse make -n, make -i and their other forms
 include $(MK_DIR)no-dry-run.mk
@@ -117,6 +118,13 @@ install:
 	mkdir -p "$$INSTALL_DIR" /tmp/sanketa-trash
 	if [ -e "$$INSTALL_DIR/Sanketa.app" ]; then mv "$$INSTALL_DIR/Sanketa.app" /tmp/sanketa-trash/Sanketa.app-$$$$; fi
 	ditto $(APP) "$$INSTALL_DIR/Sanketa.app"
+
+# writes this version and the hash of its release zip into the Homebrew cask in $TAP; it does not commit or push
+cask:
+	test -f "dist/Sanketa-$(VERSION).zip"
+	sum=$$(shasum -a 256 "dist/Sanketa-$(VERSION).zip" | cut -d ' ' -f 1) && \
+	sed -i '' -e 's/^  version ".*"/  version "$(VERSION)"/' -e "s/^  sha256 \".*\"/  sha256 \"$$sum\"/" "$$TAP/Casks/sanketa.rb"
+	grep -E '^  (version|sha256) ' "$$TAP/Casks/sanketa.rb"
 
 verify:
 	@python3 -c "import plistlib,sys,os; a=sys.argv[1]; p=plistlib.load(open(a+'/Contents/Info.plist','rb')); assert p['CFBundleIdentifier']=='dev.sanketa.Sanketa'; assert os.access(a+'/Contents/MacOS/Sanketa',os.X_OK); assert os.path.isdir(a+'/Contents/Resources/Packs'); assert os.path.isfile(a+'/Contents/Resources/Brand/sanketa-mark@2x.png'); print('bundle ok')" $(APP)
