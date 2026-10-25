@@ -20,6 +20,11 @@ public struct LayerResolver {
         return (n, m, ns.substring(from: r.range.upperBound))
     }
 
+    /// Only the `[n/m]` tab prefix of the title ("" without one): a title that ticks on its own leaves it the same
+    public static func tabKey(_ title: String?) -> String {
+        title.flatMap(splitTabIndex).map { "\($0.n)/\($0.m)" } ?? ""
+    }
+
     /// The tty the user is looking at. With several tabs: `focused` (from the terminal itself) when it is one of them;
     /// else a `[n/m]` title prefix picks the n-th tab when there are exactly m, in the order the tabs' shells started;
     /// else a unique whole title word (case-insensitive) equal to the foreground process's name or display name

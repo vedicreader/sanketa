@@ -71,7 +71,7 @@ public struct ContextEngine: @unchecked Sendable {
     let remote = RemoteQuery(runner: ProcessRunner())
     let menus = MenuCache()
     let live = TTLCache<String, (prefix: String?, keys: [KeyEntry])>(ttl: 30)
-    /// Kaku's focused tty for the last (pid, window, title, ttys); `resetChanges()` clears it on activation
+    /// Kaku's focused tty for the last (pid, window, tab prefix, ttys); `resetChanges()` clears it on activation
     let kakuFocus = LastAnswer<String, String?>()
     let tmuxClients = TmuxClientStore()
     // the outside world; tests put stand-ins here
@@ -103,7 +103,7 @@ public struct ContextEngine: @unchecked Sendable {
             let w = trusted ? focusedWindow(pid) : nil
             title = w?.title
             let focused = focusedTTY(pid: pid, bundleID: bundleID, window: w, ttys: s.ttys(under: pid))
-            let tmux = CachedTmux(base: self.tmux, store: tmuxClients, state: CachedTmux.state(s, title: title))
+            let tmux = CachedTmux(base: self.tmux, store: tmuxClients, state: CachedTmux.state(s, title: title, window: w?.id))
             layers = LayerResolver(library: library, tmux: tmux, remote: remote)
                 .resolve(s, terminal: TerminalContext(pid: pid, bundleID: bundleID, appName: appName, windowTitle: title, focusedTTY: focused))
         } else {
@@ -146,10 +146,10 @@ public struct ContextEngine: @unchecked Sendable {
     }
 
     /// The tty of Kaku's focused pane from its own CLI, when it has more than one tty; nil if the CLI is missing or
-    /// fails. Asked again only when the window, its title or the ttys change, or after `resetChanges()`.
+    /// fails. Asked again only when the window, its `[n/m]` tab prefix or the ttys change, or after `resetChanges()`.
     func focusedTTY(pid: pid_t, bundleID: String, window: (title: String?, id: Int)?, ttys: [String]) -> String? {
         guard bundleID == "fun.tw93.kaku", ttys.count > 1, let cli = kakuCLI(pid) else { return nil }
-        let key = "\(pid)|\(window?.id ?? 0)|\(window?.title ?? "")|\(ttys.sorted())"
+        let key = "\(pid)|\(window?.id ?? 0)|\(LayerResolver.tabKey(window?.title))|\(ttys.sorted())"
         return kakuFocus.get(key) { KakuQuery(runner: runner, cli: cli).focusedTTY(pid: pid) }
     }
 

@@ -115,9 +115,26 @@ import Testing
         #expect(r.count("ramabana-6a36be8b") == 2)
         _ = kakuCompute(e)
         #expect(r.count("ramabana-6a36be8b") == 2)
-        w.title = "[1/2] other"                       // a new title
+        w.title = "[1/2] other"                       // new text, the same tab
+        _ = kakuCompute(e)
+        #expect(r.count("ramabana-6a36be8b") == 2)
+        w.title = "[2/2] other"                       // another tab
         _ = kakuCompute(e)
         #expect(r.count("ramabana-6a36be8b") == 3)
+        w.window = 8                                  // another window
+        _ = kakuCompute(e)
+        #expect(r.count("ramabana-6a36be8b") == 4)
+    }
+
+    /// A spinner or a clock in the title changes its text each second; that must not start a CLI run each poll.
+    @Test func titleThatTicksDoesNotRunCommands() {
+        let r = Runner(), w = World(), e = engine(r, w)
+        for i in 0..<10 {
+            w.lock.withLock { w.title = "[1/2] \(["⠋", "⠙", "⠹", "⠸"][i % 4]) claude \(i)s" }
+            #expect(kakuCompute(e).layers.map(\.name) == ["ramabana", "fish", "Kaku"])
+        }
+        #expect(r.count("list-clients") - r.count("-L") == 1 && r.count("--no-auto-start") == 2, "one Kaku CLI pair for 10 polls")
+        #expect(r.count("ramabana-6a36be8b") == 1, "one tmux list-clients for 10 polls")
     }
 
     @Test func slowMenuReadIsKeptAndReadOnceMore() {

@@ -143,8 +143,8 @@ public final class TmuxClientStore: @unchecked Sendable {
     }
 }
 
-/// Asks `base` for clients again only when `state` (the window title and the ttys' foreground groups) changes, or
-/// after `maxAge`: a pane switch inside tmux changes no process, so with tmux titles off only the age shows it.
+/// Asks `base` for clients again only when `state` (the window, its `[n/m]` tab prefix and the ttys' foreground groups)
+/// changes, or after `maxAge`: a pane switch inside tmux changes no process, so only the age shows it.
 public struct CachedTmux: TmuxQuerying {
     let base: TmuxQuerying, store: TmuxClientStore, state: String, maxAge: TimeInterval
     public init(base: TmuxQuerying, store: TmuxClientStore, state: String, maxAge: TimeInterval = 5) {
@@ -155,9 +155,11 @@ public struct CachedTmux: TmuxQuerying {
     }
     public func liveKeys(tmux: String, server: [String]) -> (prefix: String?, keys: [KeyEntry]) { base.liveKeys(tmux: tmux, server: server) }
 
-    /// Each tty's foreground process group, sorted: changes when a program starts or ends in front of any tty.
-    public static func state(_ s: ProcessSnapshot, title: String?) -> String {
+    /// The window, its tab and each tty's foreground process group: changes when a program starts or ends in front of
+    /// any tty, or on another tab or window. The rest of the title is left out, because a spinner or clock changes it
+    /// every second.
+    public static func state(_ s: ProcessSnapshot, title: String?, window: Int?) -> String {
         let fg = Set(s.procs.compactMap { p in p.tty.map { "\($0):\(p.tpgid)" } }).sorted()
-        return (title ?? "") + "|" + fg.joined(separator: ",")
+        return "\(window ?? 0)|\(LayerResolver.tabKey(title))|" + fg.joined(separator: ",")
     }
 }
