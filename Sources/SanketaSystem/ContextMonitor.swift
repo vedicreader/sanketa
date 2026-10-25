@@ -33,14 +33,15 @@ final class TTLCache<K: Hashable, V>: @unchecked Sendable {
 
 /// The answer for the last key only: asked again when the key changes or after `clear()`. After a new key it is asked
 /// until two answers in a row agree, because the source can lag behind the key (Kaku's CLI names the old tab for a
-/// moment after the window title shows the new one). A failed answer (`failed`) is asked again for the same key too,
-/// but at most once per `retry` seconds, so a CLI that failed once does not stay failed and a CLI that keeps failing
-/// does not run at each poll.
+/// moment after the window title shows the new one). Answers that keep changing get `quickTries` quick tries; then,
+/// as for a failed answer (`failed`), the source is asked at most once per `retry` seconds. So a CLI that failed once
+/// does not stay failed, and a CLI that fails or changes all the time does not run at each poll.
 final class LastAnswer<K: Equatable, V: Equatable>: @unchecked Sendable {
-    private var last: (key: K, value: V, at: Date, sure: Bool)?
+    private var last: (key: K, value: V, at: Date, sure: Bool, tries: Int)?
     private let lock = NSLock()
     let retry: TimeInterval
     let failed: (V) -> Bool
+    static var quickTries: Int { 3 }
     var now: () -> Date = Date.init
 
     init(retry: TimeInterval = .infinity, failed: @escaping (V) -> Bool = { _ in false }) { self.retry = retry; self.failed = failed }
@@ -48,10 +49,16 @@ final class LastAnswer<K: Equatable, V: Equatable>: @unchecked Sendable {
     func get(_ k: K, _ make: () -> V) -> V {
         let t = now()
         let l = lock.withLock { last }
-        if let l, l.key == k, l.sure, !failed(l.value) || t.timeIntervalSince(l.at) < retry { return l.value }
+        if let l, l.key == k {
+            let waiting = t.timeIntervalSince(l.at) < retry
+            if l.sure, !failed(l.value) || waiting { return l.value }
+            if !l.sure, l.tries >= Self.quickTries, waiting { return l.value }
+        }
         let v = make()
-        let sure = l.map { $0.key == k && $0.value == v } ?? false
-        lock.withLock { last = (k, v, t, sure) }
+        let same = l.map { $0.key == k } ?? false
+        let sure = same && l?.value == v
+        let tries = same && !sure ? (l?.tries ?? 0) + 1 : 1
+        lock.withLock { last = (k, v, t, sure, tries) }
         return v
     }
     func clear() { lock.withLock { last = nil } }

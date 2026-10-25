@@ -200,3 +200,22 @@ import Testing
         #expect(w.timeouts == [AXReader.timeout, AXReader.slowTimeout, AXReader.timeout, AXReader.slowTimeout])
     }
 }
+
+/// Answers that keep changing must not run the source at each poll: after 3 quick tries the 10 s backoff applies.
+@Suite struct LastAnswerTests {
+    @Test func changingAnswersBackOff() {
+        let a = LastAnswer<String, String?>(retry: 10) { $0 == nil }
+        var clock = Date(timeIntervalSinceReferenceDate: 0), calls = 0
+        a.now = { clock }
+        let answers: [String?] = [nil, "ttys010", nil, "ttys002", nil, "ttys010", nil]
+        func ask() -> String? { a.get("k") { calls += 1; return answers[(calls - 1) % answers.count] } }
+        for s in 0..<10 { clock = Date(timeIntervalSinceReferenceDate: Double(s)); _ = ask() }
+        #expect(calls == 3, "3 quick tries, then no run until the backoff ends: \(calls)")
+        clock = Date(timeIntervalSinceReferenceDate: 12)
+        _ = ask()
+        #expect(calls == 4)
+        clock = Date(timeIntervalSinceReferenceDate: 13)
+        _ = ask()
+        #expect(calls == 4, "one try per 10 s while the answers do not agree")
+    }
+}
