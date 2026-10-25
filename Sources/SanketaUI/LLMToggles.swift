@@ -118,6 +118,16 @@ import SanketaCore
         return out
     }
 
+    /// The on-device items of the status menu: the toggle, a note line under it (nil: no line) and if the model list
+    /// opens. The list follows the toggle; below the memory floor it stays open, so "Remove Downloaded Models" can be
+    /// reached, and the note says why the toggle is off.
+    public struct OnDeviceItems: Equatable { public var toggle: MenuLine; public var note: String?; public var pickerEnabled: Bool }
+
+    public static func onDeviceItems(config: LLMConfig, memory: UInt64) -> OnDeviceItems {
+        let (line, note) = onDeviceLine(config: config, memory: memory)
+        return OnDeviceItems(toggle: line, note: note, pickerEnabled: config.onDevice || note != nil)
+    }
+
     /// "Use On-Device Model" with a check mark when on. On a Mac below the memory floor it is off and disabled, and the
     /// second value is the note to show with it.
     public static func onDeviceLine(config: LLMConfig, memory: UInt64) -> (line: MenuLine, note: String?) {

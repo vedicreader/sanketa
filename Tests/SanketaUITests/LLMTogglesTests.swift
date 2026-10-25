@@ -95,4 +95,20 @@ import Testing
         #expect(!line.enabled && !line.checked && note == "This Mac does not have enough memory for an on-device model. Search uses plain search.")
         #expect(LLMToggles.onDeviceLine(config: f.config, memory: 8 << 30).line.enabled)
     }
+
+    /// Below the floor the note shows as its own line, and the model list stays open so Remove can be reached.
+    @Test func belowTheFloorTheNoteShowsAndRemoveIsReachable() {
+        let off = LLMConfig()
+        let small = LLMToggles.onDeviceItems(config: off, memory: 4 << 30)
+        #expect(!small.toggle.enabled && small.note == MLXModelChoice.notEnoughMemory && small.pickerEnabled)
+        let picker = StatusMenus.onDeviceLines(on: false, selected: .qwen2b, installed: [.qwen2b], progress: nil, mlxReady: true,
+                                               memory: 4 << 30)
+        #expect(picker.map(\.title) == [MLXModelChoice.notEnoughMemory, "Remove Downloaded Models"] && picker[1].enabled)
+        // enough memory: no note; the list follows the toggle
+        let big = LLMToggles.onDeviceItems(config: off, memory: 16 << 30)
+        #expect(big.toggle.enabled && big.note == nil && !big.pickerEnabled)
+        var on = off
+        on.onDevice = true
+        #expect(LLMToggles.onDeviceItems(config: on, memory: 16 << 30).pickerEnabled)
+    }
 }

@@ -10,6 +10,7 @@ import SanketaMLX
     let modelMenu = NSMenu(), onDeviceMenu = NSMenu()
     private(set) var modelItem: NSMenuItem?, keyItem: NSMenuItem?
     private(set) var openAIItem: NSMenuItem?, keySourceItem: NSMenuItem?, onDeviceItem: NSMenuItem?, deviceItem: NSMenuItem?
+    private(set) var onDeviceNoteItem: NSMenuItem?
     let llm: () -> LLMSetup
     let config: () -> LLMConfig
     /// sets `[llm]` in the app's config and rebuilds the router
@@ -51,6 +52,8 @@ import SanketaMLX
         keyItem?.target = self
         onDeviceItem = m.addItem(withTitle: LLMToggles.useOnDevice, action: #selector(toggleOnDevice), keyEquivalent: "")
         onDeviceItem?.target = self
+        onDeviceNoteItem = m.addItem(withTitle: "", action: nil, keyEquivalent: "")
+        onDeviceNoteItem?.isEnabled = false
         deviceItem = m.addItem(withTitle: "On-Device Model", action: nil, keyEquivalent: "")
         deviceItem?.submenu = onDeviceMenu
         refreshToggles()
@@ -79,11 +82,12 @@ import SanketaMLX
         keySourceItem?.isHidden = ai.count < 2
         keySourceItem?.title = ai.count < 2 ? "" : ai[1].title
         modelItem?.isEnabled = c.openai
-        let (dev, note) = LLMToggles.onDeviceLine(config: c, memory: ProcessInfo.processInfo.physicalMemory)
-        onDeviceItem?.state = dev.checked ? .on : .off
-        onDeviceItem?.isEnabled = dev.enabled
-        onDeviceItem?.toolTip = note
-        deviceItem?.isEnabled = c.onDevice
+        let dev = LLMToggles.onDeviceItems(config: c, memory: ProcessInfo.processInfo.physicalMemory)
+        onDeviceItem?.state = dev.toggle.checked ? .on : .off
+        onDeviceItem?.isEnabled = dev.toggle.enabled
+        onDeviceNoteItem?.title = dev.note ?? ""
+        onDeviceNoteItem?.isHidden = dev.note == nil
+        deviceItem?.isEnabled = dev.pickerEnabled
     }
 
     @objc func toggleOpenAI() {
