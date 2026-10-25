@@ -134,6 +134,21 @@ public enum PackMaker {
         return String(decoding: try! JSONSerialization.data(withJSONObject: s, options: [.sortedKeys]), as: UTF8.self)
     }()
 
+    /// The text of a saved HTML page: no scripts, styles or tags. A table row, a paragraph and a list item each get
+    /// one line. Text that is not HTML stays as it is.
+    public static func plainText(html: String) -> String {
+        guard html.range(of: #"<[a-zA-Z!/][^>]*>"#, options: .regularExpression) != nil else { return html }
+        var s = html.replacingOccurrences(of: #"(?is)<(script|style|head)\b.*?</\1>"#, with: "", options: .regularExpression)
+        s = s.replacingOccurrences(of: #"(?i)<(br|/tr|/p|/li|/h[1-6]|/div|/dt|/dd)\b[^>]*>"#, with: "\n", options: .regularExpression)
+        s = s.replacingOccurrences(of: #"(?i)</t[dh]>"#, with: " ", options: .regularExpression)
+        s = s.replacingOccurrences(of: #"<[^>]*>"#, with: "", options: .regularExpression)
+        for (e, c) in [("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&#39;", "'"), ("&nbsp;", " "), ("&amp;", "&")] {
+            s = s.replacingOccurrences(of: e, with: c)
+        }
+        return s.split(whereSeparator: \.isNewline).map { $0.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
+            .filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
     /// A TOML basic string.
     public static func quote(_ s: String) -> String {
         var o = "\""

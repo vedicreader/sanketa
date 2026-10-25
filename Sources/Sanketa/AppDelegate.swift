@@ -5,10 +5,11 @@ import SanketaCore
 import SanketaSystem
 import SanketaUI
 import SanketaAI
+import SanketaMLX
 
 let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Sanketa")
 
-@MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
+@MainActor final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var config: Config
     /// why config.toml did not load, for the footer and Copy Debug Info
     var configError: String?
@@ -40,6 +41,9 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     var searchItem: NSMenuItem?
     /// Leela's keys.json, the user packs folder and config.toml: a save applies without a restart
     var watchers: [FileWatcher] = []
+    /// the open Make a Pack window, and the status-menu item that opens it
+    var packMaker: PackMakerWindow?
+    var makePackItem: NSMenuItem?
 
     override init() {
         (config, configError, configNote) = readConfig()
@@ -67,8 +71,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         panel.grantAccessibility = { [weak self] in self?.grantAccessibility() }
         panel.openFile = { [weak self] in self?.openForEditing(URL(fileURLWithPath: $0)) }
         panel.makePack = { [weak self] layer in
-            do { self?.openForEditing(try PackStarter.make(for: layer, in: packsDir)) }
-            catch { FileHandle.standardError.write(Data("cannot make a pack for \(layer.name): \(error.localizedDescription)\n".utf8)) }
+            guard let self else { return }
+            if layer.kind == .app, let app = running(monitor.context.bundleID) { openPackMaker(app) } else { makeStarter(layer) }
         }
         panel.setTranslucency(config.translucency)
         scheduleRotation()
@@ -147,16 +151,94 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         m.addItem(.separator())
         add("Reload Packs", #selector(reloadPacks))
         add("Open Packs Folder", #selector(openPacks))
+        add("Make a Pack…", #selector(makePackFromMenu))
+        makePackItem = m.items.last
         add("Open Config", #selector(openConfig))
         add("Allow Accessibility…", #selector(grantAccessibility))
         add("Copy Debug Info", #selector(copyDebugInfo))
         m.addItem(.separator())
         add("Quit Sanketa", #selector(quit))
+        m.delegate = self
         s.menu = m
         status = s
     }
 
     @objc func togglePanel() { panel.toggle() }
+
+    // MARK: make a pack
+
+    /// What "Make a Pack" works on: the GUI app in front, or the program in front in a terminal.
+    enum MakePackTarget { case app(NSRunningApplication), program(Layer), none }
+
+    /// From the context of the app that was in front before the menu opened; the menu does not change it.
+    func makePackTarget() -> MakePackTarget {
+        let c = monitor.context
+        if config.terminals.contains(c.bundleID) { return c.layers.first { $0.kind == .program }.map(MakePackTarget.program) ?? .none }
+        return running(c.bundleID).map(MakePackTarget.app) ?? .none
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu === status?.menu, let item = makePackItem else { return }
+        switch makePackTarget() {
+        case .app(let a): item.title = "Make a Pack for \(appName(a))…"; item.isEnabled = true; item.toolTip = nil
+        case .program(let l): item.title = "Make a Pack for \(l.name)…"; item.isEnabled = true; item.toolTip = nil
+        case .none: item.title = "Make a Pack…"; item.isEnabled = false; item.toolTip = "No app is in front."
+        }
+    }
+
+    @objc func makePackFromMenu() {
+        switch makePackTarget() {
+        case .app(let a): openPackMaker(a)
+        case .program(let l): makeStarter(l)
+        case .none: break
+        }
+    }
+
+    /// A first pack for a program in a terminal, opened in the editor.
+    func makeStarter(_ layer: Layer) {
+        do { openForEditing(try PackStarter.make(for: layer, in: packsDir)) }
+        catch { FileHandle.standardError.write(Data("cannot make a pack for \(layer.name): \(error.localizedDescription)\n".utf8)) }
+    }
+
+    func appName(_ a: NSRunningApplication) -> String {
+        let info = a.bundleURL.flatMap(Bundle.init(url:))?.infoDictionary
+        return info?["CFBundleDisplayName"] as? String ?? info?["CFBundleName"] as? String ?? a.localizedName ?? a.bundleIdentifier ?? "app"
+    }
+
+    /// The Make a Pack window for a GUI app. The prompt gets the name, version and bundle id from the app bundle, and the
+    /// menu shortcuts from Accessibility. It never reads the window title.
+    func openPackMaker(_ a: NSRunningApplication) {
+        guard let bid = a.bundleIdentifier, !bid.isEmpty else {
+            return KeyBox.tell("No bundle id", "This app has no bundle id. Sanketa cannot make a pack for it.")
+        }
+        if let w = packMaker, w.model.app.bundleID == bid { return w.show() }
+        packMaker?.window.close()
+        let version = a.bundleURL.flatMap(Bundle.init(url:))?.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let app = PackMaker.App(name: appName(a), bundleID: bid, version: version)
+        let pid = a.processIdentifier
+        Task.detached {
+            let menu = AXReader.isTrusted ? AXReader.menuShortcuts(pid: pid) : []
+            await MainActor.run { self.showPackMaker(app, menu: menu) }
+        }
+    }
+
+    func showPackMaker(_ app: PackMaker.App, menu: [MenuShortcut]) {
+        let existing = library.pack(bundleID: app.bundleID).flatMap { p in
+            [packsDir, bundledPacks()].lazy.compactMap { try? String(contentsOf: $0.appendingPathComponent(p.id + ".toml"), encoding: .utf8) }.first
+        }
+        let sender = llm.packMaker(), mlx = llm.router.onDevice as? MLXChooser
+        let model = PackMakerModel(.init(
+            app: app, menu: menu, existing: existing, config: config.llm, provider: llm.providerName,
+            onDeviceReady: mlx?.status() == .available,
+            sendOpenAI: sender.map { s in { try await s.send($0) } },
+            sendOnDevice: mlx.map { m in { try await m.makePack($0) } },
+            packsDir: packsDir, confirmReplace: { PackMakerWindow.confirmReplace($0) },
+            saved: { [weak self] _ in self?.reloadPacks(); self?.panel.show() }))
+        let w = PackMakerWindow(model: model, provider: llm.providerName)
+        w.onClose = { [weak self, weak w] in if self?.packMaker === w { self?.packMaker = nil } }
+        packMaker = w
+        w.show()
+    }
 
     /// Applies live and writes just `translucency` back to config.toml.
     @objc func pickTranslucency(_ sender: NSMenuItem) {

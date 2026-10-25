@@ -234,6 +234,15 @@ group = "Tabs"
         #expect(Set((schema["properties"] as? [String: Any])?.keys.map { $0 } ?? []) == ["keys", "tips"])
     }
 
+    /// A saved shortcut page becomes text with no tags, scripts or styles, one row on each line.
+    @Test func htmlFileBecomesPlainText() {
+        let html = "<html><head><style>td{color:red}</style><script>var k='Ctrl';</script></head><body><h1>Keys</h1><table><tr><td>Ctrl+S</td><td>Save &amp; close</td></tr><tr><td>&lt;</td><td>Shadows</td></tr></table></body></html>"
+        let t = PackMaker.plainText(html: html)
+        #expect(t.contains("Ctrl+S Save & close") && t.contains("< Shadows") && t.contains("Keys"))
+        #expect(!t.contains("td") && !t.contains("color:red") && !t.contains("var k") && !t.contains("&amp;"))
+        #expect(PackMaker.plainText(html: "Ctrl+S saves") == "Ctrl+S saves")
+    }
+
     @Test func diffShowsNewChangedAndRemovedKeys() {
         let old = Pack(id: "x", name: "X", keys: [KeyEntry(keys: "a", action: "A"), KeyEntry(keys: "b", action: "B")])
         let new = Pack(id: "x", name: "X", keys: [KeyEntry(keys: "a", action: "A2"), KeyEntry(keys: "c", action: "C")])
