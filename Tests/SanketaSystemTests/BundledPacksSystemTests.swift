@@ -21,13 +21,9 @@ import Testing
         return lib
     }
 
-    func snapshot(until ok: (ProcessSnapshot) -> Bool) -> ProcessSnapshot {
-        let end = Date().addingTimeInterval(5)
-        var s = SysctlProcesses.snapshot()
-        while !ok(s) && Date() < end {
-            Thread.sleep(forTimeInterval: 0.1)
-            s = SysctlProcesses.snapshot()
-        }
+    func snapshot(until ok: (ProcessSnapshot) -> Bool) async -> ProcessSnapshot {
+        var s = ProcessSnapshot([])
+        await waitUntil { s = SysctlProcesses.snapshot(); return ok(s) }
         return s
     }
 
@@ -47,7 +43,7 @@ import Testing
     }
 
     /// Every bundled tmux key is a default binding of a real tmux 3.x server with no config, so live merge keeps its label.
-    @Test func bundledTmuxKeysAreRealDefaults() throws {
+    @Test func bundledTmuxKeysAreRealDefaults() async throws {
         defer { _ = tmux(plain, ["kill-server"]) }
         _ = try #require(tmux(plain, ["-f", "/dev/null", "new", "-d", "-s", "p"]))
         let live = Tmux.parseKeys(try #require(tmux(plain, ["list-keys"])))
@@ -59,7 +55,7 @@ import Testing
     }
 
     /// fish → inner tmux → htop, as a real nested pane, resolves to the bundled pack ids; nvim in a pane maps to vim.
-    @Test func bundledPacksActivateForRealProcesses() throws {
+    @Test func bundledPacksActivateForRealProcesses() async throws {
         defer {
             _ = tmux(inner, ["kill-server"])
             _ = tmux(outer, ["kill-server"])
@@ -72,12 +68,11 @@ import Testing
             .flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) })
         _ = try #require(tmux(outer, ["send-keys", "-t", "outer",
             "set -gx SHELL /opt/homebrew/bin/fish; /opt/homebrew/bin/tmux -L \(inner) -f /dev/null new -s inner", "Enter"]))
-        let end = Date().addingTimeInterval(5)
-        while tmux(inner, ["has-session", "-t", "inner"]) == nil && Date() < end { Thread.sleep(forTimeInterval: 0.1) }
+        await waitUntil { tmux(inner, ["has-session", "-t", "inner"]) != nil }
         _ = try #require(tmux(inner, ["send-keys", "-t", "inner", "/opt/homebrew/bin/htop", "Enter"]))
         let pane = try #require(tmux(inner, ["display", "-p", "-t", "inner", "#{pane_tty}"]))
             .trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "/dev/", with: "")
-        let s = snapshot { $0.foreground(tty: pane)?.name == "htop" }
+        let s = await snapshot { $0.foreground(tty: pane)?.name == "htop" }
         let res = LayerResolver(library: lib, tmux: TmuxQuery(runner: r, socket: inner), remote: nil)
         let ls = res.resolve(s, terminal: TerminalContext(pid: server, bundleID: "test.terminal", appName: "TestTerm", windowTitle: nil))
         #expect(ls.map(\.name) == ["htop", "fish", "tmux", "TestTerm"])
@@ -86,7 +81,7 @@ import Testing
         _ = try #require(tmux(plain, ["-f", "/dev/null", "new", "-d", "-s", "v", "/opt/homebrew/bin/nvim", "--clean", "-n"]))
         let vpid = try #require(tmux(plain, ["display", "-p", "-t", "v", "#{pane_pid}"])
             .flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) })
-        let nvs = snapshot { $0.proc(vpid)?.name == "nvim" }
+        let nvs = await snapshot { $0.proc(vpid)?.name == "nvim" }
         let nv = try #require(nvs.proc(vpid))
         #expect(res.layer(nv.name, argv: nv.argv).packID == "vim")
     }
@@ -94,7 +89,7 @@ import Testing
     /// Claude Code as installed natively: the executable is `…/claude/versions/<version>` and argv[0] is `claude`.
     /// Described as data, not spawned: copying, re-signing and argv[0]-spoofing a binary trips the endpoint threat detector.
     /// Plus a real `python3 …/bin/ramabana` script.
-    @Test func argvAndNameMatchRealSpawnedProcesses() throws {
+    @Test func argvAndNameMatchRealSpawnedProcesses() async throws {
         let lib = try library()
         let res = LayerResolver(library: lib, tmux: TmuxQuery(runner: r, socket: plain), remote: nil)
         let d = try tempDir()
@@ -108,21 +103,21 @@ import Testing
         try "import time\ntime.sleep(30)\n".write(to: script, atomically: true, encoding: .utf8)
         let py = try spawn("/usr/bin/python3", [script.path, "--resume"])
         defer { py.terminate(); py.waitUntilExit() }
-        let pps = snapshot { $0.proc(py.processIdentifier)?.argv.contains(script.path) ?? false }
+        let pps = await snapshot { $0.proc(py.processIdentifier)?.argv.contains(script.path) ?? false }
         let pp = try #require(pps.proc(py.processIdentifier))
         try #require(!pp.name.contains("ramabana"))     // matched by argv, not by name
         #expect(res.layer(pp.name, argv: pp.argv) == Layer(kind: .program, name: "ramabana", packID: "ramabana"))
     }
 
     /// ramabana runs its own tmux server whose argv names the script, so that client resolves to ramabana, not tmux.
-    @Test func ramabanaPrivateTmuxResolvesToRamabana() throws {
+    @Test func ramabanaPrivateTmuxResolvesToRamabana() async throws {
         defer { _ = tmux(plain, ["kill-server"]) }
         let lib = try library()
         let script = try tempDir().appendingPathComponent("bin/ramabana").path
         _ = try #require(tmux(plain, ["-f", "/dev/null", "new", "-d", "-s", "r", "sh", "-c", "sleep 30", "ramabana", script]))
         let spid = try #require(tmux(plain, ["display", "-p", "-t", "r", "#{pid}"])
             .flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) })
-        let sps = snapshot { $0.proc(spid)?.argv.contains(script) ?? false }
+        let sps = await snapshot { $0.proc(spid)?.argv.contains(script) ?? false }
         let sp = try #require(sps.proc(spid))
         #expect(sp.name == "tmux")
         #expect(lib.pack(process: sp.name, argv: sp.argv)?.id == "ramabana")

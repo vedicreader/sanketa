@@ -17,13 +17,9 @@ import Testing
             .flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) })
     }
 
-    func snapshot(until ok: (ProcessSnapshot) -> Bool) -> ProcessSnapshot {
-        let end = Date().addingTimeInterval(5)
-        var s = SysctlProcesses.snapshot()
-        while !ok(s) && Date() < end {
-            Thread.sleep(forTimeInterval: 0.1)
-            s = SysctlProcesses.snapshot()
-        }
+    func snapshot(until ok: (ProcessSnapshot) -> Bool) async -> ProcessSnapshot {
+        var s = ProcessSnapshot([])
+        await waitUntil { s = SysctlProcesses.snapshot(); return ok(s) }
         return s
     }
 
@@ -43,7 +39,7 @@ import Testing
         TerminalContext(pid: pid, bundleID: "test.terminal", appName: "TestTerm", windowTitle: nil)
     }
 
-    @Test func resolveRealNestedTmuxHtop() throws {
+    @Test func resolveRealNestedTmuxHtop() async throws {
         defer {
             _ = tmux(inner, ["kill-server"])
             _ = tmux(outer, ["kill-server"])
@@ -52,14 +48,13 @@ import Testing
         // SHELL makes the inner server's default shell fish regardless of the user's login shell.
         _ = try #require(tmux(outer, ["send-keys", "-t", "outer",
             "set -gx SHELL /opt/homebrew/bin/fish; /opt/homebrew/bin/tmux -L \(inner) -f /dev/null new -s inner", "Enter"]))
-        let end = Date().addingTimeInterval(5)
-        while tmux(inner, ["has-session", "-t", "inner"]) == nil && Date() < end { Thread.sleep(forTimeInterval: 0.1) }
+        await waitUntil { tmux(inner, ["has-session", "-t", "inner"]) != nil }
         _ = try #require(tmux(inner, ["send-keys", "-t", "inner", "/opt/homebrew/bin/htop", "Enter"]))
         let tty = { (sock: String, t: String) in try #require(tmux(sock, ["display", "-p", "-t", t, "#{pane_tty}"]))
             .trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "/dev/", with: "") }
         let (outerPane, innerPane) = (try tty(outer, "outer"), try tty(inner, "inner"))
         // a process right after exec can still be outside its tty's foreground group
-        let s = snapshot { $0.foreground(tty: outerPane)?.name == "tmux" && $0.foreground(tty: innerPane)?.name == "htop" }
+        let s = await snapshot { $0.foreground(tty: outerPane)?.name == "tmux" && $0.foreground(tty: innerPane)?.name == "htop" }
         let res = LayerResolver(library: try library(), tmux: TmuxQuery(runner: r, socket: inner), remote: nil)
         let ls = res.resolve(s, terminal: term(server))
         #expect(ls.map(\.name) == ["htop", "fish", "tmux", "TestTerm"])
@@ -67,10 +62,10 @@ import Testing
         #expect(ls.map(\.kind) == [.program, .shell, .multiplexer, .terminal])
     }
 
-    @Test func resolveRealSingleTTY() throws {
+    @Test func resolveRealSingleTTY() async throws {
         defer { _ = tmux(outer, ["kill-server"]) }
         let server = try startOuter(["/bin/sleep", "30"])
-        let s = snapshot { $0.children(of: server).contains { $0.name == "sleep" } }
+        let s = await snapshot { $0.children(of: server).contains { $0.name == "sleep" } }
         let res = LayerResolver(library: try library(), tmux: TmuxQuery(runner: r, socket: inner), remote: nil)
         let ls = res.resolve(s, terminal: term(server))
         #expect(ls.map(\.name) == ["sleep", "TestTerm"])
@@ -78,7 +73,7 @@ import Testing
     }
 
     /// Two tabs (outer panes): one runs an inner tmux client, the other plain fish; no title, so no guessed tmux layer.
-    @Test func resolveRealTwoTabsDoesNotGuessTmux() throws {
+    @Test func resolveRealTwoTabsDoesNotGuessTmux() async throws {
         defer {
             _ = tmux(inner, ["kill-server"])
             _ = tmux(outer, ["kill-server"])
@@ -88,9 +83,8 @@ import Testing
         _ = try #require(tmux(outer, ["new-window", "-d", "-t", "outer:1", "/opt/homebrew/bin/fish", "--no-config"]))
         _ = try #require(tmux(outer, ["send-keys", "-t", "outer:1",
             "set -gx SHELL /opt/homebrew/bin/fish; /opt/homebrew/bin/tmux -L \(inner) -f /dev/null new -s inner", "Enter"]))
-        let end = Date().addingTimeInterval(5)
-        while tmux(inner, ["has-session", "-t", "inner"]) == nil && Date() < end { Thread.sleep(forTimeInterval: 0.1) }
-        let s = snapshot { s in s.ttys(under: server).count == 2 && s.procs.contains { $0.name == "tmux" && $0.tty != nil } }
+        await waitUntil { tmux(inner, ["has-session", "-t", "inner"]) != nil }
+        let s = await snapshot { s in s.ttys(under: server).count == 2 && s.procs.contains { $0.name == "tmux" && $0.tty != nil } }
         try #require(s.ttys(under: server).count == 2)
         let res = LayerResolver(library: try library(), tmux: TmuxQuery(runner: r, socket: inner), remote: nil)
         let ls = res.resolve(s, terminal: term(server))

@@ -97,16 +97,14 @@ import Testing
         await m.refreshNow()
         let g = m.generation
         m.start()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        await pause(0.5)
         let t0 = mainThreadCPU()
-        RunLoop.main.run(until: Date().addingTimeInterval(3))
+        holdMain(3)
         #expect(mainThreadCPU() - t0 < 0.05)   // under ~2% of one core over 3 s, though it ticks every 0.5 s
         #expect(m.generation == g)
         // the timer does tick: a new line shows without a call to refreshNow
         fishAppend(["ls | wc -l"], in: d)
-        let end = Date().addingTimeInterval(5)
-        while m.generation == g, Date() < end { RunLoop.main.run(until: Date().addingTimeInterval(0.1)) }
-        #expect(m.generation != g)
+        #expect(await waitUntil { m.generation != g })
         m.stop()
     }
 

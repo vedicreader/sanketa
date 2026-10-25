@@ -49,7 +49,7 @@ func threadCPUSeconds() -> Double {
     }
 
     /// A child snapshotted between fork and exec must not keep the parent's path and argv after the exec.
-    @Test func execRefreshesCachedDetails() throws {
+    @Test func execRefreshesCachedDetails() async throws {
         let me = ProcessInfo.processInfo.processIdentifier
         let c = Process()
         c.executableURL = URL(fileURLWithPath: "/bin/sh")
@@ -58,20 +58,16 @@ func threadCPUSeconds() -> Double {
         defer { c.terminate(); c.waitUntilExit() }
         // the first snapshot can run before the child has exec'd /bin/sh: poll until its argv shows /bin/sh (the shell may be bash behind /bin/sh)
         var seen: ProcInfo?
-        let ready = Date().addingTimeInterval(2)
-        while Date() < ready {
+        await waitUntil(2, every: 0.02) {
             seen = SysctlProcesses.snapshot(under: [me]).proc(c.processIdentifier)
-            if seen?.argv.first == "/bin/sh" { break }
-            Thread.sleep(forTimeInterval: 0.02)
+            return seen?.argv.first == "/bin/sh"
         }
         let before = try #require(seen)
         #expect(["sh", "bash"].contains(before.name) && before.argv.first == "/bin/sh", "\(before)")
         var after = before
-        let end = Date().addingTimeInterval(5)
-        while Date() < end {
-            Thread.sleep(forTimeInterval: 0.1)
+        try await waitUntil {
             after = try #require(SysctlProcesses.snapshot(under: [me]).proc(c.processIdentifier))
-            if after.name == "sleep" { break }
+            return after.name == "sleep"
         }
         #expect(after.start == before.start)
         #expect(after.name == "sleep")

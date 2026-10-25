@@ -103,11 +103,11 @@ final class FakeRunner: CommandRunning, @unchecked Sendable {
         #expect(f.calls.count == 1)
     }
 
-    @Test func cacheExpires() {
+    @Test func cacheExpires() async throws {
         let f = FakeRunner(check: "", query: "htop\n")
         let q = RemoteQuery(runner: f, cacheSeconds: 0.1)
         _ = q.paneCommand(sshArgv: ["ssh", "gpubox"])
-        Thread.sleep(forTimeInterval: 0.2)
+        try await Task.sleep(for: .milliseconds(200))
         _ = q.paneCommand(sshArgv: ["ssh", "gpubox"])
         #expect(f.calls.count == 4)
     }

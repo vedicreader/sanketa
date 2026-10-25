@@ -14,12 +14,7 @@ import Testing
 
     func tmux(_ sock: String, _ args: [String]) -> String? { r.run(tmuxBin, ["-L", sock] + args, timeout: 3.0) }
 
-    func waitFor(_ ok: () -> Bool) {
-        let end = Date().addingTimeInterval(5)
-        while !ok() && Date() < end { Thread.sleep(forTimeInterval: 0.1) }
-    }
-
-    @Test func contextEngineRealTerminalStandIn() throws {
+    @Test func contextEngineRealTerminalStandIn() async throws {
         defer {
             _ = tmux(inner, ["kill-server"])
             _ = tmux(outer, ["kill-server"])
@@ -32,14 +27,14 @@ import Testing
             .flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) })
         _ = try #require(tmux(outer, ["send-keys", "-t", "outer",
             "set -gx SHELL /opt/homebrew/bin/fish; /opt/homebrew/bin/tmux -L \(inner) -f /dev/null new -s inner", "Enter"]))
-        waitFor { tmux(inner, ["has-session", "-t", "inner"]) != nil }
+        await waitUntil { tmux(inner, ["has-session", "-t", "inner"]) != nil }
         // a binding only the live server has proves the merge reads it
         _ = try #require(tmux(inner, ["bind-key", "|", "split-window", "-h"]))
         _ = try #require(tmux(inner, ["send-keys", "-t", "inner", "/opt/homebrew/bin/htop", "Enter"]))
         let pane = try #require(tmux(inner, ["display", "-p", "-t", "inner", "#{pane_tty}"]))
             .trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "/dev/", with: "")
         // other suites may run htop concurrently; wait for ours, on the inner pane's tty
-        waitFor { SysctlProcesses.snapshot().foreground(tty: pane)?.name == "htop" }
+        await waitUntil { SysctlProcesses.snapshot().foreground(tty: pane)?.name == "htop" }
 
         var config = Config()
         config.terminals = ["test.terminal"]
@@ -123,11 +118,11 @@ import Testing
         #expect(loads == 2)
     }
 
-    @Test func entriesExpireAfterTTL() {
+    @Test func entriesExpireAfterTTL() async {
         let c = TTLCache<String, Int>(ttl: 0.2)
         #expect(c.get("k") { 1 } == 1)
         #expect(c.get("k") { 2 } == 1)
-        Thread.sleep(forTimeInterval: 0.3)
+        await pause(0.3)
         #expect(c.get("k") { 3 } == 3)
     }
 }

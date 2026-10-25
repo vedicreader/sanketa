@@ -4,30 +4,30 @@ import Testing
 
 /// Real files in a temp dir: in-place writes (how Python's write_text saves keys.json), atomic replaces, delete and re-create.
 @Suite struct FileWatcherTests {
-    @Test func reportsWritesReplacesAndRecreation() throws {
+    @Test func reportsWritesReplacesAndRecreation() async throws {
         let d = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-watch-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         let f = d.appendingPathComponent("keys.json")
         try Data("{}".utf8).write(to: f)
-        let hit = DispatchSemaphore(value: 0)
+        let hit = Signals()
         let w = FileWatcher(url: f, callbackQueue: DispatchQueue(label: "test")) { hit.signal() }
         defer { withExtendedLifetime(w) {} }
 
         let h = try FileHandle(forWritingTo: f)              // in place: same inode
         try h.truncate(atOffset: 0); try h.write(contentsOf: Data(#"{"keys": {}}"#.utf8)); try h.close()
-        #expect(hit.wait(timeout: .now() + 3) == .success, "in-place write")
+        #expect(await hit.next(timeout: 3), "in-place write")
 
         try Data(#"{"keys": {"a": "b"}}"#.utf8).write(to: f, options: .atomic)     // new inode via rename
-        #expect(hit.wait(timeout: .now() + 3) == .success, "atomic replace")
+        #expect(await hit.next(timeout: 3), "atomic replace")
 
         let h2 = try FileHandle(forWritingTo: f)             // the watch moved to the new inode
         try h2.seekToEnd(); try h2.write(contentsOf: Data(" ".utf8)); try h2.close()
-        #expect(hit.wait(timeout: .now() + 3) == .success, "write after replace")
+        #expect(await hit.next(timeout: 3), "write after replace")
 
         try FileManager.default.moveItem(at: f, to: d.appendingPathComponent("old.json"))
-        #expect(hit.wait(timeout: .now() + 3) == .success, "moved away")
+        #expect(await hit.next(timeout: 3), "moved away")
         try Data("{}".utf8).write(to: f)
-        #expect(hit.wait(timeout: .now() + 3) == .success, "created again")
+        #expect(await hit.next(timeout: 3), "created again")
     }
 
     func folder() throws -> URL {
@@ -37,47 +37,47 @@ import Testing
     }
 
     /// A packs folder: new files, in-place saves of a pack, atomic saves and removal each report once.
-    @Test func watchesEveryPackInAFolder() throws {
+    @Test func watchesEveryPackInAFolder() async throws {
         let d = try folder()
         let a = d.appendingPathComponent("a.toml")
         try Data("id = \"a\"".utf8).write(to: a)
-        let hit = DispatchSemaphore(value: 0)
+        let hit = Signals()
         let w = FileWatcher(url: d, children: "toml", delay: 0.3, callbackQueue: DispatchQueue(label: "test")) { hit.signal() }
         defer { withExtendedLifetime(w) {} }
 
         let h = try FileHandle(forWritingTo: a)              // in place: the folder does not change
         try h.seekToEnd(); try h.write(contentsOf: Data("\nname = \"A\"".utf8)); try h.close()
-        #expect(hit.wait(timeout: .now() + 3) == .success, "in-place save of a pack")
+        #expect(await hit.next(timeout: 3), "in-place save of a pack")
 
         let b = d.appendingPathComponent("b.toml")
         try Data("id = \"b\"".utf8).write(to: b, options: .atomic)
-        #expect(hit.wait(timeout: .now() + 3) == .success, "new pack")
+        #expect(await hit.next(timeout: 3), "new pack")
 
         let hb = try FileHandle(forWritingTo: b)             // the new file is watched too
         try hb.seekToEnd(); try hb.write(contentsOf: Data(" ".utf8)); try hb.close()
-        #expect(hit.wait(timeout: .now() + 3) == .success, "in-place save of the new pack")
+        #expect(await hit.next(timeout: 3), "in-place save of the new pack")
 
         try FileManager.default.moveItem(at: a, to: d.deletingLastPathComponent().appendingPathComponent("a.toml"))
-        #expect(hit.wait(timeout: .now() + 3) == .success, "pack moved away")
+        #expect(await hit.next(timeout: 3), "pack moved away")
     }
 
     /// config.toml sits next to the packs folder: saving it must not reload the packs.
-    @Test func ignoresSiblingsOfTheWatchedFolder() throws {
+    @Test func ignoresSiblingsOfTheWatchedFolder() async throws {
         let d = try folder()
         try Data("id = \"a\"".utf8).write(to: d.appendingPathComponent("a.toml"))
-        let hit = DispatchSemaphore(value: 0)
+        let hit = Signals()
         let w = FileWatcher(url: d, children: "toml", delay: 0.1, callbackQueue: DispatchQueue(label: "test")) { hit.signal() }
         defer { withExtendedLifetime(w) {} }
         let config = d.deletingLastPathComponent().appendingPathComponent("config.toml")
         try Data("hotkey = \"ctrl+opt+k\"".utf8).write(to: config, options: .atomic)
         try Data("hotkey = \"ctrl+opt+j\"".utf8).write(to: config, options: .atomic)
-        #expect(hit.wait(timeout: .now() + 1) == .timedOut, "a config.toml save reloaded the packs")
+        #expect(await !hit.next(timeout: 1), "a config.toml save reloaded the packs")
         try Data("id = \"b\"".utf8).write(to: d.appendingPathComponent("b.toml"), options: .atomic)
-        #expect(hit.wait(timeout: .now() + 3) == .success, "a new pack still reloads")
+        #expect(await hit.next(timeout: 3), "a new pack still reloads")
     }
 
     /// An editor's save is a burst of events; the watcher reports it once, after the debounce.
-    @Test func debouncesABurst() throws {
+    @Test func debouncesABurst() async throws {
         let d = try folder()
         let a = d.appendingPathComponent("a.toml")
         try Data("x".utf8).write(to: a)
@@ -91,9 +91,9 @@ import Testing
         for i in 0..<5 {
             let h = try FileHandle(forWritingTo: a)
             try h.seekToEnd(); try h.write(contentsOf: Data("\(i)".utf8)); try h.close()
-            Thread.sleep(forTimeInterval: 0.05)
+            await pause(0.05)
         }
-        Thread.sleep(forTimeInterval: 1.0)
+        await pause(1.0)
         let got = lock.withLock { hits }
         // a loaded machine can split the burst once; it must never report each write
         #expect((1...2).contains(got.count), "\(got.count) callbacks for 5 writes")

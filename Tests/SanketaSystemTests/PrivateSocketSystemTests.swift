@@ -16,23 +16,18 @@ import Testing
     func tmux(_ sock: String, _ args: [String]) -> String? { r.run(tmuxBin, ["-L", sock] + args, timeout: 3.0) }
     func trimmed(_ s: String?) -> String? { s?.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    func waitFor(_ ok: () -> Bool) {
-        let end = Date().addingTimeInterval(5)
-        while !ok() && Date() < end { Thread.sleep(forTimeInterval: 0.1) }
-    }
-
     /// Starts the outer server with fish, types `tmux -L inner -f conf new -s inner <cmd>` into it and waits for the
     /// inner pane's foreground process `fg`. `cmd` has more than one word, so tmux runs it with no shell. Returns the outer server pid (the "terminal").
-    func start(innerCommand cmd: String, conf: URL, fg: String) throws -> Int32 {
+    func start(innerCommand cmd: String, conf: URL, fg: String) async throws -> Int32 {
         _ = try #require(tmux(outer, ["-f", "/dev/null", "new", "-d", "-s", "outer", "-x", "200", "-y", "50",
                                       "/opt/homebrew/bin/fish", "--no-config"]))
         let server = try #require(trimmed(tmux(outer, ["display", "-p", "-t", "outer", "#{pid}"])).flatMap { Int32($0) })
         _ = try #require(tmux(outer, ["send-keys", "-t", "outer",
             "set -gx SHELL /opt/homebrew/bin/fish; \(tmuxBin) -L \(inner) -f \(conf.path) new -s inner \(cmd)", "Enter"]))
-        waitFor { tmux(inner, ["has-session", "-t", "inner"]) != nil }
+        await waitUntil { tmux(inner, ["has-session", "-t", "inner"]) != nil }
         let pane = try #require(trimmed(tmux(inner, ["display", "-p", "-t", "inner", "#{pane_tty}"])))
             .replacingOccurrences(of: "/dev/", with: "")
-        waitFor { SysctlProcesses.snapshot().foreground(tty: pane)?.name == fg }
+        await waitUntil { SysctlProcesses.snapshot().foreground(tty: pane)?.name == fg }
         try #require(SysctlProcesses.snapshot().foreground(tty: pane)?.name == fg)
         return server
     }
@@ -56,9 +51,9 @@ import Testing
     }
 
     /// htop in a pane of a private server: the resolver finds the pane through the client's `-L` argument.
-    @Test func resolverFindsPaneThroughClientArgv() throws {
+    @Test func resolverFindsPaneThroughClientArgv() async throws {
         defer { _ = tmux(inner, ["kill-server"]); _ = tmux(outer, ["kill-server"]) }
-        let server = try start(innerCommand: "/opt/homebrew/bin/htop -d 50", conf: try conf(), fg: "htop")
+        let server = try await start(innerCommand: "/opt/homebrew/bin/htop -d 50", conf: try conf(), fg: "htop")
         let lib = PackLibrary.load(bundled: Self.packs, user: nil)
         let res = LayerResolver(library: lib, tmux: TmuxQuery(runner: r), remote: nil)
         let ls = res.resolve(SysctlProcesses.snapshot(), terminal: TerminalContext(pid: server, bundleID: "test.terminal",
@@ -68,9 +63,9 @@ import Testing
     }
 
     /// The engine, with no socket set, shows the pane and takes the live keys from the private server's config.
-    @Test func engineLiveKeysComeFromThePrivateServer() throws {
+    @Test func engineLiveKeysComeFromThePrivateServer() async throws {
         defer { _ = tmux(inner, ["kill-server"]); _ = tmux(outer, ["kill-server"]) }
-        let server = try start(innerCommand: "/opt/homebrew/bin/htop -d 50", conf: try conf(), fg: "htop")
+        let server = try await start(innerCommand: "/opt/homebrew/bin/htop -d 50", conf: try conf(), fg: "htop")
         var config = Config()
         config.terminals = ["test.terminal"]
         let c = ContextEngine(config: config, library: PackLibrary.load(bundled: Self.packs, user: nil))
@@ -83,11 +78,11 @@ import Testing
 
     /// ramabana's shape: a private server whose argv names bin/ramabana. The pane's layer is ramabana; the client's
     /// tmux layer has the same pack, so it shows once.
-    @Test func ramabanaPaneShowsAboveItsTmux() throws {
+    @Test func ramabanaPaneShowsAboveItsTmux() async throws {
         defer { _ = tmux(inner, ["kill-server"]); _ = tmux(outer, ["kill-server"]) }
         let script = try conf().deletingLastPathComponent().appendingPathComponent("bin/ramabana").path
         // `; :` keeps sh alive (no exec of sleep), as ramabana's script keeps its interpreter alive
-        let server = try start(innerCommand: "sh -c 'sleep 30; :' ramabana \(script)", conf: try conf(), fg: "bash")
+        let server = try await start(innerCommand: "sh -c 'sleep 30; :' ramabana \(script)", conf: try conf(), fg: "bash")
         var config = Config()
         config.terminals = ["test.terminal"]
         let c = ContextEngine(config: config, library: PackLibrary.load(bundled: Self.packs, user: nil))
