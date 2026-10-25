@@ -109,7 +109,7 @@ You can type a question, such as "how do I split the window side by side". When 
 
 Sanketa tries these models in this order, and it uses the first one that works:
 
-1. The on-device model. It runs on this Mac, after you download it from the On-Device Model menu. Gemma 4 E4B is the best choice. It is a 5.4 GB download and uses about 5.2 GB of memory while it runs, so Sanketa shows it only on a Mac with 16 GB of memory or more. Qwen3.5-4B is a 3.1 GB download and uses about 3.7 GB. Use it on a Mac with 8 GB. Qwen3.5-2B is a 1.7 GB download and uses about 2.3 GB. If Gemma 4 E4B does not load on your Mac, the menu then offers Qwen3.5-4B 6-bit. It is a 4.1 GB download. Sanketa loads the model when you open the panel or search. While the model loads, the search is plain, and the next search uses the model. Sanketa frees the memory after one minute with no search. The download needs the app build of Sanketa, which has MLX. A build from `swift build` has no MLX, so its download items are off.
+1. The on-device model. It runs on this Mac, after you download it from the On-Device Model menu. Gemma 4 E4B is the best choice. It is a 5.4 GB download and uses about 5.2 GB of memory while it runs, so Sanketa shows it only on a Mac with 16 GB of memory or more. Qwen3.5-4B is a 3.1 GB download and uses about 3.7 GB. Use it on a Mac with 8 GB. Qwen3.5-2B is a 1.7 GB download and uses about 2.3 GB. If Gemma 4 E4B does not load on your Mac, the menu then offers Qwen3.5-4B 6-bit. It is a 4.1 GB download. Sanketa loads the model when you start a search. While the model loads, the search is plain, and the next search uses the model. Sanketa frees the memory after one minute with no search. The download needs the app build of Sanketa, which has MLX. A build from `swift build` has no MLX, so its download items are off.
 2. Apple Intelligence. Sanketa uses it if you turned it on in System Settings. You do not have to.
 3. An OpenAI server. This is off until you set `openai = true` in `[llm]`.
 4. Plain search, when no model works. One gray line under the results then tells why, such as "Plain search: Apple Intelligence is off". Sanketa shows no popup and makes no sound.
@@ -262,7 +262,7 @@ Sanketa --install-model e4b                              # download Gemma 4 E4B 
 
 ### Releases
 
-`make release` signs the bundle with your Developer ID Application identity and a secure timestamp. Then it makes a zip in `dist/`. If it finds notary credentials, it sends the zip to Apple and waits. When Apple accepts the zip, it staples the ticket to the bundle and makes the zip again. If Apple rejects the zip, it shows the issues from the notary log.
+`make release` signs the bundle with your Developer ID Application identity and a secure timestamp. Then it makes a zip in `dist/`, sends the zip to Apple and waits. When Apple accepts the zip, it staples the ticket to the bundle. Then it checks the bundle with `xcrun stapler validate` and `spctl`, and makes the zip again. If Apple rejects the zip, it shows the issues from the notary log and stops. The version comes from `Resources/Info.plist` only. `make release` and `make publish` stop if you set `VERSION`.
 
 `scripts/notarize.sh` uses the first credentials that it finds:
 
@@ -283,17 +283,18 @@ xcrun notarytool store-credentials sanketa-notary --apple-id <id> --team-id <tea
 make release NOTARY_PROFILE=sanketa-notary
 ```
 
-Without credentials, the zip has a signature, but Gatekeeper rejects it. After notarization, `make gatekeeper` shows "accepted, source=Notarized Developer ID".
+Without credentials, `make release` stops, because Gatekeeper rejects a zip that Apple did not notarize. For a local build, use `make app` or `make zip`. These builds are not notarized. After notarization, `make gatekeeper` shows "accepted, source=Notarized Developer ID".
 
-Releases are signed and notarized only on the maintainer's Mac. GitHub has no signing keys or notary keys. To publish a release, run `make publish`. It runs `make release`. Then it uses `gh release create` to make the release `v<version>` with the notarized zip. This also pushes the tag.
+Releases are signed and notarized only on the maintainer's Mac. GitHub has no signing keys or notary keys. To publish a release, push main first, then run `make publish`. It runs `make release`, and then it checks the ticket again. If the check fails, it stops before it uploads. Then it uses `gh release create --target main` to make the release `v<version>`. This also pushes the tag. The release has two zips with the same contents: `Sanketa-<version>.zip` and `Sanketa.zip`. The name `Sanketa.zip` does not change, so the download button always gets the latest release.
 
 The GitHub Actions job builds and tests each push to main and each pull request. It uploads a bundle with an ad-hoc signature as `Sanketa-<sha>.zip`. The job does not make or change a release.
 
-The code has four libraries and the app:
+The code has five libraries and the app:
 
 - `SanketaCore` has the logic: packs, settings, layers, the better-ways rules and the model choice rules.
 - `SanketaSystem` reads processes, tmux, Accessibility, ssh and shell history.
 - `SanketaAI` talks to Apple Intelligence and OpenAI servers, finds the API key and downloads the on-device model.
+- `SanketaMLX` loads the on-device model with MLX and runs it.
 - `SanketaUI` draws the panel.
 - `Sources/Sanketa` is the app.
 
