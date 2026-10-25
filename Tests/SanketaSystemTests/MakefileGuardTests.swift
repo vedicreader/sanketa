@@ -87,8 +87,30 @@ import Testing
         }
     }
 
+    /// make -i goes on after a failed line, so a failed notarization could still reach the upload.
+    @Test func ignoreErrorsGuardRefusesEveryForm() throws {
+        let cases: [[String]] = [["-i"], ["--ignore-errors"], ["--ignore"], ["-ki"], ["-ik"], ["-k", "-i"], ["-i", "-j4"],
+                                 ["-j4", "-i"], ["-i", "--no-print-directory"], ["--ignore-errors", "--no-print-directory"],
+                                 ["-s", "-i"], ["-iB"],
+                                 // the guard's own variables are override, so the command line cannot empty them
+                                 ["-i", "ndr_words="], ["-i", "ndr_short=", "ndr_flags="], ["-i", "ndr_letters=x"]]
+        for args in cases {
+            let r = try guardMake(args)
+            #expect(r.status == 2 && r.err.contains("release and publish do not run with -i"), "\(args): \(r.out) \(r.err)")
+            #expect(!r.out.contains("ran"), "\(args): \(r.out)")
+        }
+        for flags in ["i", "-i", "ki", "--ignore-errors", "--ignore-errors --no-print-directory", "-k -i"] {
+            let r = try guardMake([], makeflags: flags)
+            #expect(r.status == 2 && r.err.contains("release and publish do not run with -i"), "MAKEFLAGS=\(flags): \(r.out) \(r.err)")
+            #expect(!r.out.contains("ran"), "MAKEFLAGS=\(flags): \(r.out)")
+        }
+        // -n with -i: refused, by the first check
+        let both = try guardMake(["-n", "-i"])
+        #expect(both.status == 2 && !both.out.contains("ran"), "\(both.out) \(both.err)")
+    }
+
     @Test func dryRunGuardLetsRealRunsThrough() throws {
-        for args in [["-k"], ["-j4"], ["--no-print-directory"], []] {
+        for args in [["-k"], ["-j4"], ["--no-print-directory"], ["-s"], ["-kB"], []] {
             let r = try guardMake(args)
             #expect(r.status == 0 && r.out.contains("ran"), "\(args): \(r.out) \(r.err)")
         }
