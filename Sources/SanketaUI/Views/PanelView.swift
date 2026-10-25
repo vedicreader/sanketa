@@ -97,7 +97,7 @@ struct PanelView: View {
     /// Results use the list's grammar, on the panel's own tint: no box.
     var results: some View {
         ResultsList(results: search.results, selection: search.selection, prefix: search.prefix(for:), pick: pick, query: search.query,
-                    picked: search.picked, note: search.note)
+                    picked: search.picked, note: search.note, expanded: search.expanded, copy: { model.copy($0) })
     }
 }
 
@@ -111,6 +111,9 @@ struct ResultsList: View {
     var picked: Set<String> = []
     /// one muted line under the results
     var note: String?
+    /// the result that shows all its text
+    var expanded: String?
+    var copy: (String) -> Void = { _ in }
 
     static func noResult(_ q: String) -> String { "No result for \u{201C}\(q.trimmingCharacters(in: .whitespaces))\u{201D}." }
     static let noResultHelp = "Search finds keys and tips in all packs. Press esc to close."
@@ -122,7 +125,8 @@ struct ResultsList: View {
                     Text(r.packName).font(Theme.header).foregroundStyle(Theme.secondary)
                         .padding(.top, i == 0 ? 0 : 8).padding(.leading, 6)
                 }
-                ResultRow(item: r, prefix: prefix(r.packID), selected: i == selection, picked: picked.contains(r.id)).onTapGesture { pick(i) }
+                ResultRow(item: r, prefix: prefix(r.packID), selected: i == selection, picked: picked.contains(r.id),
+                          expanded: expanded == r.id, toggle: { pick(i) }, copy: copy)
             }
             if results.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
@@ -139,12 +143,22 @@ struct ResultsList: View {
 }
 
 /// One row, like the list: the action on the left and the keys on the right. A tip shows its snippet on a second
-/// line, cut to one line. The selection is a saffron bar, with no fill.
+/// line, cut to one line. The selection is a saffron bar, with no fill. A click shows all the text, with a key's
+/// command; on hover, a copy button copies the snippet or command, and a tooltip gives the full text.
 struct ResultRow: View {
     let item: SearchItem
     var prefix: String?
     let selected: Bool
     var picked = false
+    var expanded = false
+    var toggle: () -> Void = {}
+    var copy: (String) -> Void = { _ in }
+    @State var hover = false
+
+    var full: String {
+        [item.title, item.kind == .key ? KeyNotation.display(item.detail, prefix: prefix) : item.detail, item.command, item.explain]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
@@ -153,21 +167,42 @@ struct ResultRow: View {
                 Circle().fill(Theme.accent).frame(width: 5, height: 5).padding(.trailing, 5).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                     .accessibilityLabel("Chosen by the model")
             }
-            if item.kind == .key {
-                Text(item.title).font(Theme.text).foregroundStyle(.primary).lineLimit(2)
-                Spacer(minLength: 10)
-                KeyChip(keys: item.detail, prefix: prefix).frame(minWidth: Theme.keyColumn, alignment: .trailing).layoutPriority(1)
-            } else {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title).font(Theme.text).foregroundStyle(.primary).lineLimit(1)
-                    Text(item.detail).font(Theme.snippet).foregroundStyle(Theme.secondary).lineLimit(1).truncationMode(.tail)
+            VStack(alignment: .leading, spacing: 2) {
+                if item.kind == .key {
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Text(item.title).font(Theme.text).foregroundStyle(.primary)
+                            .lineLimit(expanded ? nil : 2).fixedSize(horizontal: false, vertical: expanded)
+                        Spacer(minLength: 10)
+                        KeyChip(keys: item.detail, prefix: prefix).frame(minWidth: Theme.keyColumn, alignment: .trailing).layoutPriority(1)
+                    }
+                    if expanded, let c = item.command, c != item.title {
+                        Text(c).font(Theme.snippet).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    }
+                } else {
+                    Text(item.title).font(Theme.text).foregroundStyle(.primary)
+                        .lineLimit(expanded ? nil : 1).fixedSize(horizontal: false, vertical: expanded)
+                    Text(item.detail).font(Theme.snippet).foregroundStyle(expanded ? .primary : Theme.secondary)
+                        .lineLimit(expanded ? nil : 1).truncationMode(.tail).fixedSize(horizontal: false, vertical: expanded)
+                        .textSelection(.enabled)
+                    if expanded, let e = item.explain, !e.isEmpty {
+                        Text(e).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, Theme.rowPad).padding(.trailing, 6)
+        .padding(.vertical, Theme.rowPad)
+        // a slot for the copy button inside the row, so the pointer stays in the hover area on its way to the button
+        .padding(.trailing, CopyButton.slot)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        .onTapGesture(perform: toggle)
+        .overlay(alignment: .topTrailing) {
+            if hover, let t = item.copyText { CopyButton { copy(t) }.padding(.top, Theme.rowPad) }
+        }
+        .onHover { hover = $0 }
+        .help(full)
     }
 }
 

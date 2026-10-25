@@ -395,4 +395,27 @@ private func hits(_ item: SearchItem, _ gold: [(String, String)]) -> Bool {
         #expect(MLXRuntime.memory.active < 500_000_000)
         #expect(after < loaded)
     }
+
+    /// Typing on cancels the search before; its run must not hold the model, so the next search ends inside the
+    /// app's 5 s limit. Each search is measured alone first.
+    @Test(.enabled(if: MLXGate.ready), .timeLimit(.minutes(4))) func liveCancelledSearchDoesNotDelayTheNext() async throws {
+        let c = MLXChooser(spec: MLXGate.spec, installer: MLXGate.installer, idle: 60)
+        try await c.load()
+        let s = SmartSearch(router: router(c), timeout: 5), clock = ContinuousClock()
+        let a = "show my claude sessions please", b = "resume the last claude session"
+        func timed(_ q: String) async -> (SmartResult, Duration) {
+            let t = clock.now
+            let r = await s.results(q, bundled, context: ["claude"])
+            return (r, clock.now - t)
+        }
+        let (cold, first0) = await timed(splitQuery)        // the first run after a load
+        let (_, alone) = await timed(b)
+        print("live MLX: first search after the load \(first0), note \(cold.note ?? "-")")
+        let first = Task { await s.results(a, bundled, context: ["claude"]) }
+        try await Task.sleep(for: .milliseconds(300))
+        first.cancel()
+        let (r, after) = await timed(b)
+        print("live MLX: search alone \(alone); after a cancelled search \(after), note \(r.note ?? "-")")
+        #expect(r.note == nil, "the search after a cancelled one must not time out")
+    }
 }

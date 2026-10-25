@@ -72,7 +72,7 @@ struct LayerSection: View {
 
 /// One key: the action on the left and the keys on the right, one or two lines. A click shows all the text, with the
 /// full command when the key has one; a second click makes it short again. It never folds the group. On hover, a copy
-/// button at the trailing edge copies the keys as shown, and a tooltip gives the full text.
+/// button at the trailing edge copies the command, when there is one, and a tooltip gives the full text.
 struct KeyRow: View {
     let key: KeyEntry
     let prefix: String?
@@ -104,7 +104,7 @@ struct KeyRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: toggle)
         .overlay(alignment: .topTrailing) {
-            if hover { CopyButton { copy(PanelModel.copyText(key, prefix: prefix)) } }
+            if hover, let t = PanelModel.copyText(key) { CopyButton { copy(t) } }
         }
         .onHover { hover = $0 }
         .help(full)

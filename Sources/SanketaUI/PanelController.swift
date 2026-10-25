@@ -187,10 +187,8 @@ public final class SanketaPanel: NSPanel {
         prewarm()
     }
 
-    func pick(_ i: Int) {
-        search.select(i)
-        if search.activate() != nil { endSearch() }
-    }
+    /// A click on a result opens it; search stays open, so its copy button can be used. Return copies and closes.
+    func pick(_ i: Int) { search.click(i) }
 
     public func controlTextDidChange(_ n: Notification) { search.query = field.stringValue }
 

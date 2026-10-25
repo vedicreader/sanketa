@@ -8,10 +8,8 @@ struct TipCard: View {
     let mark: (TipMark) -> Void
     @State var hover = false
 
-    /// What the copy button copies: a key tip's keys as shown, else the snippet.
-    static func copyText(_ item: SearchItem, prefix: String?) -> String {
-        item.kind == .key ? KeyNotation.display(item.detail, prefix: prefix) : item.detail
-    }
+    /// What the copy button copies: the snippet, or a key tip's command.
+    static func copyText(_ item: SearchItem) -> String? { item.copyText }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -40,7 +38,7 @@ struct TipCard: View {
         .contentShape(Rectangle())
         // inside the card's frame, on the line under the header, so the pointer stays in the hover area
         .overlay(alignment: .topTrailing) {
-            if hover { CopyButton { copy(Self.copyText(item, prefix: prefix)) }.padding(.top, 18) }
+            if hover, let t = Self.copyText(item) { CopyButton { copy(t) }.padding(.top, 18) }
         }
         .onHover { hover = $0 }
     }
