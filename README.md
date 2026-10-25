@@ -189,7 +189,7 @@ A pack is a TOML file with the keys and tips for one program or app. These packs
 
 - Tools: awk, find, git, grep, htop, lazygit, nvidia-smi, nvtop, sed, shell pipes, vim and yazi.
 - Shells and tmux: bash, fish and tmux.
-- Apps and agents: Claude Code, Conterm, Leela and ramabana.
+- Apps and agents: Claude Code, Conterm, Leela, ramabana and RawTherapee.
 
 Put your own packs in `~/.config/sanketa/packs/`, one pack in each file. A pack with the same `id` as a bundled pack adds to it. To replace the bundled pack, set `mode = "replace"`. Sanketa loads a pack again when you save it. If a file has an error, Sanketa does not load it. The footer then shows one line for each bad file, such as "duckdb.toml: key 2 has no action." Click the line to open the file. To check a pack before you save it, run `Sanketa --lint-pack FILE`.
 

@@ -1,0 +1,423 @@
+# A Sanketa pack for RawTherapee 5.13 (macOS). Made with prompt-template.md, variant A.
+# To check it, run: Sanketa --lint-pack rawtherapee.toml
+#
+# Sources. Each entry has a "# src:" line with one or more of these tags.
+#   KS   RawPedia, "Keyboard Shortcuts", revision 8198 (7 May 2021).
+#        The live page (rawpedia.rawtherapee.com/Keyboard_Shortcuts) gave 404 on 25 Oct 2026.
+#        Read from https://web.archive.org/web/20260108135948/https://rawpedia.rawtherapee.com/Keyboard_Shortcuts
+#   RTW  RawTherapee 5.13 source, rtgui/windows/rtwindow.cc, RTWindow::keyPressed
+#   EP   RawTherapee 5.13 source, rtgui/editorpanel.cc, EditorPanel::handleShortcutKey
+#   FC   RawTherapee 5.13 source, rtgui/filecatalog.cc, FileCatalog::handleShortcutKey
+#   FB   RawTherapee 5.13 source, rtgui/filebrowser.cc, FileBrowser::keyPressed
+#   BQ   RawTherapee 5.13 source, rtgui/batchqueuepanel.cc
+#   PL   RawTherapee 5.13 source, tools/osx/Info.plist.in (CFBundleIdentifier)
+#   I3510, I6577  GitHub issues RawTherapee/RawTherapee #3510 (open) and #6577 (closed 2022)
+#
+# Mac key rule. RawTherapee is a GTK app. Its code tests GDK_CONTROL_MASK, which is the
+# Control key on macOS, not Command. Only Quit uses Command (⌘Q, RTW). Thus "Ctrl" in KS is ⌃ here.
+# "Alt" in KS is ⌥. The app menu bar is empty (RTW makes a dummy menu), so Sanketa reads only
+# the standard app menu (⌘Q, ⌘H). This pack does not repeat those keys.
+# Where KS and the 5.13 source do not agree (number keys), this pack follows the source.
+
+id = "rawtherapee"
+name = "RawTherapee"
+apps = ["com.rawtherapee.RawTherapee"]   # src: PL
+
+# --- Tabs ---------------------------------------------------------------
+
+[[keys]]   # src: KS, RTW. macOS uses ⌃F2 and ⌃F3 by default; see the tip "Free ⌃F2 to ⌃F4".
+keys = "⌃F2"
+action = "Go to File Browser"
+group = "Tabs"
+
+[[keys]]   # src: KS, RTW
+keys = "⌃F3"
+action = "Go to Queue"
+group = "Tabs"
+
+[[keys]]   # src: KS, RTW (single editor tab mode only)
+keys = "⌃F4"
+action = "Go to Editor"
+group = "Tabs"
+
+[[keys]]   # src: KS, FC
+keys = "⌃F"
+action = "Find in the focused list"
+group = "Tabs"
+
+# --- Processing profile -------------------------------------------------
+
+[[keys]]   # src: KS, FB
+keys = "⌃C"
+action = "Copy processing profile"
+group = "Processing profile"
+
+[[keys]]   # src: KS, FB
+keys = "⌃V"
+action = "Paste processing profile"
+group = "Processing profile"
+
+[[keys]]   # src: KS, FB
+keys = "⌃⇧V"
+action = "Paste part of the profile"
+group = "Processing profile"
+
+[[keys]]   # src: KS, EP
+keys = "⌃⇧S"
+action = "Save the profile now"
+group = "Processing profile"
+
+# --- Editor: view -------------------------------------------------------
+
+[[keys]]   # src: KS, EP
+keys = "z"
+action = "Zoom to 100%"
+group = "Editor: view"
+
+[[keys]]   # src: KS, EP
+keys = "f"
+action = "Zoom to the crop"
+group = "Editor: view"
+
+[[keys]]   # src: KS, EP
+keys = "+ / -"
+action = "Zoom in / out"
+group = "Editor: view"
+
+[[keys]]   # src: KS
+keys = "h"
+action = "Hand tool: move the view"
+group = "Editor: view"
+
+[[keys]]   # src: KS, EP
+keys = "9"
+action = "Change the preview background"
+group = "Editor: view"
+
+[[keys]]   # src: KS, EP
+keys = "B"
+action = "Before and after view"
+group = "Editor: view"
+
+[[keys]]   # src: KS, EP
+keys = "i"
+action = "Show photo info (Exif)"
+group = "Editor: view"
+
+# --- Editor: check the photo --------------------------------------------
+
+[[keys]]   # src: KS, EP
+keys = "<"
+action = "Show clipped shadows"
+group = "Editor: check"
+
+[[keys]]   # src: KS, EP
+keys = ">"
+action = "Show clipped highlights"
+group = "Editor: check"
+
+[[keys]]   # src: KS, EP
+keys = "r / g / b"
+action = "Red / green / blue only"
+group = "Editor: check"
+
+[[keys]]   # src: KS, EP
+keys = "v"
+action = "Luminosity only"
+group = "Editor: check"
+
+[[keys]]   # src: KS, EP
+keys = "F"
+action = "Focus mask (sharp areas)"
+group = "Editor: check"
+
+[[keys]]   # src: EP (not in KS)
+keys = "p"
+action = "Sharpening contrast mask"
+group = "Editor: check"
+
+# --- Editor: tools ------------------------------------------------------
+
+[[keys]]   # src: KS
+keys = "c"
+action = "Crop tool"
+group = "Editor: tools"
+
+[[keys]]   # src: KS
+keys = "s"
+action = "Straighten: draw a level line"
+group = "Editor: tools"
+
+[[keys]]   # src: KS
+keys = "w"
+action = "White balance spot picker"
+group = "Editor: tools"
+
+[[keys]]   # src: KS, EP
+keys = "[ / ]"
+action = "Turn left / right"
+group = "Editor: tools"
+
+[[keys]]   # src: KS, EP
+keys = "⌃Z"
+action = "Undo"
+group = "Editor: tools"
+
+[[keys]]   # src: KS, EP
+keys = "⌃⇧Z"
+action = "Redo"
+group = "Editor: tools"
+
+# --- Editor: output -----------------------------------------------------
+
+[[keys]]   # src: KS, EP
+keys = "⌃S"
+action = "Save the image as…"
+group = "Editor: output"
+
+[[keys]]   # src: KS
+keys = "⌃↩"
+action = "OK in the Save window"
+group = "Editor: output"
+
+[[keys]]   # src: KS, EP
+keys = "⌃E"
+action = "Open in an external editor"
+group = "Editor: output"
+
+[[keys]]   # src: KS, EP, FB
+keys = "⌃B"
+action = "Add to the queue"
+group = "Editor: output"
+
+[[keys]]   # src: KS, FB, EP (single editor tab mode)
+keys = "F3 / F4"
+action = "Previous / next image"
+group = "Editor: output"
+
+# --- Panels -------------------------------------------------------------
+
+[[keys]]   # src: KS, EP, FC
+keys = "l"
+action = "Left panel (History)"
+group = "Panels"
+
+[[keys]]   # src: KS, EP
+keys = "L"
+action = "Filmstrip"
+group = "Panels"
+
+[[keys]]   # src: KS, EP, FC
+keys = "m"
+action = "Hide all panels"
+group = "Panels"
+
+[[keys]]   # src: EP (not in KS)
+keys = "M"
+action = "Hide panels and fit image"
+group = "Panels"
+
+# --- File Browser -------------------------------------------------------
+
+[[keys]]   # src: KS, FB
+keys = "↑ / ↓ / ← / →"
+action = "Move between thumbnails"
+group = "File Browser"
+
+[[keys]]   # src: FB (not in KS)
+keys = "home / end"
+action = "First / last thumbnail"
+group = "File Browser"
+
+[[keys]]   # src: KS, FC
+keys = "[ / ]"
+action = "Turn thumbnail left / right"
+group = "File Browser"
+
+[[keys]]   # src: KS, FC
+keys = "- / +"
+action = "Smaller / bigger thumbnails"
+group = "File Browser"
+
+[[keys]]   # src: KS, FB
+keys = "F2"
+action = "Rename the file"
+group = "File Browser"
+
+[[keys]]   # src: KS, FC
+keys = "⌃O"
+action = "Type a folder path"
+group = "File Browser"
+
+[[keys]]   # src: KS, FC
+keys = "⌃T"
+action = "Show the trash"
+group = "File Browser"
+
+[[keys]]   # src: KS, EP
+keys = "x / y"
+action = "Find in Filmstrip (clear / keep filters)"
+group = "Panels"
+
+# --- Rate and label -----------------------------------------------------
+# Doubt: these keys use hardware key codes (FB, FC). I6577 says that number keys were
+# shifted on macOS in 2022. Test them on your Mac.
+
+[[keys]]   # src: FB. KS (2021) gives ⇧1–⇧5; the 5.13 source rates with the plain number.
+keys = "1–5"
+action = "Rate 1 to 5 stars"
+group = "Rate and label"
+
+[[keys]]   # src: FB
+keys = "0"
+action = "Remove the rating"
+group = "Rate and label"
+
+[[keys]]   # src: KS, FB
+keys = "⌃⇧1–⌃⇧5"
+action = "Label: red, yellow, green, blue, purple"
+group = "Rate and label"
+
+[[keys]]   # src: KS, FB
+keys = "⌃⇧0"
+action = "Remove the color label"
+group = "Rate and label"
+
+# --- Filters ------------------------------------------------------------
+
+[[keys]]   # src: FC. KS (2021) gives the plain number; the 5.13 source uses ⇧.
+keys = "⇧1–⇧5"
+action = "Filter: N stars"
+group = "Filters"
+
+[[keys]]   # src: FC
+keys = "⇧6 / ⇧7"
+action = "Filter: not edited / edited"
+group = "Filters"
+
+[[keys]]   # src: KS, FC
+keys = "d"
+action = "Clear all filters"
+group = "Filters"
+
+# --- Option keys --------------------------------------------------------
+# Doubt: I3510 (open) says ⌥ shortcuts do not work on macOS. On a US keyboard, ⌥E and ⌥I
+# are dead keys. Keep these in one group so that the user can test them and remove them.
+
+[[keys]]   # src: KS, EP
+keys = "⌥F"
+action = "Fit the whole image"
+group = "Option keys (test first)"
+
+[[keys]]   # src: KS, EP
+keys = "⌥S"
+action = "Add a snapshot"
+group = "Option keys (test first)"
+
+[[keys]]   # src: KS, EP, FC
+keys = "⌥L"
+action = "Right panel (tools)"
+group = "Option keys (test first)"
+
+[[keys]]   # src: KS
+keys = "⌥E / ⌥D / ⌥C"
+action = "Exposure / Detail / Color tab"
+group = "Option keys (test first)"
+
+[[keys]]   # src: KS
+keys = "⌥A / ⌥T / ⌥R"
+action = "Advanced / Transform / Raw tab"
+group = "Option keys (test first)"
+
+# --- Queue --------------------------------------------------------------
+
+[[keys]]   # src: KS, BQ
+keys = "⌃S"
+action = "Start or stop the queue"
+group = "Queue"
+
+# --- Tips ---------------------------------------------------------------
+
+[[tips]]   # src: I3510, RTW; macOS System Settings
+title = "Free ⌃F2 to ⌃F4"
+snippet = "System Settings → Keyboard → Keyboard Shortcuts → Keyboard → turn off the focus items"
+explain = "By default, macOS uses ⌃F2 to ⌃F4 to move focus. Turn them off to change tabs in RawTherapee."
+tags = ["tabs", "macos", "function keys"]
+
+[[tips]]   # src: macOS System Settings (not RawTherapee docs)
+title = "Use F keys without fn"
+snippet = "System Settings → Keyboard → Keyboard Shortcuts → Function Keys → Use F1, F2, etc. keys as standard function keys"
+explain = "On a MacBook, F2 to F4 change brightness. With this setting, they go to RawTherapee."
+tags = ["function keys", "macos"]
+
+[[tips]]   # src: KS
+title = "Compare with the original"
+snippet = "B"
+explain = "Shows the photo before and after your edits, side by side. Push B again to close it."
+tags = ["before", "after", "compare"]
+
+[[tips]]   # src: KS
+title = "Set exposure without lost detail"
+snippet = "> then < , then move Exposure compensation"
+explain = "Red areas have no highlight detail. Blue areas have no shadow detail. Move the slider until they are small."
+tags = ["exposure", "clipping", "highlights", "shadows"]
+
+[[tips]]   # src: KS
+title = "Fix white balance from a grey area"
+snippet = "w, click a neutral grey or white area, then right-click"
+explain = "The picker sets the white balance from that spot. Right-click gives back the normal cursor."
+tags = ["white balance", "color"]
+
+[[tips]]   # src: KS
+title = "Make the horizon level"
+snippet = "s, then drag along the horizon"
+explain = "The Rotate tool turns the photo so that the line you drew is level."
+tags = ["rotate", "straighten", "horizon"]
+
+[[tips]]   # src: KS
+title = "Check what is in focus"
+snippet = "F"
+explain = "The focus mask shows the sharp areas of the photo. Push F again to remove it."
+tags = ["focus", "sharpness"]
+
+[[tips]]   # src: KS, FB
+title = "Copy edits to other photos"
+snippet = "⌃C on the edited thumbnail, select the other thumbnails, ⌃V"
+explain = "Pastes all settings. Use ⌃⇧V to choose only some tools, such as white balance."
+tags = ["copy", "paste", "batch", "profile"]
+
+[[tips]]   # src: KS, EP, BQ
+title = "Export many photos"
+snippet = "⌃B on each photo, then ⌃F3, then ⌃S"
+explain = "⌃B adds the photo to the queue. ⌃S in the Queue tab starts or stops the export."
+tags = ["export", "queue", "batch"]
+
+[[tips]]   # src: KS
+title = "Try a change and go back"
+snippet = "⌥S, make the change, then click the snapshot in the History panel"
+explain = "A snapshot keeps the edits as they are now. If ⌥S does not work on your Mac, use the + button under Snapshots."
+tags = ["snapshot", "history", "undo"]
+
+[[tips]]   # src: KS. Doubt: GTK on macOS can treat ⌃ click as a right-click.
+title = "Move a curve point slowly"
+snippet = "⌃ drag a curve point"
+explain = "The point moves slower than the mouse. Use ⇧ drag to snap the point to key positions."
+tags = ["curves", "tone"]
+
+[[tips]]   # src: KS. Doubt: GTK on macOS can treat ⌃ click as a right-click.
+title = "Reset one slider"
+snippet = "⌃ click the reset button of the slider"
+explain = "Sets the slider to its value when you opened the photo. A click without ⌃ sets the default value."
+tags = ["slider", "reset"]
+
+[[tips]]   # src: KS
+title = "Open one tool and close the others"
+snippet = "Right-click the name of a tool"
+explain = "Opens that tool and closes all other tools in the tab. Use it to keep the panel short."
+tags = ["tools", "panel"]
+
+[[tips]]   # src: KS, EP
+title = "Keep your edits safe"
+snippet = "⌃⇧S"
+explain = "Writes the settings to the .pp3 file next to the photo now. RawTherapee also does this when you close the photo."
+tags = ["save", "profile", "pp3"]

@@ -25,7 +25,7 @@ func run(_ bin: String, _ args: [String], input: String) throws -> (Int32, Strin
 
 @Suite struct BundledPacksTests {
     static let core = ["tmux", "fish", "bash", "htop", "vim", "git", "grep", "awk", "find", "sed", "pipes", "nvtop", "nvidia-smi", "yazi", "lazygit"]
-    static let drafts = ["ramabana", "claude", "conterm", "leela"]
+    static let drafts = ["ramabana", "claude", "conterm", "leela", "rawtherapee"]
     /// as the app loads them: the leela pack gets Leela's default keymap (no keys.json)
     let lib = { var l = PackLibrary.load(bundled: bundledPacksDir, user: nil); LeelaKeymap.apply(to: &l, keysJSON: nil); return l }()
 
