@@ -86,12 +86,27 @@ Copy Debug Info copies a short report for a bug report. It has the version, the 
 The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search. Type a word to find a key or tip in all packs. Results from the current layers come first.
 
 - Press ↑ or ↓ to move the selection.
-- Press Return to copy the command or snippet of the selected result. A key that has no command copies nothing.
+- Press Return to copy the command or snippet of the selected result. A key that has no command copies nothing. A vault result can open instead. See "Vault search".
 - Click a result to see all its text, its command and its explanation. Click it again to make it short. Search stays open.
 - Put the pointer on a result to see all its text and a copy button. The copy button copies the command or the snippet.
 - Press Esc to give the focus back to your terminal.
 - Press Tab to go to the layer list. The search text stays.
 - In the layer list, press Tab, Shift-Tab, ↑ or ↓ to go to the next or previous section.
+
+### Vault search
+
+Search also finds documents in your vishalakshi vault. The vault keeps your learnings from abhyasa, your ramabana sessions and the other shelves of vishalakshi. One search box finds them all. Each tool keeps its own functions.
+
+- Type 3 letters or more. Sanketa waits until you stop typing for 0.2 seconds. Then it searches the vault.
+- The vault results come after the results from the packs. A heading shows the shelf of each result, such as "learning" or "leela". The main shelf shows as "vault".
+- Each result shows the title of the document and a short part of its text.
+- Sanketa finds words, not meanings. It uses the same word rules as the vault, so "joining" also finds "joins".
+- Press Return to open the selected result. A concept from abhyasa opens at `http://127.0.0.1:5077/c/<name>`. A web page opens in your browser. A file opens in its app if it is on this Mac. Other results copy their text.
+- Put the pointer on a result that can open. An open button then shows. Click it to open the result.
+
+Sanketa only reads the vault. It never changes it. The vault never leaves this Mac, and the model for natural-language search does not get it. A search of the vault stops after about 0.15 seconds, so typing stays fast. If Sanketa cannot find or read the vault, it shows no vault results and no error.
+
+Sanketa finds the vault in this order: `path` in `[vault]`, then the variable `VISHALAKSHI_VAULT`, then `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`. An app that you start from the Dock does not get the variables of your shell. Set `path` if your vault is in a different place. Sanketa skips the test shelves whose names start with `tmp` or `dialogprobe`. To turn vault search off, set `enabled = false` in `[vault]`.
 
 ### Layers and sections
 
@@ -194,6 +209,11 @@ openai_model = ""            # empty: the cheapest model
 base_url = "https://api.openai.com/v1"
 # api_key_env = "OPENROUTER_API_KEY"   # the variable with the key for base_url
 timeout_seconds = 5          # Sanketa stops waiting for the model after this
+
+[vault]                      # search your vishalakshi vault too, read-only
+enabled = true
+path = ""                    # empty: VISHALAKSHI_VAULT, then ABHYASA_VAULT, then ~/.vishalakshi/vault.db
+learning_url = "http://127.0.0.1:5077"   # abhyasa, which shows a concept at /c/<slug>
 ```
 
 The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. If another app uses the same keys, the footer tells you.

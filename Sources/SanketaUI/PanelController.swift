@@ -68,7 +68,8 @@ public final class SanketaPanel: NSPanel {
             pick: { [weak self] in self?.pick($0) },
             clickLayer: { [weak self] in self?.clickLayer($0) },
             openFile: { [weak self] in self?.openFile($0) },
-            makePack: { [weak self] in self?.makePack($0) }))
+            makePack: { [weak self] in self?.makePack($0) },
+            openResult: { [weak self] in self?.openResult($0) }))
         host.sizingOptions = []
         glass.contentView = host
         panel.contentView = glass
@@ -109,9 +110,10 @@ public final class SanketaPanel: NSPanel {
         panel.makeFirstResponder(field)
     }
 
-    /// Clears the query and hands focus back to `previousApp`; AppKit resigns key.
-    public func endSearch() {
-        let app = previousApp
+    /// Clears the query and hands focus back to `previousApp`; AppKit resigns key. With `refocus` false, the panel
+    /// resigns key but no app is made active, so the app that opens a vault result keeps the focus.
+    public func endSearch(refocus: Bool = true) {
+        let app = refocus ? previousApp : nil
         searching = false
         previousApp = nil
         search.clear()
@@ -172,7 +174,7 @@ public final class SanketaPanel: NSPanel {
         case kEscape: searching ? endSearch() : handBack(to: Self.frontmostOther)
         case kUp: model.listFocused ? model.cycleLayer(-1) : search.move(-1)
         case kDown: model.listFocused ? model.cycleLayer(1) : search.move(1)
-        case kReturn: if !model.listFocused, search.activate() != nil { endSearch() }
+        case kReturn: if !model.listFocused, let s = search.activate() { endSearch(refocus: s.open == nil) }
         default: return false
         }
         return true
@@ -194,13 +196,19 @@ public final class SanketaPanel: NSPanel {
     /// A click on a result opens it; search stays open, so its copy button can be used. Return copies and closes.
     func pick(_ i: Int) { search.click(i) }
 
+    /// The open button of a vault result: it opens the result like Return, and the app that opens it keeps the focus.
+    func openResult(_ i: Int) {
+        search.select(i)
+        if let s = search.activate() { endSearch(refocus: s.open == nil) }
+    }
+
     public func controlTextDidChange(_ n: Notification) { search.query = field.stringValue }
 
     public func control(_ c: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
         switch sel {
         case #selector(NSResponder.moveUp(_:)): search.move(-1)
         case #selector(NSResponder.moveDown(_:)): search.move(1)
-        case #selector(NSResponder.insertNewline(_:)): if search.activate() != nil { endSearch() }
+        case #selector(NSResponder.insertNewline(_:)): if let s = search.activate() { endSearch(refocus: s.open == nil) }
         case #selector(NSResponder.cancelOperation(_:)): endSearch()
         case #selector(NSResponder.insertTab(_:)): focusList()
         case #selector(NSResponder.insertBacktab(_:)): break

@@ -1,6 +1,15 @@
 {
-  "originHash" : "d2932a802b28ab4144528d99dcfbe5ed57837a077766740746ec19584f1ef8cd",
+  "originHash" : "72e2eb9d4a88fb0b3dad3c95bc087f47864044f214a0a53209cd417d56e72827",
   "pins" : [
+    {
+      "identity" : "adhara",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vedicreader/adhara",
+      "state" : {
+        "revision" : "89745f05c16f3061aadeefc3e91f82acc082ecb6",
+        "version" : "0.1.2"
+      }
+    },
     {
       "identity" : "eventsource",
       "kind" : "remoteSourceControl",

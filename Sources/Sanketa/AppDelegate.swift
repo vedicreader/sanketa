@@ -6,6 +6,7 @@ import SanketaSystem
 import SanketaUI
 import SanketaAI
 import SanketaMLX
+import SanketaVault
 
 let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Sanketa")
 
@@ -66,6 +67,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             DispatchQueue.main.async { self.suggestIfDue() }
         }.store(in: &subs)
         search.setSmart(SmartSearch(router: llm.router, timeout: config.llm.timeoutSeconds))
+        applyVault()
         panel.prewarm = { [weak self] in self?.prewarm() }
         registerHotkey()
         panel.grantAccessibility = { [weak self] in self?.grantAccessibility() }
@@ -122,6 +124,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         if config.tipRotateSeconds != old.tipRotateSeconds { scheduleRotation() }
         if config.hyperLabel != old.hyperLabel { library = loadLibrary(config: config); model.packErrors = library.errors; search.setSource(library: library) }
         if config.llm != old.llm { rebuildLLM() }
+        if config.vault != old.vault { applyVault() }
         monitor.reload(config: config, library: library)
         coach.reload(config: config.coach)
     }
@@ -286,7 +289,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         let f = configDir.appendingPathComponent("config.toml")
         if !FileManager.default.fileExists(atPath: f.path) {
             try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-            let c = Config(), k = c.coach, l = c.llm
+            let c = Config(), k = c.coach, l = c.llm, v = c.vault
             try? """
             # Sanketa settings. Sanketa applies them when you save this file.
             # hotkey = "\(c.hotkey)"
@@ -312,6 +315,11 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # base_url = "\(l.baseURL)"
             # api_key_env = "OPENAI_API_KEY"   # read only for api.openai.com unless you set it
             # timeout_seconds = \(Int(l.timeoutSeconds))
+
+            # [vault]   # search your vishalakshi vault too; Sanketa only reads it, on this Mac
+            # enabled = \(v.enabled)
+            # path = ""   # empty: VISHALAKSHI_VAULT, then ABHYASA_VAULT, then \(VaultConfig.defaultPath)
+            # learning_url = "\(v.learningURL)"   # abhyasa, which shows a concept at /c/<slug>
 
             """.write(to: f, atomically: true, encoding: .utf8)
         }
@@ -354,6 +362,12 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             // replace it only if nothing else was copied since
             if NSPasteboard.general.changeCount == copied { _ = copy(source, checked: true) }
         }
+    }
+
+    /// The vault search from `[vault]`. It opens the vault on the first search of 3 letters or more.
+    func applyVault() {
+        let v = config.vault
+        search.setVault(v.enabled ? VaultSearch(path: v.resolvedPath(), learningURL: v.learningURL) : nil)
     }
 
     // MARK: natural-language search

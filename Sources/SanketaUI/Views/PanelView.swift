@@ -12,6 +12,8 @@ struct PanelView: View {
     let clickLayer: (Int) -> Void
     var openFile: (String) -> Void = { _ in }
     var makePack: (Layer) -> Void = { _ in }
+    /// the open button of a vault result: opens it and ends search
+    var openResult: (Int) -> Void = { _ in }
     @Environment(\.colorScheme) var scheme
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @State var position = ScrollPosition(edge: .top)
@@ -97,7 +99,8 @@ struct PanelView: View {
     /// Results use the list's grammar, on the panel's own tint: no box.
     var results: some View {
         ResultsList(results: search.results, selection: search.selection, prefix: search.prefix(for:), pick: pick, query: search.query,
-                    picked: search.picked, note: search.note, expanded: search.expanded, copy: { model.copy($0) })
+                    picked: search.picked, note: search.note, expanded: search.expanded, copy: { model.copy($0) },
+                    openResult: openResult)
     }
 }
 
@@ -114,6 +117,7 @@ struct ResultsList: View {
     /// the result that shows all its text
     var expanded: String?
     var copy: (String) -> Void = { _ in }
+    var openResult: (Int) -> Void = { _ in }
 
     static func noResult(_ q: String) -> String { "No result for \u{201C}\(q.trimmingCharacters(in: .whitespaces))\u{201D}." }
     static let noResultHelp = "Search finds keys and tips in all packs. Press esc to close."
@@ -126,7 +130,7 @@ struct ResultsList: View {
                         .padding(.top, i == 0 ? 0 : 8).padding(.leading, 6)
                 }
                 ResultRow(item: r, prefix: prefix(r.packID), selected: i == selection, picked: picked.contains(r.id),
-                          expanded: expanded == r.id, toggle: { pick(i) }, copy: copy)
+                          expanded: expanded == r.id, toggle: { pick(i) }, copy: copy, openTarget: { openResult(i) })
             }
             if results.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
@@ -144,7 +148,9 @@ struct ResultsList: View {
 
 /// One row, like the list: the action on the left and the keys on the right. A tip shows its snippet on a second
 /// line, cut to one line. The selection is a saffron bar, with no fill. A click shows all the text, with a key's
-/// command; on hover, a copy button copies the snippet or command, and a tooltip gives the full text.
+/// command; on hover, a copy button copies the snippet or command, and a tooltip gives the full text. A vault result
+/// shows its shelf's heading and a snippet in text type; when it has a target, an open button takes the copy button's
+/// place.
 struct ResultRow: View {
     let item: SearchItem
     var prefix: String?
@@ -153,6 +159,7 @@ struct ResultRow: View {
     var expanded = false
     var toggle: () -> Void = {}
     var copy: (String) -> Void = { _ in }
+    var openTarget: () -> Void = {}
     @State var hover = false
 
     var full: String {
@@ -182,7 +189,7 @@ struct ResultRow: View {
                 } else {
                     Text(item.title).font(Theme.text).foregroundStyle(.primary)
                         .lineLimit(expanded ? nil : 1).fixedSize(horizontal: false, vertical: expanded)
-                    Text(item.detail).font(Theme.snippet).foregroundStyle(expanded ? .primary : Theme.secondary)
+                    Text(item.detail).font(item.kind == .vault ? Theme.small : Theme.snippet).foregroundStyle(expanded ? .primary : Theme.secondary)
                         .lineLimit(expanded ? nil : 1).truncationMode(.tail).fixedSize(horizontal: false, vertical: expanded)
                         .textSelection(.enabled)
                     if expanded, let e = item.explain, !e.isEmpty {
@@ -199,10 +206,25 @@ struct ResultRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: toggle)
         .overlay(alignment: .topTrailing) {
-            if hover, let t = item.copyText { CopyButton { copy(t) }.padding(.top, Theme.rowPad) }
+            if hover, item.open != nil { OpenButton(action: openTarget).padding(.top, Theme.rowPad) }
+            else if hover, let t = item.copyText { CopyButton { copy(t) }.padding(.top, Theme.rowPad) }
         }
         .onHover { hover = $0 }
         .help(full)
+    }
+}
+
+/// The open button of a vault result, in the copy button's slot and style.
+struct OpenButton: View {
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "arrow.up.forward").font(.system(size: 9.5, weight: .medium)).foregroundStyle(Theme.secondary)
+                .frame(width: 12, height: 16).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Open")
+        .accessibilityLabel("Open")
     }
 }
 

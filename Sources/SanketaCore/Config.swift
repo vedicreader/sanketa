@@ -169,6 +169,34 @@ public struct LLMConfig: Codable, Equatable, Sendable {
     }
 }
 
+/// `[vault]`: the vishalakshi vault that search reads, read-only. An empty `path` uses `VISHALAKSHI_VAULT`, then
+/// `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`.
+public struct VaultConfig: Codable, Equatable, Sendable {
+    public var enabled = true
+    public var path = ""
+    /// the abhyasa web app, which shows a concept at `<learning_url>/c/<slug>`
+    public var learningURL = "http://127.0.0.1:5077"
+
+    public init() {}
+
+    enum CodingKeys: String, CodingKey { case enabled, path, learningURL = "learning_url" }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
+        path = try c.decodeIfPresent(String.self, forKey: .path) ?? path
+        learningURL = try c.decodeIfPresent(String.self, forKey: .learningURL) ?? learningURL
+    }
+
+    public static let defaultPath = "~/.vishalakshi/vault.db"
+
+    /// The vault file: `path`, else the first variable of `env` that is set, else `defaultPath`; `~` expanded.
+    public func resolvedPath(env: [String: String] = ProcessInfo.processInfo.environment) -> String {
+        let p = [path, env["VISHALAKSHI_VAULT"] ?? "", env["ABHYASA_VAULT"] ?? ""].first { !$0.isEmpty } ?? Self.defaultPath
+        return (p as NSString).expandingTildeInPath
+    }
+}
+
 public struct Config: Codable, Equatable {
     public var hotkey = "ctrl+opt+k"
     public var terminals = ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2", "fun.tw93.kaku"]
@@ -179,11 +207,12 @@ public struct Config: Codable, Equatable {
     public var hyperLabel = "Caps"
     public var coach = CoachConfig()
     public var llm = LLMConfig()
+    public var vault = VaultConfig()
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm
+        case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm, vault
         case hyperLabel = "hyper_label"
     }
 
@@ -200,6 +229,7 @@ public struct Config: Codable, Equatable {
         hyperLabel = try c.decodeIfPresent(String.self, forKey: .hyperLabel) ?? hyperLabel
         coach = try c.decodeIfPresent(CoachConfig.self, forKey: .coach) ?? coach
         llm = try c.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? llm
+        vault = try c.decodeIfPresent(VaultConfig.self, forKey: .vault) ?? vault
         translucency = (try? c.decodeIfPresent(String.self, forKey: .translucency)).flatMap { $0.flatMap(Translucency.init) } ?? .medium
     }
 

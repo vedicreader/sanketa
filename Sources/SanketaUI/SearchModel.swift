@@ -4,7 +4,8 @@ import SanketaCore
 import SanketaSystem
 
 /// Query → ranked results over the library plus context packs, with a clamped selection. For 3 or more words, a model
-/// may move its picks to the top after the user stops typing for `debounce` seconds.
+/// may move its picks to the top after the user stops typing for `debounce` seconds. For 3 or more letters, vault results
+/// come after the pack results, `vaultDebounce` seconds after the user stops typing.
 @MainActor public final class SearchModel: ObservableObject {
     @Published public var query = "" { didSet { if query != oldValue { refresh() } } }
     @Published public private(set) var results: [SearchItem] = []
@@ -20,18 +21,33 @@ import SanketaSystem
     var smart: SmartSearch?
     let debounce: TimeInterval
     var smartTask: Task<Void, Never>?
+    var vault: VaultSearching?
+    let vaultDebounce: TimeInterval
+    var vaultTask: Task<Void, Never>?
+    /// the vault results of this query; they stay at the end when the model's picks arrive
+    var vaultItems: [SearchItem] = []
+    /// opens a vault result on Return
+    let open: (URL) -> Void
     var library = PackLibrary()
     var context = Context()
     /// items from outside the packs, such as coaching from shell history
     var extra: [SearchItem] = []
 
     public init(provider: SearchProviding = LocalSearch(), pasteboard: NSPasteboard = .general, smart: SmartSearch? = nil,
-                debounce: TimeInterval = 0.6) {
+                debounce: TimeInterval = 0.6, vaultDebounce: TimeInterval = 0.2,
+                open: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) }) {
         self.provider = provider; self.pasteboard = pasteboard; self.smart = smart; self.debounce = debounce
+        self.vaultDebounce = vaultDebounce; self.open = open
     }
 
     /// A new router (config change); the next query uses it.
     public func setSmart(_ s: SmartSearch?) { smart = s }
+
+    /// The vault search, or nil to turn it off (config change); the next query uses it.
+    public func setVault(_ v: VaultSearching?) { vault = v }
+
+    /// The shortest query that searches the vault.
+    public static let vaultMinLength = 3
 
     public func setSource(library: PackLibrary? = nil, context: Context? = nil, extra: [SearchItem]? = nil) {
         if let library { self.library = library }
@@ -57,12 +73,16 @@ import SanketaSystem
     func refresh() {
         smartTask?.cancel()
         smartTask = nil
+        vaultTask?.cancel()
+        vaultTask = nil
+        vaultItems = []
         let ctx = context.layers.compactMap(\.packID)
         results = query.trimmingCharacters(in: .whitespaces).isEmpty ? [] : Self.byPack(provider.results(query, items, context: ctx))
         selection = 0
         expanded = nil
         picked = []
         note = nil
+        searchVault()
         guard let smart, query.split(whereSeparator: \.isWhitespace).count >= 3 else { return }
         let (q, all, wait) = (query, items, debounce)
         smartTask = Task { [weak self] in
@@ -74,11 +94,29 @@ import SanketaSystem
         }
     }
 
-    /// The model's picks first, then the rest by pack. The selected row stays selected when it is still there.
+    /// After `vaultDebounce`, the vault results go at the end. The selected row stays selected.
+    func searchVault() {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard let vault, q.count >= Self.vaultMinLength else { return }
+        let (raw, wait) = (query, vaultDebounce)
+        vaultTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled else { return }
+            let r = await vault.search(q)
+            guard !Task.isCancelled, let self, self.query == raw, !r.isEmpty else { return }
+            let keep = self.selected?.id
+            self.vaultItems = r
+            self.results = self.results.filter { $0.kind != .vault } + r
+            self.selection = keep.flatMap { id in self.results.firstIndex { $0.id == id } } ?? 0
+        }
+    }
+
+    /// The model's picks first, then the rest by pack, then the vault. The selected row stays selected when it is still
+    /// there.
     func apply(_ r: SmartResult) {
         let keep = selected?.id
         let picks = r.items.filter { r.picked.contains($0.id) }
-        results = picks + Self.byPack(r.items.filter { !r.picked.contains($0.id) })
+        results = picks + Self.byPack(r.items.filter { !r.picked.contains($0.id) }) + vaultItems
         selection = selection == 0 ? 0 : keep.flatMap { id in results.firstIndex { $0.id == id } } ?? 0
         picked = r.picked
         note = r.note
@@ -107,9 +145,12 @@ import SanketaSystem
         expanded = expanded == results[i].id ? nil : results[i].id
     }
 
-    /// Copies the selected item's command or snippet; nil when nothing is selected or it has nothing to copy.
+    /// Opens the selected vault result that has a target. Else copies the selected item's command or snippet; nil when
+    /// nothing is selected or it has nothing to copy.
     @discardableResult public func activate() -> SearchItem? {
-        guard let s = selected, let t = s.copyText else { return nil }
+        guard let s = selected else { return nil }
+        if let u = s.open { open(u); return s }
+        guard let t = s.copyText else { return nil }
         pasteboard.clearContents()
         pasteboard.setString(t, forType: .string)
         return s

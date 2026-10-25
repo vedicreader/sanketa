@@ -1,6 +1,7 @@
 import Foundation
 
-public enum ItemKind: String, Codable, Sendable { case key, tip, suggestion }
+/// `vault`: a document from a shelf of the vishalakshi vault, found by `VaultSearching`
+public enum ItemKind: String, Codable, Sendable { case key, tip, suggestion, vault }
 
 public struct SearchItem: Hashable, Identifiable, Sendable {
     public var packID: String
@@ -16,6 +17,8 @@ public struct SearchItem: Hashable, Identifiable, Sendable {
     public var mayLeave = false
     /// a key's command, for copy; it stays on the Mac
     public var command: String?
+    /// what Return opens instead of a copy, such as a vault document's web page or file
+    public var open: URL?
     public var id: String { "\(packID)|\(kind.rawValue)|\(title)" }
 
     public init(packID: String, packName: String, kind: ItemKind, title: String, detail: String,
@@ -40,6 +43,11 @@ public struct SearchItem: Hashable, Identifiable, Sendable {
 
 public protocol SearchProviding {
     func results(_ query: String, _ items: [SearchItem], context: [String]) -> [SearchItem]
+}
+
+/// Search outside the packs, such as the vishalakshi vault. It runs off the main thread; it gives no results on error.
+public protocol VaultSearching: Sendable {
+    func search(_ query: String) async -> [SearchItem]
 }
 
 public struct LocalSearch: SearchProviding {
