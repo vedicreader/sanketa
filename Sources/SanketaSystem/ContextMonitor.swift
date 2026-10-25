@@ -75,6 +75,9 @@ final class MenuCache: @unchecked Sendable {
     /// the clock that times a read; tests set it
     var now: () -> Date = Date.init
 
+    /// Drops the menus and the long timeout of `pid`, when its app quits: the pid can come back for another app.
+    func forget(_ pid: pid_t) { lock.withLock { store[pid] = nil; needsLong.remove(pid) } }
+
     /// The shortcuts, and false when this read was empty or the first slow one. `read` gets the timeout to use.
     func get(_ pid: pid_t, slow: TimeInterval, _ read: (TimeInterval) -> [MenuShortcut]) -> (shortcuts: [MenuShortcut], full: Bool) {
         let (e, long) = lock.withLock { (store[pid].flatMap { now().timeIntervalSince($0.at) < ttl ? $0 : nil }, needsLong.contains(pid)) }
@@ -214,7 +217,7 @@ public struct ContextEngine: @unchecked Sendable {
     let queue = DispatchQueue(label: "dev.sanketa.context", qos: .utility)
     var timer: Timer?
     var busy = false
-    var observer: NSObjectProtocol?
+    var observer: NSObjectProtocol?, quitObserver: NSObjectProtocol?
     /// makes the title watcher for a pid; tests put a fake here
     public typealias TitleWatcherFactory = (pid_t, @escaping (String?) -> Void) -> AnyObject?
     var makeWatcher: TitleWatcherFactory = { AXTitleWatcher(pid: $0, onChange: $1) }
@@ -245,8 +248,16 @@ public struct ContextEngine: @unchecked Sendable {
             let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             MainActor.assumeIsolated { self?.activated(app) }
         }
+        quitObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] n in
+            guard let pid = (n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier else { return }
+            MainActor.assumeIsolated { self?.appTerminated(pid) }
+        }
         activated(NSWorkspace.shared.frontmostApplication)
     }
+
+    /// An app quit: its menu reads go from the cache.
+    func appTerminated(_ pid: pid_t) { engine.menus.forget(pid) }
 
     /// New packs, and a new config when it changed: terminals and pollInterval apply at once.
     public func reload(config: Config? = nil, library: PackLibrary) {

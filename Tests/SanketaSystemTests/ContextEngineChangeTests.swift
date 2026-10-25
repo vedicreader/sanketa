@@ -224,3 +224,27 @@ import Testing
         #expect(calls == 4, "one try per 10 s while the answers do not agree")
     }
 }
+
+/// A quit app's pid can come back for another app: its menus and its long timeout go when it quits.
+@Suite struct MenuCacheForgetTests {
+    @Test func quitAppIsForgotten() {
+        let c = MenuCache()
+        var timeouts: [TimeInterval] = []
+        let item = [MenuShortcut(path: ["File", "New"], keys: "⌘N")]
+        _ = c.get(7, slow: 10) { timeouts.append($0); return [] }       // empty: the next read gets the long timeout
+        _ = c.get(7, slow: 10) { timeouts.append($0); return item }
+        #expect(timeouts == [AXReader.timeout, AXReader.slowTimeout])
+        c.forget(7)
+        _ = c.get(7, slow: 10) { timeouts.append($0); return item }      // read again, with the short timeout
+        #expect(timeouts == [AXReader.timeout, AXReader.slowTimeout, AXReader.timeout])
+    }
+
+    @MainActor @Test func monitorForgetsTheMenusOfAnAppThatQuits() {
+        let m = ContextMonitor(config: Config(), library: PackLibrary(packs: [:]))
+        var timeouts: [TimeInterval] = []
+        _ = m.engine.menus.get(9, slow: 10) { timeouts.append($0); return [] }
+        m.appTerminated(9)
+        _ = m.engine.menus.get(9, slow: 10) { timeouts.append($0); return [] }
+        #expect(timeouts == [AXReader.timeout, AXReader.timeout])
+    }
+}
