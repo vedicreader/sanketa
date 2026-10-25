@@ -205,11 +205,15 @@ final class Calls { var titles: [String?] = [] }
 
 /// An empty or timed-out menu read is read again after short waits (3 times at most), without another activation.
 @MainActor @Suite(.serialized) struct ContextMonitorMenuRetryTests {
-    /// Waits with the main queue free, so `refresh` can hand its result back on it.
-    func idle(_ s: TimeInterval, until ok: () -> Bool = { false }) async throws {
-        let end = Date().addingTimeInterval(s)
+    /// Waits with the main queue free, so `refresh` can hand its result back on it. The cap is long because a full test
+    /// run keeps the main queue and the monitor's utility queue busy; the wait ends as soon as `ok` is true.
+    func settle(until ok: () -> Bool) async throws {
+        let end = Date().addingTimeInterval(30)
         while !ok(), Date() < end { try await Task.sleep(for: .milliseconds(20)) }
     }
+
+    /// True when the monitor can read no more on its own: no read runs, the retries are used up, and no retry waits.
+    func done(_ m: ContextMonitor) -> Bool { !m.busy && m.menuRetries == m.menuRetryDelays.count && m.menuRetry?.isValid != true }
 
     final class Reads: @unchecked Sendable {
         let lock = NSLock(); var count = 0
@@ -239,27 +243,26 @@ final class Calls { var titles: [String?] = [] }
     @Test func emptyFirstReadIsReadAgain() async throws {
         let reads = Reads(), m = monitor(reads, emptyReads: 1)
         m.activated(try finder())
-        try await idle(3) { m.context.packs.first?.keys.count == 1 }
+        try await settle { m.context.packs.first?.keys.count == 1 && !m.busy }
         #expect(m.context.packs.first?.keys.count == 1)
-        #expect(reads.n == 2)
+        #expect(reads.n == 2 && m.menuRetry?.isValid != true, "a full read starts no more retries")
     }
 
     @Test func readsAgainThreeTimesPerActivation() async throws {
         let reads = Reads(), m = monitor(reads, emptyReads: 99)
         m.activated(try finder())
-        try await idle(3) { reads.n >= 4 }
-        try await idle(1)           // the waits are 0.1, 0.2 and 0.3 s: a fourth retry would come in this time
-        #expect(reads.n == 4 && m.context.packs.first?.keys.isEmpty == true)
+        try await settle { done(m) }
+        #expect(done(m) && reads.n == 4 && m.context.packs.first?.keys.isEmpty == true, "1 read and 3 retries, then no timer")
         m.activated(try finder())   // a new activation may try again
-        try await idle(3) { reads.n >= 8 }
-        try await idle(1)
-        #expect(reads.n == 8)
+        #expect(m.menuRetries == 0)
+        try await settle { done(m) }
+        #expect(done(m) && reads.n == 8)
     }
 
     @Test func slackLikeAppGivesItsMenuOnTheThirdRead() async throws {
         let reads = Reads(), m = monitor(reads, emptyReads: 2)
         m.activated(try finder())
-        try await idle(3) { m.context.packs.first?.keys.count == 1 }
-        #expect(m.context.packs.first?.keys.count == 1 && reads.n == 3)
+        try await settle { m.context.packs.first?.keys.count == 1 && !m.busy }
+        #expect(m.context.packs.first?.keys.count == 1 && reads.n == 3 && m.menuRetry?.isValid != true)
     }
 }
