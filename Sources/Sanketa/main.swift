@@ -26,11 +26,12 @@ func loadLibrary(config: Config = loadConfig()) -> PackLibrary {
     return lib
 }
 
-/// config.toml and why it did not load (nil when it loads); errors also go to stderr.
-func readConfig() -> (Config, String?) {
-    let (c, err) = Config.load(configURL)
-    if let err { FileHandle.standardError.write(Data("config error: \(err)\n".utf8)) }
-    return (c, err)
+/// config.toml, why it did not load (nil when it loads) and a note such as the memory fallback; both also go to stderr.
+func readConfig() -> (config: Config, error: String?, note: String?) {
+    let r = Config.load(configURL)
+    if let err = r.error { FileHandle.standardError.write(Data("config error: \(err)\n".utf8)) }
+    if let note = r.note { FileHandle.standardError.write(Data("config note: \(note)\n".utf8)) }
+    return r
 }
 
 func loadConfig() -> Config { readConfig().0 }

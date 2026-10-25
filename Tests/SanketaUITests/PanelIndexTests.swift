@@ -157,6 +157,18 @@ func bundledContext(_ names: [String]) throws -> Context {
         ])
     }
 
+    /// The memory fallback is a note: the footer shows it, but not as a file that did not load.
+    @Test func configNoteIsNotAnError() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
+        let d = try tempURL("x").deletingLastPathComponent().appendingPathComponent("config.toml")
+        try "[llm]\nmlx_model = \"gemma-4-e4b\"\n".write(to: d, atomically: true, encoding: .utf8)
+        let (_, err, note) = Config.load(d, memory: 8 << 30)
+        m.configError = err.map { PackLoadError(file: d.path, message: $0) }
+        m.configNote = note
+        #expect(m.showsFooter && m.errorLines.isEmpty)
+        #expect(m.configNote == "Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB. Sanketa uses Qwen3.5-4B.")
+    }
+
     @Test func manyBadFilesShowACountUntilClicked() throws {
         let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
         m.packErrors = [err("a.toml", "key 1 has no keys"), err("b.toml", "the pack has no id"), err("c.toml", "line 3: syntax error")]

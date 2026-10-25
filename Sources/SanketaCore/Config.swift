@@ -185,17 +185,18 @@ public struct Config: Codable, Equatable {
         try setting(key, value, in: old, table: table).write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// A missing file gives defaults and no error; bad TOML gives defaults and a short message, such as `hotkey must be a string`.
-    /// The config and why it did not load. A `mlx_model` that needs more memory than `memory` changes to the model
-    /// that fits, and the second value then says so.
-    public static func load(_ url: URL, memory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> (Config, String?) {
-        guard let data = try? Data(contentsOf: url) else { return (Config(), nil) }
+    /// The config, why it did not load, and a note. A missing file gives defaults and no error; bad TOML gives defaults
+    /// and a short message, such as `hotkey must be a string`. A `mlx_model` that needs more memory than `memory`
+    /// changes to the model that fits, and the note says so: the file loaded, so that is not an error.
+    public static func load(_ url: URL, memory: UInt64 = ProcessInfo.processInfo.physicalMemory)
+        -> (config: Config, error: String?, note: String?) {
+        guard let data = try? Data(contentsOf: url) else { return (Config(), nil, nil) }
         do {
             var c = try TOMLDecoder().decode(Config.self, from: data)
-            let warning = c.llm.fitMemory(memory)
-            return (c, warning)
+            let note = c.llm.fitMemory(memory)
+            return (c, nil, note)
         }
-        catch { return (Config(), PackLint.describe(error, root: "")) }
+        catch { return (Config(), PackLint.describe(error, root: ""), nil) }
     }
 }
 

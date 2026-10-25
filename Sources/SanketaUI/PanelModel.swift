@@ -62,6 +62,8 @@ struct StackState {
     @Published public var packErrors: [PackLoadError] = [] { didSet { if packErrors != oldValue { showAllErrors = false } } }
     /// why config.toml did not load; Sanketa then uses the defaults
     @Published public var configError: PackLoadError?
+    /// a note from config.toml that is not an error, such as "Gemma 4 E4B needs 16 GB of memory…"
+    @Published public var configNote: String?
     /// the footer lists every bad pack file, not only the count
     @Published public var showAllErrors = false
     @Published public var hotkeyConflict: String?
@@ -98,7 +100,7 @@ struct StackState {
         store = tips; self.seed = seed
     }
 
-    public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || configError != nil || hotkeyConflict != nil }
+    public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || configError != nil || configNote != nil || hotkeyConflict != nil }
     public var needsAccessibility: Bool { !context.axTrusted && !context.bundleID.isEmpty }
 
     /// One footer line for a file that did not load. A click opens the file, or (for the count line) lists the files.

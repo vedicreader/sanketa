@@ -12,6 +12,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     var config: Config
     /// why config.toml did not load, for the footer and Copy Debug Info
     var configError: String?
+    /// a note from the config load, such as the memory fallback; not an error
+    var configNote: String?
     lazy var library = loadLibrary(config: config)
     lazy var monitor = ContextMonitor(config: config, library: library)
     lazy var coach = CoachMonitor(config: config.coach)
@@ -40,7 +42,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     var watchers: [FileWatcher] = []
 
     override init() {
-        (config, configError) = readConfig()
+        (config, configError, configNote) = readConfig()
         super.init()
     }
 
@@ -72,6 +74,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         scheduleRotation()
         buildStatusItem()
         model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
+        model.configNote = configNote
         try? FileManager.default.createDirectory(at: packsDir, withIntermediateDirectories: true)
         let reload: () -> Void = { [weak self] in MainActor.assumeIsolated { self?.reloadPacks() } }
         watchers = [FileWatcher(url: LeelaKeymap.defaultURL(), onChange: reload),
@@ -101,8 +104,9 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// config.toml was saved: apply the hotkey, translucency, terminals, poll and tip timing, and the Hyper label.
     func reloadConfig() {
         let old = config
-        (config, configError) = readConfig()
+        (config, configError, configNote) = readConfig()
         model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
+        model.configNote = configNote
         guard config != old else { return }
         if config.hotkey != old.hotkey { registerHotkey() }
         if config.translucency != old.translucency {

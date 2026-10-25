@@ -11,14 +11,14 @@ func writeConfig(_ text: String) throws -> URL {
 
 struct ConfigTests {
     @Test func defaultsWhenMissing() throws {
-        let (c, err) = Config.load(try tempDir().appendingPathComponent("config.toml"))
+        let (c, err, _) = Config.load(try tempDir().appendingPathComponent("config.toml"))
         #expect(err == nil && c == Config())
         #expect(c.hotkey == "ctrl+opt+k" && c.pollInterval == 1.0 && c.tipRotateSeconds == 120)
         #expect(c.terminals == ["app.conterm.Conterm", "com.mitchellh.ghostty", "com.apple.Terminal", "com.googlecode.iterm2", "fun.tw93.kaku"])
     }
 
     @Test func partialConfigKeepsDefaults() throws {
-        let (c, err) = Config.load(try writeConfig("hotkey = \"cmd+shift+space\"\n\n[llm]\nmodel = \"x\"\n"))
+        let (c, err, _) = Config.load(try writeConfig("hotkey = \"cmd+shift+space\"\n\n[llm]\nmodel = \"x\"\n"))
         #expect(err == nil)
         #expect(c.hotkey == "cmd+shift+space")
         #expect(c.terminals == Config().terminals && c.pollInterval == 1.0)
@@ -26,12 +26,12 @@ struct ConfigTests {
 
     @Test func hyperLabelDefaultsToCapsAndIsConfigurable() throws {
         #expect(Config().hyperLabel == "Caps")
-        let (c, err) = Config.load(try writeConfig("hyper_label = \"Hyper\"\n"))
+        let (c, err, _) = Config.load(try writeConfig("hyper_label = \"Hyper\"\n"))
         #expect(err == nil && c.hyperLabel == "Hyper")
     }
 
     @Test func badTomlReturnsError() throws {
-        let (c, err) = Config.load(try writeConfig("hotkey = = oops ["))
+        let (c, err, _) = Config.load(try writeConfig("hotkey = = oops ["))
         #expect(err?.hasPrefix("line 1: ") == true && c == Config())
         // the footer shows the message: short, with no Swift type names
         let h = Config.load(try writeConfig("hotkey = 3\n")).1, t = Config.load(try writeConfig("terminals = \"a.b\"\n")).1
@@ -40,9 +40,9 @@ struct ConfigTests {
     }
 
     @Test func integerPollIntervalAccepted() throws {
-        let (c, err) = Config.load(try writeConfig("pollInterval = 2\ntipRotateSeconds = 30\nterminals = [\"a.b\"]\n"))
+        let (c, err, _) = Config.load(try writeConfig("pollInterval = 2\ntipRotateSeconds = 30\nterminals = [\"a.b\"]\n"))
         #expect(err == nil && c.pollInterval == 2.0 && c.tipRotateSeconds == 30.0 && c.terminals == ["a.b"])
-        let (d, _) = Config.load(try writeConfig("pollInterval = 0.5\n"))
+        let (d, _, _) = Config.load(try writeConfig("pollInterval = 0.5\n"))
         #expect(d.pollInterval == 0.5)
     }
 
@@ -65,7 +65,7 @@ struct TranslucencyConfigTests {
         #expect(Config().translucency == .medium)
         #expect(Config.load(try writeConfig("translucency = \"low\"\n")).0.translucency == .low)
         #expect(Config.load(try writeConfig("translucency = \"high\"\n")).0.translucency == .high)
-        let (c, err) = Config.load(try writeConfig("translucency = \"glassy\"\nhotkey = \"cmd+k\"\n"))
+        let (c, err, _) = Config.load(try writeConfig("translucency = \"glassy\"\nhotkey = \"cmd+k\"\n"))
         #expect(err == nil && c.translucency == .medium && c.hotkey == "cmd+k")
     }
 
@@ -88,14 +88,14 @@ struct TranslucencyConfigTests {
 
 struct CoachLLMConfigTests {
     @Test func llmDefaultsKeepOpenAIOff() throws {
-        let (c, err) = Config.load(try writeConfig(""))
+        let (c, err, _) = Config.load(try writeConfig(""))
         #expect(err == nil)
         #expect(c.llm.openai == false && c.llm.onDevice == true && c.llm.appleFM == true)
         #expect(c.llm.openaiModel == "" && c.llm.baseURL == "https://api.openai.com/v1" && c.coach.enabled == true)
     }
 
     @Test func llmTableParses() throws {
-        let (c, err) = Config.load(try writeConfig("[llm]\nopenai = true\nopenai_model = \"gpt-x\"\nbase_url = \"http://localhost:11434/v1\"\nmlx_model = \"qwen3.5-2b\""))
+        let (c, err, _) = Config.load(try writeConfig("[llm]\nopenai = true\nopenai_model = \"gpt-x\"\nbase_url = \"http://localhost:11434/v1\"\nmlx_model = \"qwen3.5-2b\""))
         #expect(err == nil)
         #expect(c.llm.openai && c.llm.openaiModel == "gpt-x" && c.llm.baseURL == "http://localhost:11434/v1")
         #expect(c.llm.mlxModel == .qwen2b && c.llm.suggest == true)
@@ -110,10 +110,10 @@ struct CoachLLMConfigTests {
         #expect(gemma.mlxModel == .gemma4e4b)
         #expect(Config.load(try writeConfig("")).0.llm.mlxModel == MLXModelChoice.recommended())
         // a Mac with too little memory: one warning, and the model that fits
-        let (small, warn) = Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\""), memory: 8 << 30)
-        #expect(small.llm.mlxModel == .qwen4b)
+        let (small, err, warn) = Config.load(try writeConfig("[llm]\nmlx_model = \"gemma-4-e4b\""), memory: 8 << 30)
+        #expect(small.llm.mlxModel == .qwen4b && err == nil, "the file loaded: a note, not an error")
         #expect(warn == "Gemma 4 E4B needs 16 GB of memory. This Mac has 8 GB. Sanketa uses Qwen3.5-4B.")
-        #expect(Config.load(try writeConfig("[llm]\nmlx_model = \"qwen3.5-2b\""), memory: 8 << 30).1 == nil)
+        #expect(Config.load(try writeConfig("[llm]\nmlx_model = \"qwen3.5-2b\""), memory: 8 << 30).note == nil)
     }
 
     @Test func keyVariableOnlyForOpenAIUnlessSet() throws {
@@ -136,7 +136,7 @@ struct CoachLLMConfigTests {
 
     @Test func badLLMTypeReturnsError() throws {
         for t in ["[llm]\nopenai = \"yes\"", "[llm]\nmlx_model = \"huge\""] {
-            let (c, err) = Config.load(try writeConfig(t))
+            let (c, err, _) = Config.load(try writeConfig(t))
             #expect(err != nil && c == Config(), "\(t)")
         }
     }
@@ -168,7 +168,7 @@ struct CoachLLMConfigTests {
     }
 
     @Test func nonPositiveLimitsAreClamped() throws {
-        let (c, err) = Config.load(try writeConfig("[llm]\ntimeout_seconds = 0\n[coach]\nmax_entries = -4"))
+        let (c, err, _) = Config.load(try writeConfig("[llm]\ntimeout_seconds = 0\n[coach]\nmax_entries = -4"))
         #expect(err == nil && c.llm.timeoutSeconds == 5 && c.coach.maxEntries == 1)
         #expect(Config.load(try writeConfig("[llm]\ntimeout_seconds = -1.5")).0.llm.timeoutSeconds == 5)
     }

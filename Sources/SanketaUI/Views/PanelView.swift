@@ -212,6 +212,7 @@ struct Footer: View {
                 Button(action: grant) { Text("Allow Accessibility to show menu keys").underline() }
                     .buttonStyle(.plain).foregroundStyle(.primary)
             }
+            if let n = model.configNote { Text(n).lineLimit(2) }
             // one line for each file that did not load; a click opens the file
             ForEach(Array(model.errorLines.enumerated()), id: \.offset) { _, l in
                 Button {
