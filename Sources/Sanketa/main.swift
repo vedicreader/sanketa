@@ -205,7 +205,8 @@ for flag in ["--dump-menus", "--dump-ax", "--out", "--pack", "--delay", "--ask"]
 
 /// Asks other running Sanketa instances to quit (used to restart after a rebuild; `kill` isn't available to agents).
 func quitRunning() {
-    let others = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.sanketa.Sanketa").filter { $0 != .current }
+    // this bundle's own id, so Sanketa-dev quits only Sanketa-dev and leaves the installed Sanketa running
+    let others = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "dev.sanketa.Sanketa").filter { $0 != .current }
     for a in others { a.terminate() }
     let end = Date().addingTimeInterval(5)
     while others.contains(where: { !$0.isTerminated }) && Date() < end { RunLoop.main.run(until: Date().addingTimeInterval(0.1)) }

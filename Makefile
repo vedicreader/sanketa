@@ -7,7 +7,7 @@ XCODE_DATA := build/xcode
 # the same zip with a name that does not change, so releases/latest/download/Sanketa.zip always works
 STABLE_ZIP := dist/Sanketa.zip
 
-.PHONY: test test-focus test-mlx build lint shots bundle app release zip publish run relaunch install cask verify gatekeeper remote-setup
+.PHONY: test test-focus test-mlx build lint shots bundle app release zip publish run relaunch dev dev-relaunch install cask verify gatekeeper remote-setup
 
 # Values from the command line go to recipes only through the environment ("$$FILTER"), so the shell never parses
 # them. Each value must also pass this check, which reads the raw text with $(value) and so never expands it.
@@ -111,6 +111,20 @@ run:
 relaunch:
 	$(APP)/Contents/MacOS/Sanketa --quit-running
 	open $(APP)
+
+# Sanketa-dev: the same build with its own name and bundle id, so macOS keeps its own Accessibility grant
+# and the installed Sanketa keeps its grant. The id is set before signing, so the seal covers it.
+DEV_APP := build/Sanketa-dev.app
+DEV_ID := dev.sanketa.Sanketa.dev
+dev:
+	$(MAKE) bundle APP=$(DEV_APP)
+	/usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier $(DEV_ID)' -c 'Set :CFBundleName Sanketa-dev' -c 'Set :CFBundleDisplayName Sanketa-dev' $(DEV_APP)/Contents/Info.plist
+	codesign --force --options runtime --timestamp=none --sign "$$SIGN_ID" $(DEV_APP)
+
+# quits only a running Sanketa-dev, then opens the fresh one; the installed Sanketa stays as it is
+dev-relaunch:
+	$(DEV_APP)/Contents/MacOS/Sanketa --quit-running
+	open $(DEV_APP)
 
 # move the old bundle aside, then copy a fresh one: cp -R over a signed bundle overwrites the executable in place
 # and leaves stale Packs files that break the sealed-resource signature
