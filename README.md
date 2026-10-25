@@ -65,6 +65,7 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - On-Device Model: download, use or remove a model, when Use On-Device Model is on
 - Reload Packs
 - Open Packs Folder
+- Make a Pack for <app>…: makes a pack for the app in front with a model or a local agent. See "Make a pack with a model" in [docs/packs.md](docs/packs.md). If a terminal is in front, it makes a first pack for the program in front.
 - Open Config
 - Allow Accessibility…
 - Copy Debug Info
@@ -90,7 +91,7 @@ The panel is an index of the layers. When the innermost layer has keys, its sect
 
 When you go to a different program, the panel goes back to the top. If you go back to a stack of layers that you used a short time ago, the panel shows it as you left it. It keeps the groups that you opened and the scroll position. It remembers the last eight stacks.
 
-If a program has no pack, its section says "Sanketa has no keys for yazi." Click "Make a pack for yazi" to make a first pack. Sanketa writes `~/.config/sanketa/packs/yazi.toml` and opens it.
+If a program has no pack, its section says "Sanketa has no keys for yazi." Click "Make a pack for yazi" to make a first pack. Sanketa writes `~/.config/sanketa/packs/yazi.toml` and opens it. If an app has no pack, the link "Make a pack for <app>" shows under its menu keys. It opens the Make a Pack window.
 
 ### Tip cards
 

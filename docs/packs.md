@@ -24,6 +24,35 @@ The `Sanketa` command is in `Sanketa.app/Contents/MacOS/`.
 
 You can use this page to write a valid pack. You can also give it to a language model. The test suite loads the example at the end of this page, so the example is correct.
 
+## Make a pack with a model
+
+Sanketa can write the prompt for a pack for a GUI app. A model or a local agent, such as Claude Code, then writes the pack.
+
+1. Put the app in front.
+2. Choose "Make a Pack for <app>…" in the menu-bar menu. You can also click "Make a pack for <app>" in the panel. This link shows when no pack has the bundle id of the app.
+3. Optional: type the URLs of the shortcut pages of the app, one URL on each line. The prompt changes when you type.
+4. Use one of the buttons:
+   - **Copy Prompt** copies the prompt. Paste it in your agent. Then paste the result of the agent in the "Result" box, and click Check.
+   - **Send to OpenAI** shows when Use OpenAI is on. Sanketa sends the prompt to OpenAI. The model reads the docs on the web. This can take 2 minutes.
+   - **Send to On-Device Model** shows when Use On-Device Model is on and a model is ready. The on-device model cannot read web pages. Thus paste the text of the shortcut page in the "Docs text" box, or click "Choose a File…" to read a saved page. Sanketa uses at most 4,000 characters of shortcut lines.
+5. Look at the preview. Then click Save.
+
+The prompt contains the app name, the version, the bundle id, the menu shortcuts and your URLs. It does not contain window titles, file names, paths or your history. Before Sanketa fills the prompt, it removes menu items that can name a file or a person. These are the items of "Open Recent", "History" and "Bookmarks", the window list in the Window menu, and titles with `/`, `~`, `@` or a file extension. The window shows the full prompt before you copy or send it.
+
+Send to OpenAI sends the prompt and the model id from `[llm] openai_model`. It uses the same rules as search: https only, no redirects, and the key goes only to the server in `[llm] base_url`. For `api.openai.com`, the model can search the web. Another server gets the prompt only, and cannot read web pages.
+
+Sanketa does these steps on each result:
+
+1. It removes text before and after the TOML, such as a Markdown code fence.
+2. It sets `id`, `name` and `apps` to the values that it reads from the app. It removes `processes`, `match`, `prefix`, `title_scope` and `contexts`.
+3. It changes each key to the key style, for example `Ctrl+Shift+z` to `⌃⇧Z`.
+4. It removes the keys that the menus show already, when the action has the same words.
+5. It runs the lint. If the pack has errors, you cannot save it. Click "Ask Again with the Errors" to send the errors to the model one time. If the errors stay, you can save the pack as a draft (`<id>.toml.draft`). Sanketa does not load a draft.
+
+Save writes `~/.config/sanketa/packs/<id>.toml`. If the file exists, Sanketa asks first. Then it copies the old file to `<id>.toml.bak` and writes the new file. Sanketa loads the pack at once.
+
+Check each key in the app before you trust it. A model can make a mistake. The docs can also be wrong or old. The bundled RawTherapee pack was made in this way, and then checked against the source code of the app.
+
 ## Schema
 
 Top-level fields:
