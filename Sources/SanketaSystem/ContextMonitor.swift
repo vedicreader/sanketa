@@ -31,14 +31,23 @@ final class TTLCache<K: Hashable, V>: @unchecked Sendable {
     }
 }
 
-/// The answer for the last key only, with no age: asked again when the key changes or after `clear()`.
+/// The answer for the last key only: asked again when the key changes or after `clear()`. A failed answer (`failed`)
+/// is asked again for the same key too, but at most once per `retry` seconds, so a CLI that failed once does not
+/// stay failed and a CLI that keeps failing does not run at each poll.
 final class LastAnswer<K: Equatable, V>: @unchecked Sendable {
-    private var last: (K, V)?
+    private var last: (key: K, value: V, at: Date)?
     private let lock = NSLock()
+    let retry: TimeInterval
+    let failed: (V) -> Bool
+    var now: () -> Date = Date.init
+
+    init(retry: TimeInterval = .infinity, failed: @escaping (V) -> Bool = { _ in false }) { self.retry = retry; self.failed = failed }
+
     func get(_ k: K, _ make: () -> V) -> V {
-        if let (lk, v) = lock.withLock({ last }), lk == k { return v }
+        let t = now()
+        if let l = lock.withLock({ last }), l.key == k, !failed(l.value) || t.timeIntervalSince(l.at) < retry { return l.value }
         let v = make()
-        lock.withLock { last = (k, v) }
+        lock.withLock { last = (k, v, t) }
         return v
     }
     func clear() { lock.withLock { last = nil } }
@@ -71,8 +80,10 @@ public struct ContextEngine: @unchecked Sendable {
     let remote = RemoteQuery(runner: ProcessRunner())
     let menus = MenuCache()
     let live = TTLCache<String, (prefix: String?, keys: [KeyEntry])>(ttl: 30)
-    /// Kaku's focused tty for the last (pid, window, tab prefix, ttys); `resetChanges()` clears it on activation
-    let kakuFocus = LastAnswer<String, String?>()
+    /// Kaku's focused tty for the last (pid, window, tab prefix, ttys); `resetChanges()` clears it on activation. A nil
+    /// answer (the CLI failed) is asked again after `kakuRetry` seconds.
+    let kakuFocus = LastAnswer<String, String?>(retry: ContextEngine.kakuRetry) { $0 == nil }
+    static let kakuRetry: TimeInterval = 10
     let tmuxClients = TmuxClientStore()
     // the outside world; tests put stand-ins here
     var runner: CommandRunning = ProcessRunner()
@@ -146,7 +157,8 @@ public struct ContextEngine: @unchecked Sendable {
     }
 
     /// The tty of Kaku's focused pane from its own CLI, when it has more than one tty; nil if the CLI is missing or
-    /// fails. Asked again only when the window, its `[n/m]` tab prefix or the ttys change, or after `resetChanges()`.
+    /// fails. Asked again only when the window, its `[n/m]` tab prefix or the ttys change, or after `resetChanges()`;
+    /// a nil answer also after `kakuRetry` seconds.
     func focusedTTY(pid: pid_t, bundleID: String, window: (title: String?, id: Int)?, ttys: [String]) -> String? {
         guard bundleID == "fun.tw93.kaku", ttys.count > 1, let cli = kakuCLI(pid) else { return nil }
         let key = "\(pid)|\(window?.id ?? 0)|\(LayerResolver.tabKey(window?.title))|\(ttys.sorted())"

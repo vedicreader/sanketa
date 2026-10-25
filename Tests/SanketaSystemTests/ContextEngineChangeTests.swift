@@ -15,8 +15,16 @@ import Testing
         let lock = NSLock()
         var calls: [[String]] = []
         var focusedPane = 2
+        /// this many `list-clients` calls fail (nil, as when Kaku's CLI times out) before it answers
+        var kakuFailures = 0
         func run(_ path: String, _ args: [String], timeout: TimeInterval) -> String? {
-            lock.withLock { calls.append([path] + args) }
+            let fail = lock.withLock {
+                calls.append([path] + args)
+                guard path == ContextEngineChangeTests.kaku, args.contains("list-clients"), kakuFailures > 0 else { return false }
+                kakuFailures -= 1
+                return true
+            }
+            if fail { return nil }
             if path == ContextEngineChangeTests.kaku, args.contains("list-clients") {
                 return #"[{"pid": 28331, "workspace": "default", "focused_pane_id": \#(focusedPane)}]"#
             }
@@ -89,6 +97,34 @@ import Testing
         e.resetChanges()                              // what an activation does
         _ = kakuCompute(e)
         #expect(r.count("--no-auto-start") == 8)
+    }
+
+    /// A failed CLI answer is asked again after 10 s with the same key, not at each poll and not only on a key change.
+    @Test func failedKakuAnswerIsAskedAgainAfterABackoff() {
+        let r = Runner(), w = World(), e = engine(r, w)
+        var clock = Date(timeIntervalSinceReferenceDate: 0)
+        e.kakuFocus.now = { clock }
+        r.kakuFailures = 2
+        func clients() -> Int { r.count("list-clients") - r.count("-L") }
+        #expect(kakuCompute(e).layers.map(\.name) == ["fish", "Kaku"], "no answer: only the shared login shell")
+        #expect(clients() == 1)
+        for s in 1...9 {                              // polls each second: no new CLI run
+            clock = Date(timeIntervalSinceReferenceDate: Double(s))
+            _ = kakuCompute(e)
+        }
+        #expect(clients() == 1)
+        clock = Date(timeIntervalSinceReferenceDate: 10)
+        _ = kakuCompute(e)                            // the second try fails too
+        #expect(clients() == 2)
+        clock = Date(timeIntervalSinceReferenceDate: 15)
+        _ = kakuCompute(e)
+        #expect(clients() == 2, "at most one try per 10 s")
+        clock = Date(timeIntervalSinceReferenceDate: 20)
+        #expect(kakuCompute(e).layers.map(\.name) == ["ramabana", "fish", "Kaku"], "the CLI works again")
+        #expect(clients() == 3 && r.count("--no-auto-start") == 4)
+        clock = Date(timeIntervalSinceReferenceDate: 100)
+        _ = kakuCompute(e)                            // a good answer stays until the key changes
+        #expect(clients() == 3)
     }
 
     @Test func kakuCLIOnlyForKakuWithSeveralTTYs() {
