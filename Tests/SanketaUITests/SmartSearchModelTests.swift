@@ -49,7 +49,7 @@ private func smart(_ c: (any Choosing)?) -> SmartSearch {
         let s = model(TestChooser(["e2"]))
         s.query = "split pane side by side"
         let local = s.results
-        #expect(local == SearchModel.byPack(Search.rank(s.query, items, context: [])))
+        #expect(local == Search.blend(s.query, Search.rank(s.query, items, context: [])))
         #expect(s.picked.isEmpty && s.note == nil)
         await until(3) { !s.picked.isEmpty }
         #expect(s.picked.count == 1 && s.picked.contains(s.results[0].id))

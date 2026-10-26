@@ -195,20 +195,35 @@ public final class SanketaPanel: NSPanel {
         }
     }
 
-    /// In search, ⌘S saves the query in the vault and ⌘D saves the clipboard. Both keys are on the left hand.
-    /// Every other ⌘ key goes on to the Edit menu (⌘A, ⌘C, ⌘X, ⌘V, ⌘Z, ⇧⌘Z) and the field editor.
+    /// In search, ⌘S saves the query in the vault and ⌘D saves the clipboard. ⌘E and ⇧⌘E change the scope; Tab already
+    /// goes to the layer list. These keys are on the left hand. Every other ⌘ key goes on to the Edit menu (⌘A, ⌘C, ⌘X,
+    /// ⌘V, ⌘Z, ⇧⌘Z) and the field editor.
     func keyEquivalent(_ e: NSEvent) -> Bool {
-        guard e.type == .keyDown, let clipboard = Self.saveKey(keyCode: Int(e.keyCode), flags: e.modifierFlags, searching: searching)
-        else { return false }
+        guard e.type == .keyDown else { return false }
+        if let by = Self.scopeKey(keyCode: Int(e.keyCode), flags: e.modifierFlags, searching: searching) {
+            search.cycleScope(by)
+            return true
+        }
+        guard let clipboard = Self.saveKey(keyCode: Int(e.keyCode), flags: e.modifierFlags, searching: searching) else { return false }
         search.saveToVault(clipboard: clipboard)
         return true
     }
 
+    /// The modifier keys of `flags`, without Caps Lock, the keypad and fn.
+    nonisolated static func mods(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
+        flags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
+    }
+
     /// nil: not a save key. Else true for ⌘D (the clipboard), false for ⌘S (the query).
     nonisolated static func saveKey(keyCode: Int, flags: NSEvent.ModifierFlags, searching: Bool) -> Bool? {
-        guard searching, flags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function]) == .command
-        else { return nil }
+        guard searching, mods(flags) == .command else { return nil }
         return keyCode == kS ? false : keyCode == kD ? true : nil
+    }
+
+    /// nil: not a scope key. Else 1 for ⌘E (the next scope), -1 for ⇧⌘E (the previous scope).
+    nonisolated static func scopeKey(keyCode: Int, flags: NSEvent.ModifierFlags, searching: Bool) -> Int? {
+        guard searching, keyCode == kE else { return nil }
+        return mods(flags) == .command ? 1 : mods(flags) == [.command, .shift] ? -1 : nil
     }
 
     /// True when `point` (window coordinates) is on the search field.
@@ -263,4 +278,4 @@ public final class SanketaPanel: NSPanel {
     }
 }
 
-let kTab = 48, kEscape = 53, kUp = 126, kDown = 125, kReturn = 36, kS = 1, kD = 2
+let kTab = 48, kEscape = 53, kUp = 126, kDown = 125, kReturn = 36, kS = 1, kD = 2, kE = 14

@@ -3,11 +3,21 @@ import Combine
 import SanketaCore
 import SanketaSystem
 
+/// What a search shows: all results, only the keys and tips of the packs, or only the vault. ⌘E goes to the next one.
+public enum SearchScope: Int, CaseIterable, Sendable {
+    case all, shortcuts, vault
+
+    /// the quiet label next to the search field
+    public var label: String { ["All", "Shortcuts", "Vault"][rawValue] }
+}
+
 /// Query → ranked results over the library plus context packs, with a clamped selection. For 3 or more words, a model
 /// may move its picks to the top after the user stops typing for `debounce` seconds. For 3 or more letters, vault results
-/// come after the pack results, `vaultDebounce` seconds after the user stops typing.
+/// join the ranking `vaultDebounce` seconds after the user stops typing. `Search.blend` ranks them all.
 @MainActor public final class SearchModel: ObservableObject {
     @Published public var query = "" { didSet { if query != oldValue { refresh() } } }
+    /// the results that search shows; a new scope searches again
+    @Published public var scope = SearchScope.all { didSet { if scope != oldValue { refresh() } } }
     @Published public private(set) var results: [SearchItem] = []
     @Published public private(set) var selection = 0
     /// ids of the results that the model chose
@@ -24,7 +34,9 @@ import SanketaSystem
     var vault: VaultSearching?
     let vaultDebounce: TimeInterval
     var vaultTask: Task<Void, Never>?
-    /// the vault results of this query; they stay at the end when the model's picks arrive
+    /// the pack results of this query, in the order of the provider or the model
+    var packItems: [SearchItem] = []
+    /// the vault results of this query, in vault rank
     var vaultItems: [SearchItem] = []
     /// opens a vault result on Return
     let open: (URL) -> Void
@@ -93,6 +105,15 @@ import SanketaSystem
     /// The shortest query that searches the vault.
     public static let vaultMinLength = 3
 
+    /// The vault results asked for in the Vault scope. The All scope asks for the default of the vault search.
+    public static let vaultWide = 20
+
+    /// ⌘E (1) or ⇧⌘E (-1): the next or the previous scope, All → Shortcuts → Vault → All.
+    public func cycleScope(_ by: Int) {
+        let n = SearchScope.allCases.count
+        scope = SearchScope(rawValue: ((scope.rawValue + by) % n + n) % n) ?? .all
+    }
+
     public func setSource(library: PackLibrary? = nil, context: Context? = nil, extra: [SearchItem]? = nil) {
         if let library { self.library = library }
         if let context { self.context = context }
@@ -121,13 +142,14 @@ import SanketaSystem
         vaultTask = nil
         vaultItems = []
         let ctx = context.layers.compactMap(\.packID)
-        results = query.trimmingCharacters(in: .whitespaces).isEmpty ? [] : Self.byPack(provider.results(query, items, context: ctx))
+        packItems = query.trimmingCharacters(in: .whitespaces).isEmpty || scope == .vault ? [] : provider.results(query, items, context: ctx)
+        picked = []
+        rank()
         selection = 0
         expanded = nil
-        picked = []
         note = nil
         searchVault()
-        guard let smart, query.split(whereSeparator: \.isWhitespace).count >= 3 else { return }
+        guard let smart, scope != .vault, query.split(whereSeparator: \.isWhitespace).count >= 3 else { return }
         let (q, all, wait) = (query, items, debounce)
         smartTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(wait))
@@ -138,42 +160,35 @@ import SanketaSystem
         }
     }
 
-    /// After `vaultDebounce`, the vault results go at the end. The selected row stays selected.
+    /// The results of the scope, in one ranking.
+    func rank() { results = Search.blend(query, packItems, vault: scope == .shortcuts ? [] : vaultItems, picked: picked) }
+
+    /// After `vaultDebounce`, the vault results join the ranking. The selected row stays selected.
     func searchVault() {
         let q = query.trimmingCharacters(in: .whitespaces)
-        guard let vault, q.count >= Self.vaultMinLength else { return }
-        let (raw, wait) = (query, vaultDebounce)
+        guard let vault, scope != .shortcuts, q.count >= Self.vaultMinLength else { return }
+        let (raw, wait, wide) = (query, vaultDebounce, scope == .vault ? Self.vaultWide : nil)
         vaultTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(wait))
             guard !Task.isCancelled else { return }
-            let r = await vault.search(q)
+            let r = if let wide { await vault.search(q, limit: wide) } else { await vault.search(q) }
             guard !Task.isCancelled, let self, self.query == raw, !r.isEmpty else { return }
             let keep = self.selected?.id
             self.vaultItems = r
-            self.results = self.results.filter { $0.kind != .vault } + r
+            self.rank()
             self.selection = keep.flatMap { id in self.results.firstIndex { $0.id == id } } ?? 0
         }
     }
 
-    /// The model's picks first, then the rest by pack, then the vault. The selected row stays selected when it is still
-    /// there.
+    /// The model's picks and the plain results, ranked with the vault results. The selected row stays selected when it
+    /// is still there.
     func apply(_ r: SmartResult) {
         let keep = selected?.id
-        let picks = r.items.filter { r.picked.contains($0.id) }
-        results = picks + Self.byPack(r.items.filter { !r.picked.contains($0.id) }) + vaultItems
-        selection = selection == 0 ? 0 : keep.flatMap { id in results.firstIndex { $0.id == id } } ?? 0
+        packItems = r.items
         picked = r.picked
+        rank()
+        selection = selection == 0 ? 0 : keep.flatMap { id in results.firstIndex { $0.id == id } } ?? 0
         note = r.note
-    }
-
-    /// Results of one pack together, under one heading; packs in the order of their best result.
-    static func byPack(_ r: [SearchItem]) -> [SearchItem] {
-        var order = [String](), groups = [String: [SearchItem]]()
-        for i in r {
-            if groups[i.packID] == nil { order.append(i.packID) }
-            groups[i.packID, default: []].append(i)
-        }
-        return order.flatMap { groups[$0]! }
     }
 
     public var selected: SearchItem? { results.indices.contains(selection) ? results[selection] : nil }
@@ -224,5 +239,9 @@ import SanketaSystem
         }
     }
 
-    public func clear() { query = "" }
+    /// Ends the search: the next search starts in the All scope.
+    public func clear() {
+        query = ""
+        scope = .all
+    }
 }

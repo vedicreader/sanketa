@@ -33,9 +33,10 @@ struct PanelView: View {
                 Breadcrumb(layers: model.context.layers, focused: model.focusedLayerIndex, click: clickLayer)
             }
             .frame(height: Theme.topRow).padding(.horizontal, Theme.pad)
-            Group {
+            HStack(spacing: 8) {
                 // ImageRenderer cannot draw AppKit views: a clear slot of the field's height, for the render test to fill
                 if imageRendering { Color.clear.frame(height: field.intrinsicContentSize.height) } else { SearchField(field: field) }
+                if !search.query.isEmpty || search.scope != .all { ScopeLabel(scope: search.scope) }
             }
             .padding(.horizontal, Theme.pad - 2).padding(.top, Theme.fieldGap).padding(.bottom, 10)
             ScrollViewReader { proxy in
@@ -100,7 +101,23 @@ struct PanelView: View {
     var results: some View {
         ResultsList(results: search.results, selection: search.selection, prefix: search.prefix(for:), pick: pick, query: search.query,
                     picked: search.picked, note: search.note, expanded: search.expanded, copy: { model.copy($0) },
-                    openResult: openResult, saveHint: search.canSave ? SearchModel.saveHint : nil)
+                    openResult: openResult, saveHint: search.canSave ? SearchModel.saveHint : nil, scope: search.scope)
+    }
+}
+
+/// The scope of the search, next to the field: muted text and the key that changes it, with no box.
+struct ScopeLabel: View {
+    let scope: SearchScope
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(scope.label).font(Theme.small)
+            Text("⌘E").font(Theme.keySymbolsSmall)
+        }
+        .foregroundStyle(Theme.secondary)
+        .fixedSize()
+        .help("⌘E: next scope. ⇧⌘E: previous scope.")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Scope: \(scope.label). Press Command E to change it.")
     }
 }
 
@@ -120,14 +137,17 @@ struct ResultsList: View {
     var openResult: (Int) -> Void = { _ in }
     /// the keys that save to the vault: one muted line at the end
     var saveHint: String?
+    var scope = SearchScope.all
 
     static func noResult(_ q: String) -> String { "No result for \u{201C}\(q.trimmingCharacters(in: .whitespaces))\u{201D}." }
     static let noResultHelp = "Search finds keys and tips in all packs. Press esc to close."
+    static let vaultHelp = "Vault search needs 3 letters or more. Press ⌘E to search all."
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.rowGap) {
             ForEach(Array(results.enumerated()), id: \.offset) { i, r in
-                if i == 0 || results[i - 1].packID != r.packID {
+                // a vault result shows its shelf in its own row, so it has no heading
+                if r.kind != .vault, i == 0 || results[i - 1].packID != r.packID {
                     Text(r.packName).font(Theme.header).foregroundStyle(Theme.secondary)
                         .padding(.top, i == 0 ? 0 : 8).padding(.leading, 6)
                 }
@@ -137,7 +157,7 @@ struct ResultsList: View {
             if results.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(Self.noResult(query)).font(Theme.text).foregroundStyle(.primary)
-                    Text(Self.noResultHelp).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+                    Text(scope == .vault ? Self.vaultHelp : Self.noResultHelp).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, 6)
             }
@@ -154,8 +174,8 @@ struct ResultsList: View {
 /// One row, like the list: the action on the left and the keys on the right. A tip shows its snippet on a second
 /// line, cut to one line. The selection is a saffron bar, with no fill. A click shows all the text, with a key's
 /// command; on hover, a copy button copies the snippet or command, and a tooltip gives the full text. A vault result
-/// shows its shelf's heading and a snippet in text type; when it has a target, an open button takes the copy button's
-/// place.
+/// shows its shelf at the right of its title and a snippet in text type; when it has a target, an open button takes the
+/// copy button's place.
 struct ResultRow: View {
     let item: SearchItem
     var prefix: String?
@@ -192,8 +212,14 @@ struct ResultRow: View {
                             .textSelection(.enabled)
                     }
                 } else {
-                    Text(item.title).font(Theme.text).foregroundStyle(.primary)
-                        .lineLimit(expanded ? nil : 1).fixedSize(horizontal: false, vertical: expanded)
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Text(item.title).font(Theme.text).foregroundStyle(.primary)
+                            .lineLimit(expanded ? nil : 1).fixedSize(horizontal: false, vertical: expanded)
+                        if item.kind == .vault {
+                            Spacer(minLength: 10)
+                            Text(item.packName).font(Theme.small).foregroundStyle(Theme.secondary).lineLimit(1).layoutPriority(1)
+                        }
+                    }
                     Text(item.detail).font(item.kind == .vault ? Theme.small : Theme.snippet).foregroundStyle(expanded ? .primary : Theme.secondary)
                         .lineLimit(expanded ? nil : 1).truncationMode(.tail).fixedSize(horizontal: false, vertical: expanded)
                         .textSelection(.enabled)

@@ -103,19 +103,19 @@ func ready(_ c: MCPClient, _ seconds: Double = 10) async -> Bool {
 }
 
 @Suite(.serialized) struct VaultHybridTests {
-    @Test func hybridResultsKeepEachShelfTogetherAndOpenTheirSource() async throws {
+    @Test func hybridResultsKeepTheirRankAndOpenTheirSource() async throws {
         let log = tempFile("log")
         defer { try? FileManager.default.removeItem(at: log) }
         let h = VaultHybrid(keyword: VaultSearch(path: fixture, abhyasa: abhyasaUp, budget: 5), client: fakeClient(log: log), timeout: 5)
         defer { h.client.close() }
         #expect(await ready(h.client))
         let r = await h.search("sandhi")
-        // learning had the best hit; the second chunk of "Notes on sandhi" and the code hit are left out
-        #expect(r.map(\.title) == ["Vowel sandhi", "Zucchini watering", "Notes on sandhi"])
-        #expect(r.map(\.packName) == ["learning", "learning", "vault"])
+        // RRF order, not grouped by shelf; the second chunk of "Notes on sandhi" and the code hit are left out
+        #expect(r.map(\.title) == ["Vowel sandhi", "Notes on sandhi", "Zucchini watering"])
+        #expect(r.map(\.packName) == ["learning", "vault", "learning"])
         #expect(r[0].open == URL(string: "http://127.0.0.1:5077/c/vowel-sandhi") && r[0].tags == ["concept"])
-        #expect(r[2].open == URL(string: "https://example.com/sandhi") && r[2].explain == "https://example.com/sandhi")
-        #expect(r[2].detail.contains("Sandhi"))
+        #expect(r[1].open == URL(string: "https://example.com/sandhi") && r[1].explain == "https://example.com/sandhi")
+        #expect(r[1].detail.contains("Sandhi"))
         // every shelf that has a document, except the main shelf (the prose leg); no tmp shelf, no code legs
         let call = logged(log).first
         #expect(call?["tool"] as? String == "federate")

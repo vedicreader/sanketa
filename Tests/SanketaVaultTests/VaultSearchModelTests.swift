@@ -34,7 +34,7 @@ private final class Counting: VaultSearching, @unchecked Sendable {
 }
 
 @MainActor @Suite(.serialized) struct VaultSearchModelTests {
-    @Test func vaultResultsComeAfterPackResultsAndOpenOnReturn() async {
+    @Test func vaultResultsJoinTheRankingAndOpenOnReturn() async {
         let opened = Opened()
         let s = model(VaultSearch(path: fixture, abhyasa: abhyasaUp, budget: 5), opened: opened)
         s.query = "sandhi"

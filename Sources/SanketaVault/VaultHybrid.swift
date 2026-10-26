@@ -43,11 +43,14 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
         return (h, h)
     }
 
-    public func search(_ query: String) async -> [SearchItem] {
+    public func search(_ query: String) async -> [SearchItem] { await search(query, limit: limit) }
+
+    /// `limit` fused hits; the keyword search, when it is used, gives a quarter of `limit` from each shelf.
+    public func search(_ query: String, limit: Int) async -> [SearchItem] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let words = VaultSearch.words(q)
         guard !words.isEmpty else { return [] }
-        guard client.isReady else { client.warm(); return await keyword.search(q) }
+        guard client.isReady else { client.warm(); return await keyword.search(q, limit: limit) }
         let shelves = await keyword.withDB { db in try? Self.searchable(db) } ?? []
         do {
             let r = try await client.call("federate", ["q": q, "limit": limit, "repo": false, "grep": false, "env": false,
@@ -55,7 +58,7 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
             guard let hits = (r.first as? [String: Any])?["hits"] as? [[String: Any]] else { throw MCPError.protocolError("no hits") }
             return await items(hits, words: words, abhyasa: keyword.probe?.up())
         } catch {
-            return await keyword.search(q)
+            return await keyword.search(q, limit: limit)
         }
     }
 
@@ -74,8 +77,7 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
         return s.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) == nil ? nil : s
     }
 
-    /// Fused hits as vault results: one for each document. A shelf's results stay together under one heading, and
-    /// the shelves come in the order of their best hit.
+    /// Fused hits as vault results, in RRF rank: one for each document. Search ranks them with the pack results.
     func items(_ hits: [[String: Any]], words: [String], abhyasa: URL? = nil) async -> [SearchItem] {
         struct Hit { let shelf, doc, title, text: String }
         let hs = hits.compactMap { h -> Hit? in
@@ -97,17 +99,15 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
             }
             return out
         } ?? [:]
-        var seen = Set<String>(), order: [String] = [], groups: [String: [SearchItem]] = [:]
+        var seen = Set<String>(), out: [SearchItem] = []
         for h in hs {
             let (docTitle, source, kind) = docs["\(h.shelf)\u{1}\(h.doc)"] ?? (nil, nil, nil)
             let title = docTitle ?? (h.title.isEmpty ? VaultSearch.firstLine(h.text) : h.title)
             guard seen.insert("\(h.shelf)/\(h.doc)").inserted, seen.insert("\(h.shelf)|\(title)").inserted else { continue }
-            let i = VaultSearch.item(shelf: h.shelf, doc: h.doc, title: title, detail: VaultSearch.snippet(h.text, words),
-                                     source: source, kind: kind, abhyasa: abhyasa)
-            if groups[h.shelf] == nil { order.append(h.shelf) }
-            groups[h.shelf, default: []].append(i)
+            out.append(VaultSearch.item(shelf: h.shelf, doc: h.doc, title: title, detail: VaultSearch.snippet(h.text, words),
+                                        source: source, kind: kind, abhyasa: abhyasa))
         }
-        return order.flatMap { groups[$0]! }
+        return out
     }
 
     /// Saves `text` as a note on the main shelf, with the tag `sanketa`. Each save is a new note: its key is new, so

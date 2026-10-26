@@ -50,21 +50,27 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
         q.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init).filter { $0.count >= 2 }
     }
 
-    public func search(_ query: String) async -> [SearchItem] {
+    public func search(_ query: String) async -> [SearchItem] { await search(query, shelf: perShelf) }
+
+    /// A quarter of `limit` from each shelf, and never fewer than `perShelf`.
+    public func search(_ query: String, limit: Int) async -> [SearchItem] { await search(query, shelf: max(perShelf, limit / 4)) }
+
+    func search(_ query: String, shelf n: Int) async -> [SearchItem] {
         guard !Self.words(query).isEmpty else { return [] }
         let abhyasa = await probe?.up()
-        return await withCheckedContinuation { k in queue.async { k.resume(returning: self.run(query, abhyasa: abhyasa)) } }
+        return await withCheckedContinuation { k in queue.async { k.resume(returning: self.run(query, abhyasa: abhyasa, perShelf: n)) } }
     }
 
     /// The search itself, on the caller's thread; `search` calls it on `queue`. `abhyasa`: the base URL when it answers.
-    func run(_ query: String, abhyasa: URL? = nil) -> [SearchItem] {
+    /// `perShelf`: nil for `self.perShelf`.
+    func run(_ query: String, abhyasa: URL? = nil, perShelf n: Int? = nil) -> [SearchItem] {
         let start = Date()
         let ws = Self.words(query)
         guard let fts = anyOf(ws), let db = open(), let shelves = try? Self.shelves(db) else { return [] }
         var out: [SearchItem] = []
         for s in shelves {
             if Date().timeIntervalSince(start) > budget { break }
-            out += (try? items(db, shelf: s, fts: fts, words: ws, abhyasa: abhyasa)) ?? []
+            out += (try? items(db, shelf: s, fts: fts, words: ws, abhyasa: abhyasa, perShelf: n ?? perShelf)) ?? []
         }
         return out
     }
@@ -83,8 +89,9 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
         return d
     }
 
-    /// The best `perShelf` documents of one shelf, best first: one chunk for each document.
-    func items(_ db: Database, shelf: String, fts: String, words: [String], abhyasa: URL? = nil) throws -> [SearchItem] {
+    /// The best `perShelf` documents of one shelf, best first: one chunk for each document. `n`: nil for `self.perShelf`.
+    func items(_ db: Database, shelf: String, fts: String, words: [String], abhyasa: URL? = nil, perShelf n: Int? = nil) throws -> [SearchItem] {
+        let perShelf = n ?? self.perShelf
         let hits = try db.search(store: shelf, fts: fts, vector: nil, k: perShelf * 4)
         guard !hits.isEmpty else { return [] }
         let docs = shelf == "store" ? "docs" : "\(shelf)_docs"
