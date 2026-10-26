@@ -204,7 +204,7 @@ public struct MLXChooser: OnDeviceChooser {
 
     /// Why the chooser is off after its model did not load. Gemma names the model to use in its place.
     public static func failedNote(_ c: MLXModelChoice) -> String {
-        c == .gemma4e4b ? "\(c.displayName) did not load; choose \(MLXModelChoice.qwen4b6.displayName) in the On-Device Model menu"
+        c == .gemma4e4b ? "\(c.displayName) did not load. Choose \(MLXModelChoice.qwen4b6.displayName) in the On-Device Model menu"
             : "\(c.displayName) did not load"
     }
 

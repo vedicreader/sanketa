@@ -451,29 +451,29 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # bash_history = "\(k.bashHistory)"
             # max_entries = \(k.maxEntries)
 
-            # [llm]   # natural-language search; the model only picks from entries that Sanketa loaded
-            # on_device = \(l.onDevice)   # MLX model on this Mac; off until you choose a model in the On-Device Model menu
-            # mlx_model = "\(l.mlxModel.rawValue)"   # one of: \(MLXModelChoice.allCases.map(\.rawValue).joined(separator: ", "))
-            # apple_fm = \(l.appleFM)   # Apple Foundation Models
-            # suggest = \(l.suggest)   # model tips in the tip slot
-            # openai = \(l.openai)   # opt in: an OpenAI-compatible server
+            # [llm]   # natural-language search; the model only chooses from entries that Sanketa loaded
+            # on_device = \(l.onDevice)   # the model on this Mac; off until you choose a model in the On-Device Model menu
+            # mlx_model = "\(l.mlxModel.rawValue)"   # one of: \(MLXModelChoice.allCases.map { "\($0.rawValue) (\($0.displayName))" }.joined(separator: ", "))
+            # apple_fm = \(l.appleFM)   # Apple Intelligence, when it is on
+            # suggest = \(l.suggest)   # on-device tips for the commands that you ran last
+            # openai = \(l.openai)   # true: use an OpenAI server
             # openai_model = "\(l.openaiModel)"   # empty: the cheapest model
             # base_url = "\(l.baseURL)"
             # api_key_env = "OPENAI_API_KEY"   # read only for api.openai.com unless you set it
             # timeout_seconds = \(Int(l.timeoutSeconds))
 
-            # [abhyasa]   # off: Sanketa works alone and never connects to abhyasa
-            # enabled = \(c.abhyasa.enabled)   # on: Return opens vault results in abhyasa when it runs
-            # url = "\(c.abhyasa.url)"   # concepts at /c/<slug>, other documents at /v/<shelf>/<doc_id>
+            # [abhyasa]   # Abhyasa, the learning app; false: Sanketa never connects to it
+            # enabled = \(c.abhyasa.enabled)   # Return opens vault results in Abhyasa when the app is installed or the server answers
+            # url = "\(c.abhyasa.url)"   # the server, when the app is not installed: concepts at /c/<slug>, documents at /v/<shelf>/<doc_id>
 
-            # [vault]   # search your vishalakshi vault too; Sanketa only reads it, on this Mac
-            # enabled = \(v.enabled)
+            # [vault]   # search your vault too; Sanketa only reads it, on this Mac
+            # enabled = \(v.enabled)   # on when the vault file exists; false: off
             # path = ""   # empty: VISHALAKSHI_VAULT, then ABHYASA_VAULT, then \(VaultConfig.defaultPath)
-            # mcp = \(v.mcp)   # hybrid search and ⌘S/⇧⌘S saving through vishalakshi-mcp; Python writes, Sanketa does not
-            # mcp_command = ""   # empty: the first of \(VaultConfig.mcpCandidates.joined(separator: ", "))
-            # mcp_url = ""   # a running server on this Mac, such as http://127.0.0.1:8000/mcp; Sanketa then starts none
-            # mcp_timeout_seconds = \(v.mcpTimeoutSeconds)   # then keyword results show
-            # mcp_idle_seconds = \(Int(v.mcpIdleSeconds))   # the server stops after this long with no search
+            # mcp = \(v.mcp)   # search by meaning and save notes with ⌘S and ⇧⌘S, through the vault server; Sanketa does not write the vault
+            # mcp_command = ""   # the vault server; empty: the first of \(VaultConfig.mcpCandidates.joined(separator: ", "))
+            # mcp_url = ""   # a vault server that runs on this Mac, such as http://127.0.0.1:8000/mcp; Sanketa then starts none
+            # mcp_timeout_seconds = \(v.mcpTimeoutSeconds)   # then the word results show
+            # mcp_idle_seconds = \(Int(v.mcpIdleSeconds))   # the server stops after this time with no search
 
             """.write(to: f, atomically: true, encoding: .utf8)
         }

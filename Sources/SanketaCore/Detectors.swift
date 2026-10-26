@@ -101,12 +101,12 @@ public enum Detectors {
             guard let glob = f.glob else { return nil }
             return Rewrite(before: c.text, after: "\(cmd) \(glob)", explain: "** expands to the matching files; names with spaces stay intact.")
         }
-        return Rewrite(before: c.text, after: "\(emit(st[0])) -exec \(cmd) {} +", explain: "-exec … {} + batches files like xargs and copes with spaces.")
+        return Rewrite(before: c.text, after: "\(emit(st[0])) -exec \(cmd) {} +", explain: "-exec … {} + gives many files to one command, as xargs does. Names with spaces work.")
     }
 
     static func findGlob(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
         guard sh == .fish, c.stages.count == 1, let glob = findParts(c.stages[0])?.glob else { return nil }
-        return Rewrite(before: c.text, after: "printf '%s\\n' \(glob)", explain: "fish's ** walks subfolders and skips hidden ones, as -not -path '*/.*' does.")
+        return Rewrite(before: c.text, after: "printf '%s\\n' \(glob)", explain: "fish's ** goes into subfolders and skips hidden ones, as -not -path '*/.*' does.")
     }
 
     static func lsGrep(_ c: ShellCommand, _ sh: Shell) -> Rewrite? {
@@ -134,7 +134,7 @@ public enum Detectors {
         let args = cs[0].stages[0].dropFirst()
         guard args.allSatisfy({ $0.globbed && !$0.isFlag && !$0.raw.contains(where: { "$`(){}".contains($0) }) }) else { return nil }
         return Rewrite(before: c.text, after: "for \(s[1].raw) in \(args.isEmpty ? "*" : emit(args))",
-                       explain: "Loop over the glob; parsing ls breaks on spaces. If a folder matches, ls lists what is in it, but the glob gives the folder name.")
+                       explain: "Loop over the glob. The output of ls breaks on spaces. If a folder matches, ls lists what is in it, but the glob gives the folder name.")
     }
 
     /// Operands and operators that expr, math, bc and `$(( ))` all compute the same way: literal whole numbers without a

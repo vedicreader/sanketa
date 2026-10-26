@@ -20,7 +20,7 @@ public struct AppleFMChooser: Choosing {
     public func status() -> ModelStatus {
         switch availability() {
         case .available: return .available
-        case .unavailable(.deviceNotEligible): return .unavailable("this Mac can't run Apple Intelligence")
+        case .unavailable(.deviceNotEligible): return .unavailable("this Mac cannot run Apple Intelligence")
         case .unavailable(.appleIntelligenceNotEnabled): return .unavailable("Apple Intelligence is off")
         case .unavailable(.modelNotReady): return .unavailable("Apple Intelligence model not ready")
         @unknown default: return .unavailable("Apple Intelligence unavailable")

@@ -164,7 +164,7 @@ func ask(_ query: String, out: String?) {
         let r = await SmartSearch(router: llm.router, timeout: timeout).results(query, items, context: [])
         let short = query.split(whereSeparator: \.isWhitespace).count < 3
         let backend = r.note ?? (short ? "plain search (fewer than 3 words)" : llm.router.searchChooser()?.name ?? "plain search")
-        emit(["backend: \(backend)"] + r.items.prefix(5).map { "\(r.picked.contains($0.id) ? "*" : "")\($0.packID): \($0.title) — \($0.detail)" },
+        emit(["backend: \(backend)"] + r.items.prefix(5).map { "\(r.picked.contains($0.id) ? "*" : "")\($0.packID): \($0.title) · \($0.detail)" },
              to: out)
         exit(0)
     }
