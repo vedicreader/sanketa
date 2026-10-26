@@ -83,7 +83,7 @@ Copy Debug Info copies a short report for a bug report. It has the version, the 
 
 ### Search
 
-The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search. Type a word to find a key or tip in all packs. Results from the current layers come first.
+The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search. Type a word to find a key or tip in all packs. The best matches come first. When two results match equally well, a result from the current layers comes first.
 
 - Press ↑ or ↓ to move the selection.
 - Press Return to copy the command or snippet of the selected result. A key that has no command copies nothing. A vault result opens instead. See "Vault search".
@@ -99,11 +99,34 @@ The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search
 Search also finds documents in your vishalakshi vault. The vault keeps your learnings from abhyasa, your ramabana sessions and the other shelves of vishalakshi. One search box finds them all. Each tool keeps its own functions.
 
 - Type 3 letters or more. Sanketa waits until you stop typing for 0.2 seconds. Then it searches the vault.
-- The vault results come after the results from the packs. A heading shows the shelf of each result, such as "ramabana" or "leela". The main shelf shows as "vault".
-- Each result shows the title of the document and a short part of its text.
+- The vault results and the pack results are in one list. The best matches come first. See "How search ranks the results".
+- Each vault result shows the title of the document and a short part of its text. The shelf shows at the right of the title, such as "ramabana" or "leela". The main shelf shows as "vault".
 - The selected result shows its keys on one line, such as `↩ Open     ⌥↩ Resume session`.
 
 Sanketa finds the vault in this order: `path` in `[vault]`, then the variable `VISHALAKSHI_VAULT`, then `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`. An app that you start from the Dock does not get the variables of your shell. Set `path` if your vault is in a different place. Sanketa skips the test shelves whose names start with `tmp` or `dialogprobe`.
+
+#### How search ranks the results
+
+Sanketa gives each result a match level. It uses the same rules for keys, tips and vault results. Case and accents do not count, so "cafe" finds "Café". The levels, from best to worst, are:
+
+1. Each word of the search starts a word in the title.
+2. The title has the search text as one phrase.
+3. Each word of the search is in the title or in the text.
+4. Some words of the search are in the title or in the text.
+
+A better level always comes first. Thus a vault document whose title has your search comes before a key that matches one word. In one level, more matches in the title come first. Vault results with the same match keep the order of the vault search.
+
+The natural-language model can choose results. Its picks stay at the top only when no other result has a better title match. Else they go into the list with the other results.
+
+#### Scope
+
+Push ⌘E during a search to change the scope. Push ⇧⌘E to go back. A label next to the search field shows the scope:
+
+- All: keys, tips and vault results. This is the scope at the start of each search.
+- Shortcuts: keys and tips only. Sanketa does not search the vault.
+- Vault: vault results only. Sanketa gets up to 20 results, which is more than in All.
+
+Tab does not change the scope, because Tab goes to the layer list.
 
 #### Search by meaning
 
@@ -122,9 +145,10 @@ Install the server with `uv tool install vishalakshi`. Use version 0.1.35 or lat
 You can save text in the vault as a note. Sanketa saves only when you push one of these keys during a search:
 
 - Push ⌘S to save the search text as a note.
-- Push ⌘D to save the text on the clipboard as a note. The search text is the title. If you did not type a search, the first line is the title.
+- Push ⇧⌘S to save the text on the clipboard as a note. The search text is the title. If you did not type a search, the first line is the title.
+- ⌘D also saves the clipboard. But another app can use ⌘D for all apps. Then Sanketa does not get the key. Use ⇧⌘S.
 
-A line under the results shows the keys. After the save, the line tells you the title of the note. Each save makes a new note. It never replaces a note that has the same title. Sanketa adds the tag `sanketa` to each note. Python writes the note, through the MCP server. Sanketa itself never writes to the vault file.
+A line under the results shows the keys. After the save, a message at the bottom of the panel tells you the title of the note. If the save fails, the message tells you why. The message stays for 4 seconds. It stays longer while the pointer is on it. A save of a pack in Make a Pack also shows a message with the name of the file. Each save makes a new note. It never replaces a note that has the same title. Sanketa adds the tag `sanketa` to each note. Python writes the note, through the MCP server. Sanketa itself never writes to the vault file.
 
 #### Open a result
 
@@ -149,7 +173,7 @@ Sanketa works alone. Three items in the menu-bar menu connect it to other tools.
 | Item | Setting | Default | What it does |
 |---|---|---|---|
 | Search the Vault | `[vault] enabled` | on | Finds documents in the vault. Sanketa only reads the vault file. |
-| Vault: Search by Meaning, Save Notes | `[vault] mcp` | on | Starts the MCP server for hybrid search, ⌘S and ⌘D. |
+| Vault: Search by Meaning, Save Notes | `[vault] mcp` | on | Starts the MCP server for hybrid search, ⌘S and ⇧⌘S. |
 | Open Vault Results in Abhyasa | `[abhyasa] enabled` | off | Return opens vault results in abhyasa. |
 
 If there is no vault file, vault search shows nothing. If abhyasa is off, Sanketa never connects to it. If abhyasa is on, Sanketa checks that abhyasa runs before it makes a link. It checks at most one time in 10 seconds. If abhyasa does not answer, Return shows the text in the panel.

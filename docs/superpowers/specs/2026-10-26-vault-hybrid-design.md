@@ -46,7 +46,7 @@ Option B can be a later change, if the start time becomes a problem.
 ## How it works
 
 - Search is off the main thread and waits 0.2 s after the last key. If the server is not ready, the search uses keywords, and it starts the server for the next search. The panel also starts the server when a search starts. A hybrid search stops after `mcp_timeout_seconds` (1 s). Then Sanketa uses the keyword results. A server that fails to start is not tried again for 60 s. A save tries again at once.
-- `federate` gives the hits in order of RRF rank. The results of one shelf stay together under one heading. The shelves come in the order of their best hit.
+- `federate` gives the hits in order of RRF rank. Sanketa keeps this order. Search then ranks the vault results with the pack results, by their match with the title and the text.
 - ⌘S saves the query. ⌘D saves the clipboard, with the query as the title. Each save has a new key, so it never replaces a note with the same title. Only these two keys save.
 - `[abhyasa]` is off by default. Then Sanketa makes no abhyasa link and never connects to abhyasa. On, Sanketa asks `GET /health` (at most one time in 10 s) before it makes a link.
 
