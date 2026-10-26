@@ -27,7 +27,15 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// the model loads at most once a minute when the panel opens
     let prewarmGate = Throttle(60)
     /// the vault search and writer from `[vault]`
-    var vault: (search: VaultSearching, writer: VaultWriting?)?
+    var vault: (search: VaultSearching?, writer: VaultWriting?)?
+    /// the vault server client of `vault`, when there is one
+    var hybrid: VaultHybrid? { vault?.writer as? VaultHybrid }
+    /// the vault tools that this Mac has, for the status menu; detected again when the menu opens
+    var tools = VaultTools(vaultFile: false, server: false, abhyasa: false)
+    /// true while "Set Up the Vault…" runs
+    var settingUpVault = false
+    /// tells the status menu if the abhyasa server answers; it asks at most once in 10 seconds
+    var menuProbe: AbhyasaProbe?
     /// model suggestions run at most once per 10 minutes, and only after the history changed
     let suggestGate = Throttle(600)
     var suggestGeneration = -1
@@ -57,7 +65,9 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         // no menu bar shows; the Edit menu gives the search field ⌘A, ⌘C, ⌘X, ⌘V, ⌘Z and ⇧⌘Z
         NSApp.mainMenu = EditMenu.make()
         search.resume = { [weak self] in self?.resumeSession($0) ?? false }
-        search.toast = { [weak self] in self?.savedToast($0) }
+        // a save can make the vault file: look for it again
+        search.toast = { [weak self] in self?.savedToast($0); self?.detectTools() }
+        search.writeMarkdown = { try VaultMarkdown.write(title: $0, text: $1, shelf: $2, doc: $3) }
         if !AXReader.isTrusted { AXReader.promptForTrust() }
         model.packErrors = library.errors
         search.setSource(library: library)
@@ -158,8 +168,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         m.addItem(withTitle: "Translucency", action: nil, keyEquivalent: "").submenu = tr
         menus.add(to: m)
         m.addItem(.separator())
-        for (key, line) in VaultToggles.lines(config) {
-            let i = m.addItem(withTitle: line.title, action: #selector(toggleVault(_:)), keyEquivalent: "")
+        for key in VaultToggles.Key.allCases {
+            let i = m.addItem(withTitle: "", action: #selector(toggleVault(_:)), keyEquivalent: "")
             i.target = self
             i.representedObject = key.rawValue
         }
@@ -183,22 +193,82 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
 
     // MARK: vault and abhyasa
 
-    /// Check marks of the vault toggles, from the config.
+    /// Is Abhyasa.app installed: LaunchServices has an app for `abhyasa://` links. No process starts.
+    nonisolated static func abhyasaInstalled() -> Bool {
+        NSWorkspace.shared.urlForApplication(toOpen: URL(string: "abhyasa://")!) != nil
+    }
+
+    /// Looks for the vault file, the vault server and abhyasa again. File checks only: the abhyasa server answer is the
+    /// last one that the probe has. With `[abhyasa] enabled = false`, the line stays on, so the user can turn it on again.
+    func currentTools() -> VaultTools {
+        let off = !config.abhyasa.enabled, probe = menuProbe
+        return VaultTools.detect(config) { off || probe?.cached != nil }
+    }
+
+    /// The tools now. A vault file or a server that came or went: search uses what is there now.
+    func detectTools() {
+        let old = tools
+        tools = currentTools()
+        if tools.vaultFile != old.vaultFile || tools.server != old.server { applyVault() }
+    }
+
+    /// Titles, check marks and states of the vault lines, from the config and the tools.
     func refreshVaultToggles(_ m: NSMenu) {
-        for (key, line) in VaultToggles.lines(config) {
+        detectTools()
+        let lines = VaultToggles.lines(config, tools, settingUp: settingUpVault)
+        for key in VaultToggles.Key.allCases {
             guard let i = m.items.first(where: { $0.representedObject as? String == key.rawValue }) else { continue }
+            guard let line = lines.first(where: { $0.key == key })?.line else { i.isHidden = true; continue }
+            i.isHidden = false
+            i.title = line.title
             i.state = line.checked ? .on : .off
             i.isEnabled = line.enabled
         }
     }
 
-    /// Writes the toggle's key to config.toml, then applies the config.
+    /// The status menu opens: the lines show at once; when the abhyasa server answers later, they change.
+    func refreshVaultMenu(_ m: NSMenu) {
+        refreshVaultToggles(m)
+        guard config.abhyasa.enabled, let probe = menuProbe, !Self.abhyasaInstalled() else { return }
+        Task { [weak self, weak m] in
+            let before = probe.cached
+            let now = await probe.up()
+            guard now != before, let self, let m else { return }
+            refreshVaultToggles(m)
+        }
+    }
+
+    /// Writes the toggle's key to config.toml, then applies the config. "Set Up the Vault…" asks first.
     @objc func toggleVault(_ sender: NSMenuItem) {
         guard let key = (sender.representedObject as? String).flatMap(VaultToggles.Key.init) else { return }
-        let c = VaultToggles.change(key, config)
+        guard let c = VaultToggles.change(key, config) else { return setUpVault() }
         do { try Config.save(c.key, c.value, to: configURL, table: c.table) }
         catch { configNotSaved(error) }
         reloadConfig()
+    }
+
+    /// Asks once, then runs `uv tool install vishalakshi` off the main thread. The toast shows the progress and the
+    /// result. Then Sanketa looks for the vault server again. Nothing runs before the user clicks Set Up.
+    func setUpVault() {
+        guard !settingUpVault else { return }
+        let uv = VaultSetup.findUV()
+        let a = NSAlert()
+        a.messageText = VaultSetup.title
+        a.informativeText = VaultSetup.message(uv: uv)
+        if uv == nil { a.addButton(withTitle: "OK") } else { a.addButton(withTitle: "Set Up"); a.addButton(withTitle: "Cancel") }
+        NSApp.activate()
+        guard a.runModal() == .alertFirstButtonReturn, let uv else { return }
+        settingUpVault = true
+        savedToast(VaultSetup.started)
+        Task.detached {
+            let result = VaultSetup.run(uv: uv, runner: ProcessRunner())
+            await MainActor.run {
+                self.settingUpVault = false
+                self.savedToast(result)
+                self.applyVault()
+                if let m = self.status?.menu { self.refreshVaultToggles(m) }
+            }
+        }
     }
 
     /// ⌥Return on a ramabana session: a new window in the tmux session that the user used last, else a new window of
@@ -245,7 +315,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
 
     func menuWillOpen(_ menu: NSMenu) {
         guard menu === status?.menu, let item = makePackItem else { return }
-        refreshVaultToggles(menu)
+        refreshVaultMenu(menu)
         switch makePackTarget() {
         case .app(let a): item.title = "Make a Pack for \(appName(a))…"; item.isEnabled = true; item.toolTip = nil
         case .program(let l): item.title = "Make a Pack for \(l.name)…"; item.isEnabled = true; item.toolTip = nil
@@ -448,16 +518,20 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         }
     }
 
-    /// The vault search from `[vault]`: hybrid through vishalakshi's MCP server when it can, else keyword only. It
-    /// opens the vault on the first search of 3 letters or more. The old MCP child stops.
+    /// The vault search from `[vault]`: hybrid through the vault server when it can, else keyword only. Nothing when the
+    /// vault file is missing. It opens the vault on the first search of 3 letters or more. The old MCP child stops.
     func applyVault() {
-        (vault?.search as? VaultHybrid)?.client.close()
-        vault = VaultHybrid.make(config.vault, abhyasa: config.abhyasa)
+        hybrid?.client.close()
+        if menuProbe == nil || menuProbe?.base != config.abhyasa.localURL {
+            menuProbe = AbhyasaProbe(base: config.abhyasa.localURL, app: Self.abhyasaInstalled)
+        }
+        tools = currentTools()
+        vault = VaultHybrid.make(config.vault, abhyasa: config.abhyasa, abhyasaApp: Self.abhyasaInstalled)
         search.setVault(vault?.search)
         search.setWriter(vault?.writer)
     }
 
-    func applicationWillTerminate(_ n: Notification) { (vault?.search as? VaultHybrid)?.client.close() }
+    func applicationWillTerminate(_ n: Notification) { hybrid?.client.close() }
 
     // MARK: natural-language search
 
@@ -473,7 +547,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// (the login shell runs once per launch) and the model list (kept 10 minutes), so the first request is quick.
     func prewarm() {
         // the vault's MCP server needs about 1.5 seconds to start; it is ready, or near, when the query has 3 letters
-        (vault?.search as? VaultHybrid)?.client.warm()
+        hybrid?.client.warm()
         guard prewarmGate.ready() else { return }
         let router = llm.router
         DispatchQueue.global(qos: .utility).async { router.prewarm() }

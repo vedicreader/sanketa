@@ -40,14 +40,85 @@ import SanketaVault
 
     @Test func vaultToggles() {
         var c = Config()
-        let l = VaultToggles.lines(c)
-        #expect(l.map(\.key) == [.vault, .hybrid, .abhyasa])
-        #expect(l.map(\.line.checked) == [true, true, false], "abhyasa is off by default")
-        #expect(VaultToggles.change(.abhyasa, c) == ("abhyasa", "enabled", "true"))
-        #expect(VaultToggles.change(.vault, c) == ("vault", "enabled", "false"))
-        #expect(VaultToggles.change(.hybrid, c) == ("vault", "mcp", "false"))
+        let all = VaultTools(vaultFile: true, server: true, abhyasa: true)
+        let l = VaultToggles.lines(c, all)
+        #expect(l.map(\.key) == [.vault, .hybrid, .abhyasa], "no setup line when the server is there")
+        #expect(l.map(\.line.title) == ["Search the Vault", "Search by Meaning, Save Notes", "Open in Abhyasa"])
+        #expect(l.map(\.line.checked) == [true, true, true] && l.allSatisfy(\.line.enabled), "a missing key: on when the tool is there")
+        #expect(VaultToggles.change(.abhyasa, c)! == ("abhyasa", "enabled", "false"))
+        #expect(VaultToggles.change(.vault, c)! == ("vault", "enabled", "false"))
+        #expect(VaultToggles.change(.hybrid, c)! == ("vault", "mcp", "false"))
+        #expect(VaultToggles.change(.setup, c) == nil)
+        // an explicit false stays off
+        c.vault.mcp = false
+        c.abhyasa.enabled = false
+        #expect(VaultToggles.lines(c, all).map(\.line.checked) == [true, false, false])
+        #expect(VaultToggles.change(.hybrid, c)! == ("vault", "mcp", "true"))
         c.vault.enabled = false
-        #expect(VaultToggles.lines(c).map(\.line.enabled) == [true, false, false], "the vault options need vault search")
+        #expect(VaultToggles.lines(c, all).map(\.line.enabled) == [true, false, false], "the vault options need vault search")
+    }
+
+    /// The menu lines in each state: a missing tool is a disabled line that tells what it needs.
+    @Test func vaultLinesForMissingTools() {
+        let c = Config()
+        func titles(_ t: VaultTools, settingUp: Bool = false) -> [String] { VaultToggles.lines(c, t, settingUp: settingUp).map(\.line.title) }
+        func enabled(_ t: VaultTools) -> [Bool] { VaultToggles.lines(c, t).map(\.line.enabled) }
+        let noServer = VaultTools(vaultFile: true, server: false, abhyasa: true)
+        #expect(titles(noServer) == ["Search the Vault", "Search by Meaning (needs the vault server)", "Open in Abhyasa", "Set Up the Vault…"])
+        #expect(enabled(noServer) == [true, false, true, true])
+        #expect(VaultToggles.lines(c, noServer).last?.key == .setup)
+        #expect(titles(noServer, settingUp: true).last == "Setting Up the Vault…")
+        #expect(VaultToggles.lines(c, noServer, settingUp: true).last?.line.enabled == false, "one setup at a time")
+        let noApp = VaultTools(vaultFile: true, server: true, abhyasa: false)
+        #expect(titles(noApp) == ["Search the Vault", "Search by Meaning, Save Notes", "Open in Abhyasa (needs the Abhyasa app)"])
+        #expect(enabled(noApp) == [true, true, false] && VaultToggles.lines(c, noApp)[2].line.checked == false)
+        let noFile = VaultTools(vaultFile: false, server: true, abhyasa: true)
+        #expect(titles(noFile) == ["Search the Vault (no vault file)", "Search by Meaning, Save Notes", "Open in Abhyasa"])
+        #expect(enabled(noFile) == [false, true, false], "the server can save the first note, which makes the file")
+        #expect(VaultToggles.lines(c, noFile).map(\.line.checked) == [false, true, false])
+        let none = VaultTools(vaultFile: false, server: false, abhyasa: false)
+        #expect(titles(none) == ["Search the Vault (no vault file)", "Search by Meaning (needs the vault server)",
+                                 "Open in Abhyasa (needs the Abhyasa app)", "Set Up the Vault…"])
+        #expect(enabled(none) == [false, false, false, true])
+    }
+
+    @Test func detectsTheVaultTools() {
+        var c = Config()
+        c.vault.path = "/v/vault.db"
+        let home = NSHomeDirectory()
+        func t(files: [String], exec: [String], abhyasa: Bool = false) -> VaultTools {
+            VaultTools.detect(c, env: [:], fileExists: files.contains, isExecutable: exec.contains) { abhyasa }
+        }
+        #expect(t(files: [], exec: []) == VaultTools(vaultFile: false, server: false, abhyasa: false))
+        #expect(t(files: ["/v/vault.db"], exec: ["\(home)/.local/bin/vishalakshi-mcp"], abhyasa: true) == VaultTools(vaultFile: true, server: true, abhyasa: true))
+        #expect(t(files: [], exec: ["/usr/local/bin/vishalakshi-mcp"]).server)
+        c.vault.mcpCommand = "/opt/x/mcp"
+        #expect(!t(files: [], exec: ["/usr/local/bin/vishalakshi-mcp"]).server, "mcp_command wins over the usual places")
+        c.vault.mcpURL = "http://127.0.0.1:8000/mcp"
+        #expect(t(files: [], exec: []).server, "a server address counts as a server")
+        c.vault.path = ""
+        #expect(VaultTools.detect(c, env: ["VISHALAKSHI_VAULT": "/e/v.db"], fileExists: { $0 == "/e/v.db" }, isExecutable: { _ in false }) { false }.vaultFile)
+    }
+
+    @Test func setUpTheVaultFindsUVAndRunsOneCommand() {
+        let home = NSHomeDirectory()
+        #expect(VaultSetup.findUV { _ in false } == nil)
+        #expect(VaultSetup.findUV { $0 == "\(home)/.local/bin/uv" || $0 == "/usr/local/bin/uv" } == "\(home)/.local/bin/uv")
+        #expect(VaultSetup.findUV { _ in true } == "/opt/homebrew/bin/uv")
+        #expect(VaultSetup.message(uv: nil).contains("brew install uv"))
+        #expect(VaultSetup.message(uv: "/opt/homebrew/bin/uv").contains("uv tool install vishalakshi"))
+        final class Runner: CommandRunning {
+            var calls: [(String, [String], TimeInterval)] = []
+            var out: String?
+            func run(_ path: String, _ args: [String], timeout: TimeInterval) -> String? { calls.append((path, args, timeout)); return out }
+        }
+        let r = Runner()
+        r.out = "Installed 2 executables"
+        #expect(VaultSetup.run(uv: "/opt/homebrew/bin/uv", runner: r) == VaultSetup.done)
+        #expect(r.calls.count == 1 && r.calls[0].0 == "/opt/homebrew/bin/uv" && r.calls[0].1 == ["tool", "install", "vishalakshi"])
+        #expect(r.calls[0].2 >= 300, "a download can take minutes")
+        r.out = nil
+        #expect(VaultSetup.run(uv: "/opt/homebrew/bin/uv", runner: r) == VaultSetup.failed)
     }
 
     @Test func saveHintShowsOnlyWithAWriter() {

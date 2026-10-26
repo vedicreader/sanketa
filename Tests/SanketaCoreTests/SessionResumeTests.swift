@@ -54,9 +54,10 @@ private final class ResumeTmux: CommandRunning, @unchecked Sendable {
 
     @Test func abhyasaConfig() {
         var a = AbhyasaConfig()
-        #expect(!a.enabled && a.base == nil, "off by default: Sanketa works alone")
+        #expect(a.enabled && a.base == URL(string: "http://127.0.0.1:5077"), "a missing key: on when abhyasa is there")
+        a.enabled = false
+        #expect(a.base == nil && a.localURL == URL(string: "http://127.0.0.1:5077"), "off: no link, but the menu knows the address")
         a.enabled = true
-        #expect(a.base == URL(string: "http://127.0.0.1:5077"))
         a.url = "https://example.com"
         #expect(a.base == nil, "only on this Mac")
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-abhyasa-\(UUID().uuidString)")

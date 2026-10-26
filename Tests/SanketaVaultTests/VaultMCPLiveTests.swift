@@ -21,8 +21,9 @@ let liveMCP: String? = {
         c.path = path
         c.mcpCommand = liveMCP!
         c.mcpTimeoutSeconds = 10
+        // no vault file yet: the first save makes it
         let m = try #require(VaultHybrid.make(c))
-        let h = try #require(m.search as? VaultHybrid)
+        let h = try #require(m.writer as? VaultHybrid)
         defer { h.client.close() }
         let t0 = Date()
         let title = try await #require(m.writer).save(text: "Detach from a tmux session with prefix then d.", title: "Leave tmux running")

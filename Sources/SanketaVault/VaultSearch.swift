@@ -8,7 +8,7 @@ import SanketaCore
 /// search is keyword-only. No vault or a bad vault gives no results and no error.
 public final class VaultSearch: VaultSearching, @unchecked Sendable {
     public let path: String
-    /// abhyasa, when `[abhyasa]` is on: Return opens documents there while it answers
+    /// abhyasa, when `[abhyasa]` is on: Return opens documents in the app, or on the server while it answers
     let probe: AbhyasaProbe?
     /// results from each shelf, after one result per document
     let perShelf: Int
@@ -61,9 +61,9 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
         return await withCheckedContinuation { k in queue.async { k.resume(returning: self.run(query, abhyasa: abhyasa, perShelf: n)) } }
     }
 
-    /// The search itself, on the caller's thread; `search` calls it on `queue`. `abhyasa`: the base URL when it answers.
+    /// The search itself, on the caller's thread; `search` calls it on `queue`. `abhyasa`: where documents open, if they can.
     /// `perShelf`: nil for `self.perShelf`.
-    func run(_ query: String, abhyasa: URL? = nil, perShelf n: Int? = nil) -> [SearchItem] {
+    func run(_ query: String, abhyasa: AbhyasaTarget? = nil, perShelf n: Int? = nil) -> [SearchItem] {
         let start = Date()
         let ws = Self.words(query)
         guard let fts = anyOf(ws), let db = open(), let shelves = try? Self.shelves(db) else { return [] }
@@ -90,7 +90,7 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
     }
 
     /// The best `perShelf` documents of one shelf, best first: one chunk for each document. `n`: nil for `self.perShelf`.
-    func items(_ db: Database, shelf: String, fts: String, words: [String], abhyasa: URL? = nil, perShelf n: Int? = nil) throws -> [SearchItem] {
+    func items(_ db: Database, shelf: String, fts: String, words: [String], abhyasa: AbhyasaTarget? = nil, perShelf n: Int? = nil) throws -> [SearchItem] {
         let perShelf = n ?? self.perShelf
         let hits = try db.search(store: shelf, fts: fts, vector: nil, k: perShelf * 4)
         guard !hits.isEmpty else { return [] }
@@ -117,13 +117,31 @@ public final class VaultSearch: VaultSearching, @unchecked Sendable {
         return out
     }
 
-    /// One vault result, with what Return and ⌥Return do.
-    static func item(shelf: String, doc: String?, title: String, detail: String, source: String?, kind: String?, abhyasa: URL?) -> SearchItem {
+    /// One vault result, with what Return and ⌥Return do. A document with no web page and no file gets "Open as a
+    /// Markdown file" on ⌥Return, when it has no other ⌥Return action.
+    static func item(shelf: String, doc: String?, title: String, detail: String, source: String?, kind: String?, abhyasa: AbhyasaTarget?) -> SearchItem {
         var i = SearchItem(packID: "vault:\(shelf)", packName: label(shelf), kind: .vault, title: title, detail: detail,
                            explain: source, tags: [kind].compactMap { $0 })
         i.open = VaultLinks.open(source ?? "", shelf: shelf, doc: doc, abhyasa: abhyasa)
-        i.alt = source.flatMap { VaultLinks.alt($0) }
+        i.alt = source.flatMap { VaultLinks.alt($0) } ?? VaultLinks.markdown(source ?? "", shelf: shelf, doc: doc)
         return i
+    }
+
+    /// The title and all the text of one document, its chunks in order; nil when there is no such document.
+    public func document(shelf: String, doc: String) async -> (title: String, text: String)? {
+        guard shelf.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil else { return nil }
+        let docs = shelf == "store" ? "docs" : "\(shelf)_docs"
+        return await withDB { db -> (title: String, text: String)? in
+            guard let rows = try? db.query("select content from [\(shelf)] where doc_id = ? order by rowid", [.text(doc)]),
+                  !rows.isEmpty else { return nil }
+            let text = rows.compactMap { r -> String? in if case .text(let s) = r["content"] { return s }; return nil }
+                .joined(separator: "\n\n")
+            var title = Self.firstLine(text)
+            if let r = try? db.query("select title from [\(docs)] where id = ?", [.text(doc)]).first, case .text(let t) = r["title"], !t.isEmpty {
+                title = t
+            }
+            return (title, text)
+        }
     }
 
     static func firstLine(_ s: String) -> String {

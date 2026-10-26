@@ -34,13 +34,18 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
         return MCPClient(idle: c.mcpIdleSeconds) { try StdioTransport(command: cmd, environment: ["VISHALAKSHI_VAULT": vault]) }
     }
 
-    /// The search for `[vault]`: hybrid when an MCP server can be used, else keyword only. nil: vault search is off.
-    public static func make(_ c: VaultConfig, abhyasa: AbhyasaConfig = AbhyasaConfig()) -> (search: VaultSearching, writer: VaultWriting?)? {
+    /// The search and the writer for `[vault]`: hybrid when an MCP server can be used, else keyword only. nil: vault search
+    /// is off. With no vault file there is no search, but the server can still save a note, which makes the file.
+    /// `abhyasaApp` tells if Abhyasa.app is installed; the probe asks it on each search.
+    public static func make(_ c: VaultConfig, abhyasa: AbhyasaConfig = AbhyasaConfig(),
+                            abhyasaApp: @escaping @Sendable () -> Bool = { false },
+                            fileExists: (String) -> Bool = FileManager.default.fileExists) -> (search: VaultSearching?, writer: VaultWriting?)? {
         guard c.enabled else { return nil }
-        let k = VaultSearch(path: c.resolvedPath(), abhyasa: abhyasa.base.map { AbhyasaProbe(base: $0) })
-        guard let m = client(for: c) else { return (k, nil) }
+        let k = VaultSearch(path: c.resolvedPath(), abhyasa: abhyasa.enabled ? AbhyasaProbe(base: abhyasa.base, app: abhyasaApp) : nil)
+        let file = fileExists(k.path)
+        guard let m = client(for: c) else { return file ? (k, nil) : nil }
         let h = VaultHybrid(keyword: k, client: m, timeout: c.mcpTimeoutSeconds)
-        return (h, h)
+        return (file ? h : nil, h)
     }
 
     public func search(_ query: String) async -> [SearchItem] { await search(query, limit: limit) }
@@ -62,6 +67,10 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
         }
     }
 
+    public func document(shelf: String, doc: String) async -> (title: String, text: String)? {
+        await keyword.document(shelf: shelf, doc: doc)
+    }
+
     /// The shelves to search: those of `VaultSearch.shelves` that have a document.
     static func searchable(_ db: Database) throws -> [String] {
         try VaultSearch.shelves(db).filter { s in
@@ -78,7 +87,7 @@ public final class VaultHybrid: VaultSearching, VaultWriting, @unchecked Sendabl
     }
 
     /// Fused hits as vault results, in RRF rank: one for each document. Search ranks them with the pack results.
-    func items(_ hits: [[String: Any]], words: [String], abhyasa: URL? = nil) async -> [SearchItem] {
+    func items(_ hits: [[String: Any]], words: [String], abhyasa: AbhyasaTarget? = nil) async -> [SearchItem] {
         struct Hit { let shelf, doc, title, text: String }
         let hs = hits.compactMap { h -> Hit? in
             guard let shelf = (h["source"] as? String).flatMap(Self.shelf), let ref = h["ref"] as? String else { return nil }

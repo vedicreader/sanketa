@@ -49,6 +49,8 @@ public enum SearchScope: Int, CaseIterable, Sendable {
     public var resume: (String) -> Bool = { _ in false }
     /// shows what a save did, or why it did not, in the panel's toast
     public var toast: (String) -> Void = { _ in }
+    /// writes a vault document to a Markdown file for ⌥Return and gives the file: title, text, shelf, doc id. nil: no action
+    public var writeMarkdown: ((String, String, String, String) throws -> URL)?
     var library = PackLibrary()
     var context = Context()
     /// items from outside the packs, such as coaching from shell history
@@ -280,15 +282,30 @@ public enum SearchScope: Int, CaseIterable, Sendable {
 
     public enum AltResult: Equatable { case none, resumed, opened }
 
-    /// ⌥Return: resumes the selected ramabana session, or opens the file of the selected memory entry.
+    /// ⌥Return: resumes the selected ramabana session, opens the file of the selected memory entry, or writes the
+    /// selected document to a Markdown file and opens it.
     @discardableResult public func activateAlt() -> AltResult {
         flush()
         switch selected?.alt {
         case .resume(let id)?: return resume(id) ? .resumed : .none
         case .file(let u)?: open(u); return .opened
+        case .markdown(let shelf, let doc)?:
+            guard let vault, let writeMarkdown else { return .none }
+            markdownTask = Task { [weak self] in
+                guard let d = await vault.document(shelf: shelf, doc: doc) else {
+                    self?.toast("Sanketa cannot find this document in the vault.")
+                    return
+                }
+                do { self?.open(try writeMarkdown(d.title, d.text, shelf, doc)) }
+                catch { self?.toast("Sanketa cannot write the Markdown file: \(error.localizedDescription)") }
+            }
+            return .opened
         case nil: return .none
         }
     }
+
+    /// the last "Open as a Markdown file"; tests wait for it
+    var markdownTask: Task<Void, Never>?
 
     /// The keys of a vault result, in Mac symbols, for its row: what Return and ⌥Return do.
     public nonisolated static func keyHint(_ i: SearchItem) -> String? {
@@ -297,6 +314,7 @@ public enum SearchScope: Int, CaseIterable, Sendable {
         switch i.alt {
         case .resume?: return ret + "     ⌥↩ Resume session"
         case .file?: return ret + "     ⌥↩ Open file"
+        case .markdown?: return ret + "     ⌥↩ Open as Markdown"
         case nil: return ret
         }
     }

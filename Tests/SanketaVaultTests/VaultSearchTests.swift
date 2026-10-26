@@ -63,9 +63,9 @@ let abhyasaUp = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in
     }
 
     @Test func openTargets() {
-        let base = URL(string: "http://127.0.0.1:5077")
+        let base = AbhyasaTarget.web(URL(string: "http://127.0.0.1:5077")!)
         let have = { (p: String) in p == "/Users/me/notes/a.md" }
-        func t(_ s: String, _ a: URL? = base) -> URL? { VaultLinks.open(s, shelf: "ramabana", doc: "d1", abhyasa: a, exists: have) }
+        func t(_ s: String, _ a: AbhyasaTarget? = base) -> URL? { VaultLinks.open(s, shelf: "ramabana", doc: "d1", abhyasa: a, exists: have) }
         #expect(t("learning://concept/vowel-sandhi") == URL(string: "http://127.0.0.1:5077/c/vowel-sandhi"))
         #expect(t("learning://concept/") == nil)
         #expect(t("learning://concept/../admin") == nil)
@@ -86,16 +86,60 @@ let abhyasaUp = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in
         #expect(t("/Users/me/notes/a.md", nil) == URL(fileURLWithPath: "/Users/me/notes/a.md"))
     }
 
+    /// With Abhyasa.app installed, links go to the app: they work on any port, and they start the app.
+    @Test func appLinksWhenAbhyasaIsInstalled() {
+        let have = { (p: String) in p == "/Users/me/notes/a.md" }
+        func t(_ s: String, shelf: String = "ramabana", doc: String = "d1") -> URL? {
+            VaultLinks.open(s, shelf: shelf, doc: doc, abhyasa: .app, exists: have)
+        }
+        #expect(t("learning://concept/vowel-sandhi") == URL(string: "abhyasa://concept/vowel-sandhi"))
+        #expect(t("note:sanketa-1a2b", shelf: "store", doc: "9f8e7d6c") == URL(string: "abhyasa://vault/store/9f8e7d6c"))
+        #expect(t("ramabana://session/abc") == URL(string: "abhyasa://vault/ramabana/d1"))
+        // a web page and a file on this Mac still open as they are
+        #expect(t("https://example.com/a") == URL(string: "https://example.com/a"))
+        #expect(t("/Users/me/notes/a.md") == URL(fileURLWithPath: "/Users/me/notes/a.md"))
+        // each part must be safe
+        #expect(t("learning://concept/../admin") == nil && t("learning://concept/a b") == nil)
+        #expect(t("note:x", shelf: "store", doc: "a/../b") == nil && t("note:x", shelf: "st ore", doc: "d") == nil)
+        #expect(t("note:x", shelf: "store", doc: "..") == nil)
+    }
+
+    /// The app wins over the server, and no request goes out when the app is there.
+    @Test func probeChoosesTheAppFirst() async {
+        final class Count: @unchecked Sendable { var n = 0 }
+        let c = Count(), base = URL(string: "http://127.0.0.1:5077")!
+        let app = AbhyasaProbe(base: base, app: { true }) { _ in c.n += 1; return true }
+        #expect(await app.up() == .app && app.cached == .app && c.n == 0)
+        let web = AbhyasaProbe(base: base, app: { false }) { _ in c.n += 1; return true }
+        #expect(web.cached == nil, "no answer yet")
+        #expect(await web.up() == .web(base) && web.cached == .web(base) && c.n == 1)
+        let none = AbhyasaProbe(base: nil, app: { false }) { _ in c.n += 1; return true }
+        #expect(await none.up() == nil && c.n == 1, "no server address: no request")
+    }
+
+    /// ⌥Return on a document with no page and no file: open it as a Markdown file.
+    @Test func markdownActionOnlyWithoutAPageOrAFile() {
+        let have = { (p: String) in p == "/Users/me/notes/a.md" }
+        func m(_ s: String, shelf: String = "store", doc: String? = "d1") -> VaultAlt? { VaultLinks.markdown(s, shelf: shelf, doc: doc, exists: have) }
+        #expect(m("note:sanketa-1a2b") == .markdown(shelf: "store", doc: "d1"))
+        #expect(m("/Users/me/notes/gone.md") == .markdown(shelf: "store", doc: "d1"), "a file that is gone")
+        #expect(m("https://example.com/a") == nil && m("/Users/me/notes/a.md") == nil)
+        #expect(m("note:x", doc: nil) == nil && m("note:x", doc: "a/b") == nil && m("note:x", shelf: "a;b") == nil)
+    }
+
     /// A note that ⌘S or ⇧⌘S saved: vishalakshi gives it the source `note:<key>` on the main shelf, as other notes.
     @Test func aSavedSanketaNoteOpensLikeOtherNotes() {
-        func item(_ a: URL?) -> SearchItem {
+        func item(_ a: AbhyasaTarget?) -> SearchItem {
             VaultSearch.item(shelf: "store", doc: "9f8e7d6c5b4a3210", title: "tmux prefix d detaches", detail: "x",
                              source: "note:sanketa-1a2b3c4d5e6f", kind: "note", abhyasa: a)
         }
-        let on = item(URL(string: "http://127.0.0.1:5077"))
-        #expect(on.open == URL(string: "http://127.0.0.1:5077/v/store/9f8e7d6c5b4a3210") && on.alt == nil && on.packName == "vault")
-        #expect(item(nil).open == nil, "abhyasa off or not answering: Return shows all the text in the panel")
-        #expect(SearchModel.keyHint(on) == "↩ Open" && SearchModel.keyHint(item(nil)) == "↩ Show all")
+        let on = item(.web(URL(string: "http://127.0.0.1:5077")!))
+        let md = VaultAlt.markdown(shelf: "store", doc: "9f8e7d6c5b4a3210")
+        #expect(on.open == URL(string: "http://127.0.0.1:5077/v/store/9f8e7d6c5b4a3210") && on.alt == md && on.packName == "vault")
+        #expect(item(.app).open == URL(string: "abhyasa://vault/store/9f8e7d6c5b4a3210"))
+        #expect(item(nil).open == nil && item(nil).alt == md, "no abhyasa: Return shows all the text in the panel")
+        #expect(SearchModel.keyHint(on) == "↩ Open     ⌥↩ Open as Markdown")
+        #expect(SearchModel.keyHint(item(nil)) == "↩ Show all     ⌥↩ Open as Markdown")
     }
 
     @Test func altActions() {
@@ -115,7 +159,7 @@ let abhyasaUp = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in
         let c = Count()
         let p = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!, keep: 60) { _ in c.n += 1; return true }
         let first = await p.up(), second = await p.up()
-        #expect(first == URL(string: "http://127.0.0.1:5077") && second != nil && c.n == 1)
+        #expect(first == .web(URL(string: "http://127.0.0.1:5077")!) && second != nil && c.n == 1)
         let down = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in false }
         #expect(await down.up() == nil)
         // a real check on a port where nothing listens is quick and says no
@@ -149,7 +193,7 @@ let abhyasaUp = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in
         try? "[vault]\nenabled = false\npath = \"/tmp/v.db\"\nlearning_url = \"http://localhost:9\"\n".write(to: f, atomically: true, encoding: .utf8)
         let (c, err, _) = Config.load(f)
         #expect(err == nil && !c.vault.enabled && c.vault.path == "/tmp/v.db" && c.abhyasa.url == "http://localhost:9")
-        #expect(!c.abhyasa.enabled && c.abhyasa.base == nil, "abhyasa is off by default")
+        #expect(c.abhyasa.enabled && c.abhyasa.base == URL(string: "http://localhost:9"), "abhyasa is on when it is there")
         #expect(Config.load(dir.appendingPathComponent("none.toml")).config.vault == VaultConfig())
     }
 

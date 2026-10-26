@@ -100,28 +100,75 @@ public enum StatusMenus {
     }
 }
 
-/// The three toggles of the status menu that connect Sanketa to other tools. All off, Sanketa works alone. Each line
-/// writes one key: `[vault] enabled`, `[vault] mcp` and `[abhyasa] enabled`.
+/// The three toggles of the status menu that connect Sanketa to other tools, and "Set Up the Vault…". Each toggle writes
+/// one key: `[vault] enabled`, `[vault] mcp` and `[abhyasa] enabled`. A missing key means "on when the tool is there";
+/// only `false` turns a tool off. A tool that is missing shows as a disabled line that tells what it needs.
 public enum VaultToggles {
-    public enum Key: String, CaseIterable, Sendable { case vault, hybrid, abhyasa }
+    public enum Key: String, CaseIterable, Sendable { case vault, hybrid, abhyasa, setup }
 
     public static let vaultTitle = "Search the Vault"
-    public static let hybridTitle = "Vault: Search by Meaning, Save Notes"
-    public static let abhyasaTitle = "Open Vault Results in Abhyasa"
+    public static let hybridTitle = "Search by Meaning, Save Notes"
+    public static let abhyasaTitle = "Open in Abhyasa"
+    public static let setupTitle = "Set Up the Vault…"
+    public static let noVaultFile = "Search the Vault (no vault file)"
+    public static let noServer = "Search by Meaning (needs the vault server)"
+    public static let noAbhyasa = "Open in Abhyasa (needs the Abhyasa app)"
 
-    /// title, checked and enabled for each toggle; the two vault options need vault search
-    public static func lines(_ c: Config) -> [(key: Key, line: MenuLine)] {
-        [(.vault, MenuLine(vaultTitle, checked: c.vault.enabled)),
-         (.hybrid, MenuLine(hybridTitle, enabled: c.vault.enabled, checked: c.vault.mcp)),
-         (.abhyasa, MenuLine(abhyasaTitle, enabled: c.vault.enabled, checked: c.abhyasa.enabled))]
+    /// One line for each toggle, and "Set Up the Vault…" when the vault server is missing. A check mark shows only when the
+    /// tool is on and there. The two vault options need vault search on. Saving needs no vault file: the first note makes
+    /// it. Opening in abhyasa needs the file.
+    public static func lines(_ c: Config, _ t: VaultTools, settingUp: Bool = false) -> [(key: Key, line: MenuLine)] {
+        let vault = c.vault.enabled && t.vaultFile, on = c.vault.enabled
+        var out: [(key: Key, line: MenuLine)] = [
+            (.vault, t.vaultFile ? MenuLine(vaultTitle, checked: vault) : MenuLine(noVaultFile, enabled: false)),
+            (.hybrid, t.server ? MenuLine(hybridTitle, enabled: on, checked: on && c.vault.mcp) : MenuLine(noServer, enabled: false)),
+            (.abhyasa, t.abhyasa ? MenuLine(abhyasaTitle, enabled: vault, checked: vault && c.abhyasa.enabled) : MenuLine(noAbhyasa, enabled: false)),
+        ]
+        if !t.server { out.append((.setup, MenuLine(settingUp ? "Setting Up the Vault…" : setupTitle, enabled: !settingUp))) }
+        return out
     }
 
-    /// The table, key and TOML value that a click on `key` saves.
-    public static func change(_ key: Key, _ c: Config) -> (table: String, key: String, value: String) {
+    /// The table, key and TOML value that a click on `key` saves; nil for "Set Up the Vault…".
+    public static func change(_ key: Key, _ c: Config) -> (table: String, key: String, value: String)? {
         switch key {
         case .vault: return ("vault", "enabled", c.vault.enabled ? "false" : "true")
         case .hybrid: return ("vault", "mcp", c.vault.mcp ? "false" : "true")
         case .abhyasa: return ("abhyasa", "enabled", c.abhyasa.enabled ? "false" : "true")
+        case .setup: return nil
         }
+    }
+}
+
+/// "Set Up the Vault…": gets the vault server with `uv tool install vishalakshi`, only after the user agrees.
+public enum VaultSetup {
+    /// Where Sanketa looks for uv, in this order.
+    public static let uvCandidates = ["/opt/homebrew/bin/uv", "~/.local/bin/uv", "/usr/local/bin/uv"]
+
+    /// The first uv that `exists`, `~` expanded; nil: none.
+    public static func findUV(exists: (String) -> Bool = FileManager.default.isExecutableFile) -> String? {
+        uvCandidates.map { ($0 as NSString).expandingTildeInPath }.first(where: exists)
+    }
+
+    /// The arguments for uv.
+    public static let arguments = ["tool", "install", "vishalakshi"]
+
+    public static let title = "Set Up the Vault"
+
+    /// The text of the question, with uv, or of the note, without uv.
+    public static func message(uv: String?) -> String {
+        guard uv != nil else {
+            return "Sanketa uses uv to get the vault server. Sanketa cannot find uv. Install uv with \"brew install uv\". Then try again."
+        }
+        return "Sanketa will run \"uv tool install vishalakshi\". This command gets the vault server from the internet. "
+            + "Then Sanketa can search by meaning and save notes. Sanketa does not change your vault."
+    }
+
+    public static let started = "Setting up the vault…"
+    public static let done = "The vault server is ready."
+    public static let failed = "Sanketa could not set up the vault server. Run \"uv tool install vishalakshi\" in a terminal to see why."
+
+    /// Runs uv with `runner` (up to 10 minutes) and gives the toast text for the result.
+    public static func run(uv: String, runner: CommandRunning) -> String {
+        runner.run(uv, arguments, timeout: 600) == nil ? failed : done
     }
 }

@@ -169,7 +169,8 @@ public struct LLMConfig: Codable, Equatable, Sendable {
     }
 }
 
-/// `[vault]`: the vishalakshi vault that search reads, read-only. An empty `path` uses `VISHALAKSHI_VAULT`, then
+/// `[vault]`: the vault that search reads, read-only. `enabled` and `mcp` mean "on when the tool is there"; `false` turns
+/// them off. An empty `path` uses `VISHALAKSHI_VAULT`, then
 /// `ABHYASA_VAULT`, then `~/.vishalakshi/vault.db`. With `mcp` on, search is hybrid (words and meaning) and ⌘S saves
 /// notes, through vishalakshi's MCP server: Sanketa starts `mcp_command` as a child, or uses the server at `mcp_url`.
 public struct VaultConfig: Codable, Equatable, Sendable {
@@ -230,12 +231,13 @@ public struct VaultConfig: Codable, Equatable, Sendable {
     }
 }
 
-/// `[abhyasa]`: the abhyasa web app on this Mac. Off (the default), Sanketa works alone: it makes no abhyasa link and
-/// never connects to it. On, Return opens a vault result in abhyasa: a concept at `<url>/c/<slug>`, another document at
-/// `<url>/v/<shelf>/<doc_id>`, when abhyasa answers.
+/// `[abhyasa]`: the abhyasa learning app on this Mac. When the key is missing or `true`, Return opens a vault result in
+/// abhyasa if Abhyasa.app is installed or the server at `url` answers: a concept at `/c/<slug>`, another document at
+/// `/v/<shelf>/<doc_id>`. With `enabled = false`, Sanketa makes no abhyasa link and never connects to it.
 public struct AbhyasaConfig: Codable, Equatable, Sendable {
     public static let defaultURL = "http://127.0.0.1:5077"
-    public var enabled = false
+    /// true: on when abhyasa is there; false: off
+    public var enabled = true
     public var url = AbhyasaConfig.defaultURL
 
     public init() {}
@@ -249,8 +251,11 @@ public struct AbhyasaConfig: Codable, Equatable, Sendable {
     }
 
     /// The base URL when abhyasa is on and the URL is an http address on this Mac; else nil.
-    public var base: URL? {
-        guard enabled, let u = URL(string: url), ["http", "https"].contains(u.scheme?.lowercased() ?? ""),
+    public var base: URL? { enabled ? localURL : nil }
+
+    /// `url` when it is an http address on this Mac; else nil.
+    public var localURL: URL? {
+        guard let u = URL(string: url), ["http", "https"].contains(u.scheme?.lowercased() ?? ""),
               ["127.0.0.1", "localhost", "::1"].contains(u.host?.lowercased() ?? "") else { return nil }
         return u
     }

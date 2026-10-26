@@ -7,6 +7,8 @@ public enum ItemKind: String, Codable, Sendable { case key, tip, suggestion, vau
 public enum VaultAlt: Hashable, Sendable {
     case resume(String)
     case file(URL)
+    /// write the document's text to a Markdown file and open it
+    case markdown(shelf: String, doc: String)
 }
 
 public struct SearchItem: Hashable, Identifiable, Sendable {
@@ -58,10 +60,13 @@ public protocol VaultSearching: Sendable {
     func search(_ query: String) async -> [SearchItem]
     /// Up to about `limit` results, for the Vault scope; more than `search(_:)` gives.
     func search(_ query: String, limit: Int) async -> [SearchItem]
+    /// The title and all the text of one document; nil when there is none.
+    func document(shelf: String, doc: String) async -> (title: String, text: String)?
 }
 
 public extension VaultSearching {
     func search(_ query: String, limit: Int) async -> [SearchItem] { Array(await search(query).prefix(limit)) }
+    func document(shelf: String, doc: String) async -> (title: String, text: String)? { nil }
 }
 
 /// Saves a note in the vishalakshi vault, through Python. Only a user action calls it. It gives the saved title.
