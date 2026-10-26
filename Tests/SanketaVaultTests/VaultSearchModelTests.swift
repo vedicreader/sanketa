@@ -38,7 +38,7 @@ private final class Counting: VaultSearching, @unchecked Sendable {
         let opened = Opened()
         let s = model(VaultSearch(path: fixture, abhyasa: abhyasaUp, budget: 5), opened: opened)
         s.query = "sandhi"
-        #expect(s.results.map(\.packID) == ["coach"], "pack results show at once")
+        #expect(s.pending && s.results.isEmpty, "the first list waits for the vault")
         await until(3) { s.results.count > 1 }
         #expect(s.results.map(\.packID) == ["coach", "vault:learning", "vault:store"])
         s.move(1)
@@ -111,6 +111,7 @@ private final class Counting: VaultSearching, @unchecked Sendable {
             { var i = SearchItem(packID: "vault:ramabana", packName: "ramabana", kind: .vault, title: "Memory one", detail: "x"); i.alt = .file(URL(fileURLWithPath: "/tmp/M.md")); return i }(),
         ])
         s.query = "one"
+        await until(3) { !s.pending }
         s.select(s.results.firstIndex { $0.title == "Session one" } ?? -1)
         #expect(s.activateAlt() == .resumed && resumed == ["s1"])
         s.select(s.results.firstIndex { $0.title == "Memory one" } ?? -1)
@@ -128,8 +129,9 @@ private final class Counting: VaultSearching, @unchecked Sendable {
         await until(3) { !c.seen.isEmpty }
         try? await Task.sleep(for: .milliseconds(150))
         #expect(c.seen == ["sandhi"])
-        // a new query drops the old vault results at once
+        // a new query drops the old vault results when its first list shows
         s.query = "zzz"
+        await until(3) { !s.pending }
         #expect(!s.results.contains { $0.kind == .vault })
     }
 

@@ -67,10 +67,10 @@ private let packs = [SearchItem(packID: "coach", packName: "Better ways", kind: 
     @Test func vaultTitleMatchComesFirstInAll() async {
         let s = model(FixedVault([doc("ramabana", "A session", "sandhi"), doc("learning", "Vowel sandhi")]))
         s.query = "vowel sandhi"
-        await until(3) { s.results.contains { $0.kind == .vault } }
+        await until(3) { !s.pending }
         #expect(s.results.map(\.title) == ["Vowel sandhi pane", "Vowel sandhi", "A session"])
         s.query = "sandhi"
-        await until(3) { s.results.contains { $0.kind == .vault } }
+        await until(3) { !s.pending }
         #expect(s.results.map(\.title) == ["Vowel sandhi pane", "Vowel sandhi", "Count lines", "A session"])
     }
 
@@ -85,8 +85,8 @@ private let packs = [SearchItem(packID: "coach", packName: "Better ways", kind: 
         try? await Task.sleep(for: .milliseconds(200))
         #expect(!s.results.contains { $0.kind == .vault } && v.limits == [nil], "no vault search")
         s.cycleScope(1)
-        #expect(s.results.isEmpty, "the vault results come after the debounce")
-        await until(3) { !s.results.isEmpty }
+        #expect(s.pending, "the list waits for the vault")
+        await until(3) { !s.pending }
         #expect(s.results.map(\.title) == ["Vowel sandhi", "Notes"] && v.limits == [nil, SearchModel.vaultWide])
     }
 
@@ -96,19 +96,5 @@ private let packs = [SearchItem(packID: "coach", packName: "Better ways", kind: 
         // the default of the protocol cuts the plain search
         struct Many: VaultSearching { func search(_ q: String) async -> [SearchItem] { (0..<30).map { doc("store", "N\($0)") } } }
         #expect(await Many().search("x", limit: 20).count == 20)
-    }
-
-    @Test func modelPicksStayFirstOnlyWhenStrong() async {
-        let s = model(FixedVault([doc("learning", "Count vowel sandhi")]))
-        s.query = "count vowel sandhi"
-        await until(3) { s.results.contains { $0.kind == .vault } }
-        let weak = packs[0], strong = packs[1]
-        // the pick matches one word; the vault title has every word
-        s.apply(SmartResult(items: [weak, strong], picked: [weak.id]))
-        #expect(s.results.first?.title == "Count vowel sandhi" && s.picked == [weak.id] && s.results.contains(weak))
-        // a question: nothing matches each word in its title, so the pick stays first
-        s.query = "how do I count the lines"
-        s.apply(SmartResult(items: [strong, weak], picked: [strong.id]))
-        #expect(s.results.first == strong)
     }
 }

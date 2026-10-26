@@ -38,6 +38,9 @@ public enum SearchScope: Int, CaseIterable, Sendable {
     var packItems: [SearchItem] = []
     /// the vault results of this query, in vault rank
     var vaultItems: [SearchItem] = []
+    /// true while the first list of a new query waits for the vault; the old list stays on screen until then
+    var pending = false
+    var paintTask: Task<Void, Never>?
     /// opens a vault result on Return
     let open: (URL) -> Void
     /// saves a note in the vault on ⌘S, ⇧⌘S or ⌘D; nil: no saving
@@ -114,6 +117,12 @@ public enum SearchScope: Int, CaseIterable, Sendable {
     /// The vault results asked for in the Vault scope. The All scope asks for the default of the vault search.
     public static let vaultWide = 20
 
+    /// About the number of rows that the panel shows. A result that comes late never goes above them.
+    public static let visibleRows = 8
+
+    /// The longest time that the first list of a query waits for the vault, after `vaultDebounce`.
+    public static let paintWait: TimeInterval = 0.3
+
     /// ⌘E (1) or ⇧⌘E (-1): the next or the previous scope, All → Shortcuts → Vault → All.
     public func cycleScope(_ by: Int) {
         let n = SearchScope.allCases.count
@@ -141,20 +150,30 @@ public enum SearchScope: Int, CaseIterable, Sendable {
         (context.packs.first { $0.id == packID } ?? library.packs[packID])?.prefix
     }
 
+    /// A new query (or scope) ranks the results again. When the vault is searched too, the first list waits for it, at
+    /// most `vaultDebounce` + `paintWait` seconds, so its rows do not move when the vault answers. Until then the old
+    /// list stays.
     func refresh() {
         smartTask?.cancel()
         smartTask = nil
         vaultTask?.cancel()
         vaultTask = nil
+        paintTask?.cancel()
+        paintTask = nil
         vaultItems = []
         let ctx = context.layers.compactMap(\.packID)
         packItems = query.trimmingCharacters(in: .whitespaces).isEmpty || scope == .vault ? [] : provider.results(query, items, context: ctx)
         picked = []
-        rank()
-        selection = 0
-        expanded = nil
         note = nil
-        searchVault()
+        pending = searchVault()
+        if pending {
+            let wait = vaultDebounce + Self.paintWait
+            paintTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(wait))
+                guard !Task.isCancelled else { return }
+                self?.flush()
+            }
+        } else { paint() }
         guard let smart, scope != .vault, query.split(whereSeparator: \.isWhitespace).count >= 3 else { return }
         let (q, all, wait) = (query, items, debounce)
         smartTask = Task { [weak self] in
@@ -167,44 +186,79 @@ public enum SearchScope: Int, CaseIterable, Sendable {
     }
 
     /// The results of the scope, in one ranking.
-    func rank() { results = Search.blend(query, packItems, vault: scope == .shortcuts ? [] : vaultItems, picked: picked) }
+    func ranked() -> [SearchItem] { Search.blend(query, packItems, vault: scope == .shortcuts ? [] : vaultItems, picked: picked) }
 
-    /// After `vaultDebounce`, the vault results join the ranking. The selected row stays selected.
-    func searchVault() {
+    /// The first list of the query, in one ranking.
+    func paint() {
+        paintTask?.cancel()
+        paintTask = nil
+        pending = false
+        results = ranked()
+        selection = 0
+        expanded = nil
+    }
+
+    /// Paints the first list now, if it still waits for the vault: before a key or a click acts on the list.
+    func flush() { if pending { paint() } }
+
+    /// Results that come late (the vault after the first list, the model's picks) join the list without moving a row
+    /// that shows. The first `visibleRows` rows, and all rows down to the selected row, keep their place; a row that
+    /// is there again (the same vault document) gets its new text in its place. The other rows follow, in one ranking.
+    func settle() {
+        let fresh = ranked()
+        let byID = Dictionary(fresh.map { ($0.id, $0) }) { a, _ in a }
+        let kept = results.map { byID[$0.id] ?? $0 }
+        let n = min(kept.count, max(selection + 1, Self.visibleRows))
+        let head = Array(kept.prefix(n)), ids = Set(head.map(\.id)), freshIDs = Set(fresh.map(\.id))
+        results = head + fresh.filter { !ids.contains($0.id) } + kept.dropFirst(n).filter { !freshIDs.contains($0.id) }
+    }
+
+    /// After `vaultDebounce`, the vault results join the list: in the first list, or else with `settle`. True when a
+    /// vault search starts.
+    @discardableResult func searchVault() -> Bool {
         let q = query.trimmingCharacters(in: .whitespaces)
-        guard let vault, scope != .shortcuts, q.count >= Self.vaultMinLength else { return }
+        guard let vault, scope != .shortcuts, q.count >= Self.vaultMinLength else { return false }
         let (raw, wait, wide) = (query, vaultDebounce, scope == .vault ? Self.vaultWide : nil)
         vaultTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(wait))
             guard !Task.isCancelled else { return }
             let r = if let wide { await vault.search(q, limit: wide) } else { await vault.search(q) }
-            guard !Task.isCancelled, let self, self.query == raw, !r.isEmpty else { return }
-            let keep = self.selected?.id
-            self.vaultItems = r
-            self.rank()
-            self.selection = keep.flatMap { id in self.results.firstIndex { $0.id == id } } ?? 0
+            guard !Task.isCancelled, let self, self.query == raw else { return }
+            self.arrive(vault: r)
         }
+        return true
     }
 
-    /// The model's picks and the plain results, ranked with the vault results. The selected row stays selected when it
-    /// is still there.
+    /// Vault results for this query: the first list, when it waits, or else they join the list.
+    func arrive(vault r: [SearchItem]) {
+        vaultItems = r
+        if pending { paint() } else if !r.isEmpty { settle() }
+    }
+
+    /// The model's picks and the plain results join the list; no row that shows moves. Picks get their dot.
     func apply(_ r: SmartResult) {
-        let keep = selected?.id
         packItems = r.items
         picked = r.picked
-        rank()
-        selection = selection == 0 ? 0 : keep.flatMap { id in results.firstIndex { $0.id == id } } ?? 0
         note = r.note
+        if !pending { settle() }
     }
 
     public var selected: SearchItem? { results.indices.contains(selection) ? results[selection] : nil }
 
-    public func select(_ i: Int) { if results.indices.contains(i) { selection = i } }
+    /// A click on a row of the old list, while the new list waits, only paints the new list.
+    public func select(_ i: Int) {
+        if pending { return flush() }
+        if results.indices.contains(i) { selection = i }
+    }
 
-    public func move(_ by: Int) { selection = max(0, min(results.count - 1, selection + by)) }
+    public func move(_ by: Int) {
+        flush()
+        selection = max(0, min(results.count - 1, selection + by))
+    }
 
     /// A click on a result: it is selected and shows all its text, or goes back to one short line.
     public func click(_ i: Int) {
+        if pending { return flush() }
         guard results.indices.contains(i) else { return }
         selection = i
         expanded = expanded == results[i].id ? nil : results[i].id
@@ -214,6 +268,7 @@ public enum SearchScope: Int, CaseIterable, Sendable {
     /// back to one line, and gives nil: search stays open. Else copies the selected item's command or snippet; nil when
     /// nothing is selected or it has nothing to copy.
     @discardableResult public func activate() -> SearchItem? {
+        flush()
         guard let s = selected else { return nil }
         if let u = s.open { open(u); return s }
         if s.kind == .vault { click(selection); return nil }
@@ -227,6 +282,7 @@ public enum SearchScope: Int, CaseIterable, Sendable {
 
     /// ⌥Return: resumes the selected ramabana session, or opens the file of the selected memory entry.
     @discardableResult public func activateAlt() -> AltResult {
+        flush()
         switch selected?.alt {
         case .resume(let id)?: return resume(id) ? .resumed : .none
         case .file(let u)?: open(u); return .opened

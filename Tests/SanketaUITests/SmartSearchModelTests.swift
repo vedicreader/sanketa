@@ -79,7 +79,7 @@ private func smart(_ c: (any Choosing)?) -> SmartSearch {
         sub.cancel()
         #expect(s.picked == [bPick])
         #expect(!seen.contains { $0.contains(aPick) })
-        #expect(s.results.first?.id == bPick)
+        #expect(s.results.contains { $0.id == bPick }, "a late pick joins the list; it does not move the rows that show")
     }
 
     @Test func typingQuicklyCallsModelOnce() async throws {

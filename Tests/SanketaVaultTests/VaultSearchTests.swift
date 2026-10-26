@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Adhara
 import SanketaCore
+import SanketaUI
 @testable import SanketaVault
 
 /// Fixtures/vault.db comes from scripts/make_vault_fixture.py: vishalakshi and abhyasa wrote it, with the tokenizer
@@ -83,6 +84,18 @@ let abhyasaUp = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in
         #expect(t("learning://concept/x", nil) == nil && t("note:x", nil) == nil && t("ramabana://session/abc", nil) == nil)
         #expect(t("https://example.com/a", nil) == URL(string: "https://example.com/a"))
         #expect(t("/Users/me/notes/a.md", nil) == URL(fileURLWithPath: "/Users/me/notes/a.md"))
+    }
+
+    /// A note that ⌘S or ⇧⌘S saved: vishalakshi gives it the source `note:<key>` on the main shelf, as other notes.
+    @Test func aSavedSanketaNoteOpensLikeOtherNotes() {
+        func item(_ a: URL?) -> SearchItem {
+            VaultSearch.item(shelf: "store", doc: "9f8e7d6c5b4a3210", title: "tmux prefix d detaches", detail: "x",
+                             source: "note:sanketa-1a2b3c4d5e6f", kind: "note", abhyasa: a)
+        }
+        let on = item(URL(string: "http://127.0.0.1:5077"))
+        #expect(on.open == URL(string: "http://127.0.0.1:5077/v/store/9f8e7d6c5b4a3210") && on.alt == nil && on.packName == "vault")
+        #expect(item(nil).open == nil, "abhyasa off or not answering: Return shows all the text in the panel")
+        #expect(SearchModel.keyHint(on) == "↩ Open" && SearchModel.keyHint(item(nil)) == "↩ Show all")
     }
 
     @Test func altActions() {
