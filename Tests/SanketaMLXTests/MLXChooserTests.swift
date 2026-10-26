@@ -230,7 +230,7 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
         #expect(c.status() == .unavailable("fake did not load"))
         // the router goes on to the next tier, and its note says why the first one is off
         #expect(router(c, fm: Fixed(picks: [])).searchChooser()?.name == "fixed")
-        #expect(MLXChooser.failedNote(.gemma4e4b) == "Gemma 4 E4B did not load; choose Qwen3.5-4B 6-bit in the On-Device Model menu")
+        #expect(MLXChooser.failedNote(.gemma4e4b) == "Gemma 4 E4B did not load. Choose Qwen3.5-4B 6-bit in the On-Device Model menu")
         #expect(MLXChooser.failedNote(.qwen4b) == "Qwen3.5-4B did not load")
     }
 

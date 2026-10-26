@@ -27,7 +27,7 @@ private final class Marker {}
         #expect(first.hasPrefix("backend: "))
         #expect(r.file.count >= 2 && r.file.count <= 6)
         #expect(r.file.dropFirst().contains { $0.hasPrefix("tmux:") || $0.hasPrefix("*tmux:") }, "\(r.file)")
-        #expect(r.file.dropFirst().allSatisfy { $0.contains(": ") && $0.contains(" — ") })
+        #expect(r.file.dropFirst().allSatisfy { $0.contains(": ") && $0.contains(" · ") })
     }
 
     @Test func askWithModelsOffSaysPlainSearch() throws {

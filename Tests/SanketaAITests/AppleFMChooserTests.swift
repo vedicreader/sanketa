@@ -34,7 +34,7 @@ private func liveSearch(_ query: String, context: [String]) async -> (SmartResul
     @Test func statusNamesEachReason() {
         let cases: [(SystemLanguageModel.Availability, ModelStatus)] = [
             (.available, .available),
-            (.unavailable(.deviceNotEligible), .unavailable("this Mac can't run Apple Intelligence")),
+            (.unavailable(.deviceNotEligible), .unavailable("this Mac cannot run Apple Intelligence")),
             (.unavailable(.appleIntelligenceNotEnabled), .unavailable("Apple Intelligence is off")),
             (.unavailable(.modelNotReady), .unavailable("Apple Intelligence model not ready")),
         ]
