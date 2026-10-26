@@ -62,7 +62,10 @@ struct PanelView: View {
             }
             if model.showsFooter { Footer(model: model, grant: grantAccessibility, open: openFile) }
         }
-        .overlay(alignment: .bottom) { if let t = model.toast { Toast(text: t) } }
+        .overlay(alignment: .bottom) {
+            if let t = model.toast { Toast(text: t, hold: { model.holdToast($0) }).transition(.opacity) }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: model.toast)
         // the top row sits in the title bar, so the safe area there would only add dead space
         .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 260, minHeight: 240)
@@ -296,21 +299,23 @@ struct Breadcrumb: View {
     }
 }
 
-/// A short line at the bottom of the panel, such as "Copied": a saffron bar and muted text on the panel's own tint.
+/// A short line at the bottom of the panel, such as "Copied" or what a save did: a saffron bar and muted text on the
+/// panel's own tint. It fades out; it stays while the pointer is on it.
 struct Toast: View {
     let text: String
+    var hold: (Bool) -> Void = { _ in }
     @Environment(\.colorScheme) var scheme
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             RoundedRectangle(cornerRadius: 1).fill(Theme.accent).frame(width: 2.5, height: 13)
-            Text(text).font(Theme.small).foregroundStyle(Theme.secondary)
+            Text(text).font(Theme.small).foregroundStyle(Theme.secondary).lineLimit(3).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, Theme.pad).padding(.vertical, 7)
         .frame(maxWidth: .infinity)
         .background(Theme.tint(scheme == .dark).opacity(0.92))
         .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
-        .allowsHitTesting(false)
+        .onHover(perform: hold)
         .accessibilityAddTraits(.updatesFrequently)
     }
 }

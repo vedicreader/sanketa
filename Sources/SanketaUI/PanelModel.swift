@@ -105,9 +105,13 @@ struct StackState {
     /// a short line at the bottom of the panel, such as "Copied"; it goes after `toastSeconds`
     @Published public private(set) var toast: String?
     var toastUntil: Date?
+    /// true while the pointer is on the toast: it stays
+    var toastHeld = false
     public static let copied = "Copied"
     public static let saved = "Saved"
     public nonisolated static let toastSeconds: TimeInterval = 1.2
+    /// how long the toast of a save stays, so the user can read the title or the reason
+    public nonisolated static let saveToastSeconds: TimeInterval = 4
     let pasteboard: NSPasteboard
     /// the clock for the toast; tests set it
     var now: () -> Date = Date.init
@@ -132,16 +136,30 @@ struct StackState {
         showToast(Self.copied)
     }
 
-    /// Shows `text` at the bottom of the panel for `toastSeconds`, such as "Saved" after a pack is saved.
-    public func showToast(_ text: String) {
+    /// Shows `text` at the bottom of the panel for `seconds`, such as "Copied".
+    public func showToast(_ text: String, seconds: TimeInterval = toastSeconds) {
         toast = text
-        toastUntil = now().addingTimeInterval(Self.toastSeconds)
+        toastHeld = false
+        toastUntil = now().addingTimeInterval(seconds)
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.expireToast() }
+    }
+
+    /// The toast of a save: what was saved, or why it was not. It stays for `saveToastSeconds`.
+    public func showSaveToast(_ text: String) { showToast(text, seconds: Self.saveToastSeconds) }
+
+    /// The pointer is on the toast (true) or left it (false). The toast stays while the pointer is on it, and for
+    /// `toastSeconds` after it leaves.
+    public func holdToast(_ on: Bool) {
+        toastHeld = on
+        guard !on, toast != nil else { return }
+        let until = now().addingTimeInterval(Self.toastSeconds)
+        if (toastUntil ?? .distantPast) < until { toastUntil = until }
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.toastSeconds) { [weak self] in self?.expireToast() }
     }
 
-    /// Removes the toast when its time is over.
+    /// Removes the toast when its time is over and the pointer is not on it.
     public func expireToast() {
-        guard let u = toastUntil, now() >= u else { return }
+        guard !toastHeld, let u = toastUntil, now() >= u else { return }
         toast = nil
         toastUntil = nil
     }

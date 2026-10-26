@@ -40,10 +40,12 @@ public enum SearchScope: Int, CaseIterable, Sendable {
     var vaultItems: [SearchItem] = []
     /// opens a vault result on Return
     let open: (URL) -> Void
-    /// saves a note in the vault on ⌘S or ⌘D; nil: no saving
+    /// saves a note in the vault on ⌘S, ⇧⌘S or ⌘D; nil: no saving
     var writer: VaultWriting?
     /// resumes a ramabana session on ⌥Return; false when it could not
     public var resume: (String) -> Bool = { _ in false }
+    /// shows what a save did, or why it did not, in the panel's toast
+    public var toast: (String) -> Void = { _ in }
     var library = PackLibrary()
     var context = Context()
     /// items from outside the packs, such as coaching from shell history
@@ -65,20 +67,22 @@ public enum SearchScope: Int, CaseIterable, Sendable {
     /// The vault writer, or nil to turn saving off (config change).
     public func setWriter(_ w: VaultWriting?) { writer = w }
 
-    /// True when ⌘S and ⌘D can save to the vault.
+    /// True when ⌘S, ⇧⌘S and ⌘D can save to the vault.
     public var canSave: Bool { writer != nil }
 
     /// The keys that save, for the line under the results.
-    public static let saveHint = "⌘S  Save the query in the vault     ⌘D  Save the clipboard"
+    public static let saveHint = "⌘S  Save the query in the vault     ⇧⌘S  Save the clipboard"
 
-    /// ⌘S saves the query as a note; ⌘D (`clipboard`) saves the text on the clipboard, with the query as its title.
-    /// Only these keys save. The line under the results tells the user what happens. False: nothing to save.
+    /// ⌘S saves the query as a note; ⇧⌘S or ⌘D (`clipboard`) saves the text on the clipboard, with the query as its
+    /// title. Only these keys save. The line under the results and the toast tell the user what happens. False: nothing
+    /// to save.
     @discardableResult public func saveToVault(clipboard: Bool) -> Bool {
         guard let writer else { return false }
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let (text, title) = clipboard ? (pasteboard.string(forType: .string) ?? "", q) : (q, "")
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             note = clipboard ? "The clipboard has no text to save." : "Type the text to save."
+            toast(note ?? "")
             return false
         }
         note = "Saving in the vault…"
@@ -87,7 +91,9 @@ public enum SearchScope: Int, CaseIterable, Sendable {
             let line: String
             do { line = "Saved in the vault: \u{201C}\(try await writer.save(text: text, title: title))\u{201D}." }
             catch { line = "Sanketa could not save in the vault. \(Self.reason(error))" }
-            guard let self, self.query == raw else { return }
+            guard let self else { return }
+            self.toast(line)
+            guard self.query == raw else { return }
             self.note = line
         }
         return true

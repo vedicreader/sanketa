@@ -195,7 +195,8 @@ public final class SanketaPanel: NSPanel {
         }
     }
 
-    /// In search, ⌘S saves the query in the vault and ⌘D saves the clipboard. ⌘E and ⇧⌘E change the scope; Tab already
+    /// In search, ⌘S saves the query in the vault, and ⇧⌘S saves the clipboard. ⌘D also saves the clipboard when it gets
+    /// here: another app can own ⌘D as a global hotkey. ⌘E and ⇧⌘E change the scope; Tab already
     /// goes to the layer list. These keys are on the left hand. Every other ⌘ key goes on to the Edit menu (⌘A, ⌘C, ⌘X,
     /// ⌘V, ⌘Z, ⇧⌘Z) and the field editor.
     func keyEquivalent(_ e: NSEvent) -> Bool {
@@ -214,10 +215,14 @@ public final class SanketaPanel: NSPanel {
         flags.intersection(.deviceIndependentFlagsMask).subtracting([.capsLock, .numericPad, .function])
     }
 
-    /// nil: not a save key. Else true for ⌘D (the clipboard), false for ⌘S (the query).
+    /// nil: not a save key. Else true for ⇧⌘S and ⌘D (the clipboard), false for ⌘S (the query).
     nonisolated static func saveKey(keyCode: Int, flags: NSEvent.ModifierFlags, searching: Bool) -> Bool? {
-        guard searching, mods(flags) == .command else { return nil }
-        return keyCode == kS ? false : keyCode == kD ? true : nil
+        guard searching else { return nil }
+        switch (keyCode, mods(flags)) {
+        case (kS, .command): return false
+        case (kS, [.command, .shift]), (kD, .command): return true
+        default: return nil
+        }
     }
 
     /// nil: not a scope key. Else 1 for ⌘E (the next scope), -1 for ⇧⌘E (the previous scope).

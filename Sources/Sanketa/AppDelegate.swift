@@ -57,6 +57,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         // no menu bar shows; the Edit menu gives the search field ⌘A, ⌘C, ⌘X, ⌘V, ⌘Z and ⇧⌘Z
         NSApp.mainMenu = EditMenu.make()
         search.resume = { [weak self] in self?.resumeSession($0) ?? false }
+        search.toast = { [weak self] in self?.savedToast($0) }
         if !AXReader.isTrusted { AXReader.promptForTrust() }
         model.packErrors = library.errors
         search.setSource(library: library)
@@ -196,7 +197,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         guard let key = (sender.representedObject as? String).flatMap(VaultToggles.Key.init) else { return }
         let c = VaultToggles.change(key, config)
         do { try Config.save(c.key, c.value, to: configURL, table: c.table) }
-        catch { FileHandle.standardError.write(Data("cannot save config: \(error.localizedDescription)\n".utf8)) }
+        catch { configNotSaved(error) }
         reloadConfig()
     }
 
@@ -260,10 +261,29 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         }
     }
 
-    /// A first pack for a program in a terminal, opened in the editor.
+    /// A first pack for a program in a terminal, opened in the editor. The toast tells the file, or why it failed.
     func makeStarter(_ layer: Layer) {
-        do { openForEditing(try PackStarter.make(for: layer, in: packsDir)) }
-        catch { FileHandle.standardError.write(Data("cannot make a pack for \(layer.name): \(error.localizedDescription)\n".utf8)) }
+        do {
+            let f = try PackStarter.make(for: layer, in: packsDir)
+            savedToast("Saved \(f.lastPathComponent).")
+            openForEditing(f)
+        } catch {
+            FileHandle.standardError.write(Data("cannot make a pack for \(layer.name): \(error.localizedDescription)\n".utf8))
+            savedToast("Sanketa cannot write the pack for \(layer.name): \(error.localizedDescription)")
+        }
+    }
+
+    /// A menu change that config.toml did not keep: the reason goes to the log and the toast.
+    func configNotSaved(_ e: Error) {
+        FileHandle.standardError.write(Data("cannot save config: \(e.localizedDescription)\n".utf8))
+        savedToast("Sanketa cannot save the config: \(e.localizedDescription)")
+    }
+
+    /// What a save did, or why it did not: the panel shows, without the focus, with the toast for `saveToastSeconds`.
+    func savedToast(_ text: String) {
+        guard !text.isEmpty else { return }
+        panel.show()
+        model.showSaveToast(text)
     }
 
     func appName(_ a: NSRunningApplication) -> String {
@@ -294,7 +314,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     }
 
     /// The prompt gets the user pack (keys and tips, no comments) when there is one, else the bundled pack for the app.
-    /// A save reloads the packs and shows the panel with a "Saved" toast; then the window closes. Each close gives the
+    /// A save reloads the packs and shows the panel with a toast that names the file; then the window closes. Each close gives the
     /// focus back to `previous`, the app that was in front, as Esc does in the panel.
     func showPackMaker(_ app: PackMaker.App, menu: [MenuShortcut], userPack: URL?, previous: NSRunningApplication) {
         let bundled = PackMaker.userPackFile(bundleID: app.bundleID, in: bundledPacks())
@@ -306,12 +326,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             sendOpenAI: sender.map { s in { try await s.send($0) } },
             sendOnDevice: mlx.map { m in { try await m.makePack($0) } },
             packsDir: packsDir, confirmReplace: { PackMakerWindow.confirmReplace($0) },
-            saved: { [weak self] _ in
-                guard let self else { return }
-                reloadPacks()
-                panel.show()
-                model.showToast(PanelModel.saved)
-            }))
+            saved: { [weak self] _ in self?.reloadPacks() },
+            toast: { [weak self] in self?.savedToast($0) }))
         let w = PackMakerWindow(model: maker, provider: llm.providerName)
         w.onClose = { [weak self, weak w] in
             guard let self, packMaker === w else { return }
@@ -329,7 +345,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         panel.setTranslucency(t)
         sender.menu?.items.forEach { $0.state = $0 === sender ? .on : .off }
         do { try Config.save("translucency", "\"\(t.rawValue)\"", to: configURL) }
-        catch { FileHandle.standardError.write(Data("cannot save config: \(error.localizedDescription)\n".utf8)) }
+        catch { configNotSaved(error) }
     }
     @objc func startSearch() { hotkeyPressed() }
 
@@ -383,7 +399,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # [vault]   # search your vishalakshi vault too; Sanketa only reads it, on this Mac
             # enabled = \(v.enabled)
             # path = ""   # empty: VISHALAKSHI_VAULT, then ABHYASA_VAULT, then \(VaultConfig.defaultPath)
-            # mcp = \(v.mcp)   # hybrid search and ⌘S/⌘D saving through vishalakshi-mcp; Python writes, Sanketa does not
+            # mcp = \(v.mcp)   # hybrid search and ⌘S/⇧⌘S saving through vishalakshi-mcp; Python writes, Sanketa does not
             # mcp_command = ""   # empty: the first of \(VaultConfig.mcpCandidates.joined(separator: ", "))
             # mcp_url = ""   # a running server on this Mac, such as http://127.0.0.1:8000/mcp; Sanketa then starts none
             # mcp_timeout_seconds = \(v.mcpTimeoutSeconds)   # then keyword results show

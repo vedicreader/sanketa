@@ -27,14 +27,17 @@ import SanketaCore
         public var confirmReplace: (URL) -> Bool
         /// called after a save, with the file
         public var saved: (URL) -> Void
+        /// shows what a save or a draft save did, or why it did not, in the panel's toast
+        public var toast: (String) -> Void
 
         public init(app: PackMaker.App, menu: [MenuShortcut], existing: String?, userPack: URL? = nil, config: LLMConfig, provider: String,
                     onDeviceReady: Bool,
                     sendOpenAI: ((String) async throws -> String)?, sendOnDevice: ((String) async throws -> String)?,
-                    packsDir: URL, pasteboard: NSPasteboard = .general, confirmReplace: @escaping (URL) -> Bool, saved: @escaping (URL) -> Void) {
+                    packsDir: URL, pasteboard: NSPasteboard = .general, confirmReplace: @escaping (URL) -> Bool, saved: @escaping (URL) -> Void,
+                    toast: @escaping (String) -> Void = { _ in }) {
             self.app = app; self.menu = menu; self.existing = existing; self.userPack = userPack; self.config = config; self.provider = provider
             self.onDeviceReady = onDeviceReady; self.sendOpenAI = sendOpenAI; self.sendOnDevice = sendOnDevice; self.packsDir = packsDir
-            self.pasteboard = pasteboard; self.confirmReplace = confirmReplace; self.saved = saved
+            self.pasteboard = pasteboard; self.confirmReplace = confirmReplace; self.saved = saved; self.toast = toast
         }
     }
 
@@ -339,9 +342,11 @@ import SanketaCore
             let f = target
             savedFile = f
             status = draft ? "Saved \(f.lastPathComponent). Sanketa does not load a draft." : Self.saved(f.lastPathComponent, app: world.app.name)
+            world.toast(status)
             if !draft { world.saved(f); requestClose() }
         } catch {
             status = Self.saveFailed(error.localizedDescription)
+            world.toast(status)
         }
     }
 }

@@ -20,16 +20,21 @@ import SanketaVault
         #expect(app?.items.contains { $0.keyEquivalent == "q" } == false, "no ⌘Q in the panel")
     }
 
-    @Test func onlyCommandSAndCommandDSave() {
+    @Test func onlyCommandSShiftCommandSAndCommandDSave() {
         let s = 1, d = 2, a = 0, c = 8, v = 9, z = 6, x = 7
-        #expect(PanelController.saveKey(keyCode: s, flags: .command, searching: true) == false)
-        #expect(PanelController.saveKey(keyCode: d, flags: .command, searching: true) == true)
+        #expect(PanelController.saveKey(keyCode: s, flags: .command, searching: true) == false, "⌘S: the query")
+        #expect(PanelController.saveKey(keyCode: s, flags: [.command, .shift], searching: true) == true, "⇧⌘S: the clipboard")
+        #expect(PanelController.saveKey(keyCode: d, flags: .command, searching: true) == true, "⌘D: the clipboard too")
         #expect(PanelController.saveKey(keyCode: s, flags: [.command, .capsLock], searching: true) == false)
+        #expect(PanelController.saveKey(keyCode: s, flags: [.command, .shift, .capsLock], searching: true) == true)
         // the edit keys go on to the Edit menu and the field editor
         for k in [a, c, v, z, x] { #expect(PanelController.saveKey(keyCode: k, flags: .command, searching: true) == nil) }
         #expect(PanelController.saveKey(keyCode: z, flags: [.command, .shift], searching: true) == nil)
-        #expect(PanelController.saveKey(keyCode: s, flags: [.command, .shift], searching: true) == nil)
+        #expect(PanelController.saveKey(keyCode: d, flags: [.command, .shift], searching: true) == nil)
+        #expect(PanelController.saveKey(keyCode: s, flags: [.command, .option], searching: true) == nil)
+        #expect(PanelController.saveKey(keyCode: s, flags: [.command, .shift, .option], searching: true) == nil)
         #expect(PanelController.saveKey(keyCode: s, flags: .control, searching: true) == nil)
+        #expect(PanelController.saveKey(keyCode: s, flags: [.command, .shift], searching: false) == nil)
         #expect(PanelController.saveKey(keyCode: s, flags: .command, searching: false) == nil, "only in search")
     }
 
@@ -49,7 +54,7 @@ import SanketaVault
         let s = SearchModel(pasteboard: NSPasteboard(name: .init("sanketa-test-\(UUID().uuidString)")))
         #expect(!s.canSave)
         s.setWriter(NoWriter())
-        #expect(s.canSave && SearchModel.saveHint.contains("⌘S") && SearchModel.saveHint.contains("⌘D"))
+        #expect(s.canSave && SearchModel.saveHint.contains("⌘S  Save the query") && SearchModel.saveHint.contains("⇧⌘S  Save the clipboard"))
     }
 }
 
