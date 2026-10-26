@@ -47,6 +47,32 @@ public enum OpenAIModels {
         return sorted.first { $0.contains("nano") } ?? sorted.first { $0.contains("mini") } ?? sorted.first
     }
 
+    /// The name that people know for an OpenAI model id, such as "GPT-5 Nano" for `gpt-5-nano` or "o3 Mini" for
+    /// `o3-mini`. An id of another form, such as one from a different server, stays as it is.
+    public static func displayName(_ id: String) -> String {
+        let parts = id.split(separator: "-").map(String.init)
+        guard let head = parts.first else { return id }
+        let name: String, rest: ArraySlice<String>
+        switch head {
+        case "gpt", "chatgpt":
+            guard parts.count > 1, parts[1].first?.isNumber == true else { return id }
+            name = (head == "gpt" ? "GPT-" : "ChatGPT-") + parts[1]
+            rest = parts.dropFirst(2)
+        case let h where h.range(of: #"^o[0-9]+$"#, options: .regularExpression) != nil:
+            name = h
+            rest = parts.dropFirst()
+        default: return id
+        }
+        // words get a capital letter; a date such as 2024-08-06 stays one word
+        var words = [name], numeric = false
+        for p in rest {
+            let n = p.allSatisfy(\.isNumber)
+            if n && numeric { words[words.count - 1] += "-" + p } else { words.append(n ? p : p.prefix(1).uppercased() + p.dropFirst()) }
+            numeric = n
+        }
+        return words.joined(separator: " ")
+    }
+
     public static func isReasoning(_ id: String) -> Bool { id.range(of: #"^(o[0-9]|gpt-5)"#, options: .regularExpression) != nil }
 }
 

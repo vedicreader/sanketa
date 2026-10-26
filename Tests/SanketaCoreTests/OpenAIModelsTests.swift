@@ -164,4 +164,11 @@ private func json(_ d: Data) throws -> [String: Any] { try #require(JSONSerializ
             #expect(throws: ChoiceError.badResponse) { try OpenAIRequest.parse(Data(s.utf8)) }
         }
     }
+
+    @Test func displayNamesArePlain() {
+        let want = ["gpt-5-nano": "GPT-5 Nano", "gpt-4.1-mini": "GPT-4.1 Mini", "gpt-4o-mini": "GPT-4o Mini", "gpt-4.1": "GPT-4.1",
+                    "o3-mini": "o3 Mini", "o4": "o4", "chatgpt-4o-latest": "ChatGPT-4o Latest", "gpt-4o-2024-08-06": "GPT-4o 2024-08-06",
+                    "llama3.2:3b": "llama3.2:3b", "anthropic/claude-x": "anthropic/claude-x", "gpt-image": "gpt-image"]
+        for (id, name) in want { #expect(OpenAIModels.displayName(id) == name, "\(id)") }
+    }
 }

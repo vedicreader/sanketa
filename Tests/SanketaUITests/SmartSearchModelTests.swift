@@ -142,11 +142,11 @@ private func smart(_ c: (any Choosing)?) -> SmartSearch {
     @Test func modelMenuListsCachedModelsWithCheapestFirst() {
         let ids = ["gpt-4.1", "gpt-4o-mini", "gpt-5-nano"]
         let l = StatusMenus.modelLines(config: openAI(), models: ids, loading: true, failure: nil)
-        #expect(l.map(\.title) == ["Cheapest (now gpt-5-nano)", "gpt-4.1", "gpt-4o-mini", "gpt-5-nano", "Loading models…"])
+        #expect(l.map(\.title) == ["Cheapest (now GPT-5 Nano)", "GPT-4.1", "GPT-4o Mini", "GPT-5 Nano", "Loading models…"])
         #expect(l.map(\.checked) == [true, false, false, false, false])
         #expect(l[0].action == .cheapest && l[1].action == .model("gpt-4.1") && !l[4].enabled)
         let pinned = StatusMenus.modelLines(config: openAI(model: "gpt-4.1"), models: ids, loading: false, failure: nil)
-        #expect(pinned.filter(\.checked).map(\.title) == ["gpt-4.1"] && pinned.count == 4)
+        #expect(pinned.filter(\.checked).map(\.title) == ["GPT-4.1"] && pinned.count == 4)
         // before the first list, or after a failure, the saved id still shows
         let none = StatusMenus.modelLines(config: openAI(model: "my-model"), models: nil, loading: false,
                                             failure: StatusMenus.failed)

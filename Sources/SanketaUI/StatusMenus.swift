@@ -35,16 +35,17 @@ public enum StatusMenus {
     /// "OpenAI Key…", or "API Key (host)…" for another server.
     public static func keyTitle(provider: String) -> String { provider == "OpenAI" ? "OpenAI Key…" : "API Key (\(provider))…" }
 
-    /// With OpenAI off, one disabled line and no request. Else "Cheapest (now <id>)", then the ids in the list; the
-    /// saved choice is checked. A saved id that is not in the list still shows. `failure` is why the last load failed.
+    /// With OpenAI off, one disabled line and no request. Else "Cheapest (now <name>)", then the models in the list, by the
+    /// names that people know (`OpenAIModels.displayName`); the saved choice is checked. A saved id that is not in the list still shows. `failure` is why the last load failed.
     public static func modelLines(config: LLMConfig, models: [String]?, loading: Bool, failure: String?) -> [MenuLine] {
         guard config.openai else { return [MenuLine(turnOn, enabled: false)] }
         let pinned = config.openaiModel
         let cheapest = models.flatMap(OpenAIModels.cheapest)
-        var out = [MenuLine(cheapest.map { "Cheapest (now \($0))" } ?? "Cheapest", checked: pinned.isEmpty, action: .cheapest)]
+        var out = [MenuLine(cheapest.map { "Cheapest (now \(OpenAIModels.displayName($0)))" } ?? "Cheapest", checked: pinned.isEmpty,
+                            action: .cheapest)]
         var ids = models ?? []
         if !pinned.isEmpty && !ids.contains(pinned) { ids.insert(pinned, at: 0) }
-        out += ids.map { MenuLine($0, checked: $0 == pinned, action: .model($0)) }
+        out += ids.map { MenuLine(OpenAIModels.displayName($0), checked: $0 == pinned, action: .model($0)) }
         if loading { out.append(MenuLine(StatusMenus.loading, enabled: false)) }
         else if let failure { out.append(MenuLine(failure, enabled: false)) }
         return out
