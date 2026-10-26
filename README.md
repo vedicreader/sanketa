@@ -116,7 +116,7 @@ Sanketa gives each result a match level. It uses the same rules for keys, tips a
 3. Each word of the search is in the title or in the text.
 4. Some words of the search are in the title or in the text.
 
-A better level always comes first. Thus a vault document whose title has your search comes before a key that matches one word. In one level, more matches in the title come first. Vault results with the same match keep the order of the vault search.
+The best result comes first. Each pack and each vault shelf has one heading, and all its results show under it. The packs and shelves come in the order of their best results. Thus a vault document whose title has your search comes before a pack whose best key matches one word. In one level, more matches in the title come first. Vault results with the same match keep the order of the vault search.
 
 The rows do not move while you read them. When you type, the old list stays until the new list is ready. Sanketa waits for the vault for 0.5 seconds at most. Then it shows the new list in the order above. Some results come later, such as the choices of the model. They go below the rows that show and below the selected row. If a result is in the list already, its text changes in its row. The selected row stays selected. Only a new search changes the order.
 

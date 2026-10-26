@@ -155,7 +155,8 @@ public enum Search {
 
     /// The one ranking of a search: pack results (in the order of `rank` or the model) and vault results (in vault
     /// rank), the better band first. In a band, the pack results of one pack stay together, the vault results keep
-    /// their rank, and the two merge by score; a pack result goes first on equal score. The model's picks in `items`
+    /// their rank, and the two merge by score; a pack result goes first on equal score. Then the results of one pack or
+    /// one vault shelf move together under one heading, after its best result. The model's picks in `items`
     /// stay first when no other result is a better title match (band 3 or 4); else they rank like the rest.
     public static func blend(_ query: String, _ items: [SearchItem], vault: [SearchItem] = [], picked: Set<String> = []) -> [SearchItem] {
         let m = Dictionary((items + vault).map { ($0.id, match(query, $0)) }) { a, _ in a }
@@ -163,9 +164,10 @@ public enum Search {
         let top = (items.filter { !picked.contains($0.id) } + vault).map(band).max() ?? 0
         let first = items.filter { picked.contains($0.id) && (top < 3 || band($0) >= top) }
         let ids = Set(first.map(\.id)), rest = items.filter { !ids.contains($0.id) }
-        return first + (0...4).reversed().flatMap { b in
+        // one heading for each pack or vault shelf: its results stay together, in the order of its best result
+        return byPack(first + (0...4).reversed().flatMap { b in
             merge(byPack(rest.filter { band($0) == b }), vault.filter { band($0) == b }, score: score)
-        }
+        })
     }
 
     /// `a` and `b`, each in its own order, merged by `score`; `a` goes first on equal score.
