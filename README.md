@@ -12,7 +12,7 @@ In a terminal, Sanketa finds each program in the stack. The stack starts at the 
 
 The panel does not take the keyboard focus from your terminal. It takes the focus only when you start a search.
 
-Sanketa needs macOS 26 on Apple Silicon. It needs the Accessibility permission and no other permission. It does not monitor input, and it does not record keystrokes. It uses the network only if you turn on OpenAI search or download the on-device model.
+Sanketa needs macOS 26 on Apple Silicon. It needs the Accessibility permission and no other permission. It does not monitor input, and it does not record keystrokes. It uses the network only if you turn on OpenAI search, download the on-device model or set up the vault.
 
 ## Download
 
@@ -67,10 +67,12 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Search (with the hotkey)
 - Translucency: Low, Medium or High
 - Use OpenAI: turns OpenAI search on or off. When you turn it on, Sanketa looks for the key in the environment, in your login shell and in your Keychain. The next line tells where it found the key, for example "Key: environment". If Sanketa finds no key, the key box opens. Click Save to keep the key in your Keychain and turn OpenAI on. Click Cancel to keep it off.
-- OpenAI Model: the model for OpenAI search, when Use OpenAI is on
+- OpenAI Model: the model for OpenAI search, when Use OpenAI is on. The menu shows each model by its name, such as GPT-5 Nano.
 - OpenAI Key…: save an API key for the server in your Keychain
 - Use On-Device Model: turns the on-device model on or off. If no model is downloaded, the model choice opens. Sanketa does not download a model until you choose one. On a Mac with less than 8 GB of memory, this item is off.
 - On-Device Model: download, use or remove a model, when Use On-Device Model is on
+- The three vault items: Search the Vault, "Search by Meaning, Save Notes" and Open in Abhyasa. See "Use Sanketa alone, or with other tools".
+- Set Up the Vault…: shows only when the vault server is missing. See "Set up the vault".
 - Reload Packs
 - Open Packs Folder
 - Make a Pack for <app>…: makes a pack for the app in front with a model or a local agent. See "Make a pack with a model" in [docs/packs.md](docs/packs.md). If a terminal is in front, it makes a first pack for the program in front.
@@ -96,7 +98,7 @@ The hotkey is Control-Option-K (⌃⌥K). It shows the panel and starts a search
 
 ### Vault search
 
-Search also finds documents in your vishalakshi vault. The vault keeps your learnings from abhyasa, your ramabana sessions and the other shelves of vishalakshi. One search box finds them all. Each tool keeps its own functions.
+Search also finds documents in your vault. The vault is one file on this Mac. It keeps your learnings from Abhyasa, your ramabana sessions and your notes. One search box finds them all. Each tool keeps its own functions.
 
 - Type 3 letters or more. Sanketa waits until you stop typing for 0.2 seconds. Then it searches the vault.
 - The vault results and the pack results are in one list. The best matches come first. See "How search ranks the results".
@@ -116,9 +118,9 @@ Sanketa gives each result a match level. It uses the same rules for keys, tips a
 
 A better level always comes first. Thus a vault document whose title has your search comes before a key that matches one word. In one level, more matches in the title come first. Vault results with the same match keep the order of the vault search.
 
-The rows do not move while you read them. When you type, the old list stays until the new list is ready. Sanketa waits for the vault for 0.5 seconds at most. Then it shows the new list in the order above. Results that come later, such as the picks of the model, go below the rows that show and below the selected row. If a result is in the list already, its text changes in its row. The selected row stays selected. Only a new search changes the order.
+The rows do not move while you read them. When you type, the old list stays until the new list is ready. Sanketa waits for the vault for 0.5 seconds at most. Then it shows the new list in the order above. Some results come later, such as the choices of the model. They go below the rows that show and below the selected row. If a result is in the list already, its text changes in its row. The selected row stays selected. Only a new search changes the order.
 
-The natural-language model can choose results. Its picks stay at the top only when no other result has a better title match. Else they go into the list with the other results.
+The model for natural-language search can choose results. Its choices stay at the top only when no other result has a better title match. Else they go into the list with the other results.
 
 #### Scope
 
@@ -132,7 +134,7 @@ Tab does not change the scope, because Tab goes to the layer list.
 
 #### Search by meaning
 
-Sanketa can search by words and by meaning together. This is hybrid search. For it, Sanketa uses the MCP server of vishalakshi, `vishalakshi-mcp`. Sanketa starts the server when you start a search. The server runs on this Mac, and it reads the same vault file.
+Sanketa can search by words and by meaning together. This is hybrid search. For it, Sanketa uses the vault server. Sanketa starts the server when you start a search. The server runs on this Mac, and it reads the same vault file.
 
 - The server needs about 1.5 seconds to start. Until it is ready, Sanketa finds words only.
 - A hybrid search takes about 60 milliseconds. Sanketa waits 1 second at most. Then it shows the word results.
@@ -140,7 +142,23 @@ Sanketa can search by words and by meaning together. This is hybrid search. For 
 - The server stops after 10 minutes with no search. It uses about 270 MB of memory while it runs.
 - The server hides personal data in the results, such as email addresses.
 
-Install the server with `uv tool install vishalakshi`. Use version 0.1.35 or later. An old version can start very slowly. To update it, use `uv tool upgrade vishalakshi`.
+#### Set up the vault
+
+The vault server is a separate program (the `vishalakshi` package). If Sanketa does not find it, the menu-bar menu shows "Set Up the Vault…". Sanketa does not install the server until you click that item. Then do these steps:
+
+1. Click Set Up the Vault….
+2. Read the message. It tells you the command that Sanketa will run.
+3. Click Set Up. Click Cancel to stop.
+
+Sanketa then runs this command in the background:
+
+```sh
+uv tool install vishalakshi
+```
+
+A message at the bottom of the panel shows "Setting up the vault…". When the command stops, the message tells you the result. Then Sanketa looks for the server again.
+
+Sanketa looks for uv in `/opt/homebrew/bin`, then `~/.local/bin`, then `/usr/local/bin`. If it does not find uv, the message tells you to install uv with `brew install uv`. Use version 0.1.35 of the vault server or later. An old version can start very slowly. To update the server, run the same command with `upgrade` in place of `install`.
 
 #### Save to the vault
 
@@ -150,7 +168,9 @@ You can save text in the vault as a note. Sanketa saves only when you push one o
 - Push ⇧⌘S to save the text on the clipboard as a note. The search text is the title. If you did not type a search, the first line is the title.
 - ⌘D also saves the clipboard. But another app can use ⌘D for all apps. Then Sanketa does not get the key. Use ⇧⌘S.
 
-A line under the results shows the keys. After the save, a message at the bottom of the panel tells you the title of the note. If the save fails, the message tells you why. The message stays for 4 seconds. It stays longer while the pointer is on it. A save of a pack in Make a Pack also shows a message with the name of the file. Each save makes a new note. It never replaces a note that has the same title. Sanketa adds the tag `sanketa` to each note. Python writes the note, through the MCP server. Sanketa itself never writes to the vault file.
+A line under the results shows the keys. After the save, a message at the bottom of the panel tells you the title of the note. If the save fails, the message tells you why. The message stays for 4 seconds. It stays longer while the pointer is on it. A save of a pack in Make a Pack also shows a message with the name of the file.
+
+Each save makes a new note. It never replaces a note that has the same title. Sanketa adds the tag `sanketa` to each note. The vault server writes the note. Sanketa itself never writes to the vault file. If there is no vault file yet, the first note makes it.
 
 #### Open a result
 
@@ -158,13 +178,16 @@ Push Return to open the selected result:
 
 - A web page opens in your browser.
 - A file opens in its app, if it is on this Mac.
-- If abhyasa is on, a concept opens at `<url>/c/<name>`. Other documents open in the vault viewer of abhyasa, at `<url>/v/<shelf>/<id>`. This includes ramabana sessions, memory entries and notes. A note that you saved with ⌘S or ⇧⌘S is on the main shelf, so it opens at `<url>/v/store/<id>`.
+- If the Abhyasa app is installed, Return opens the result in the app. A concept opens at `abhyasa://concept/<name>`. Other documents open at `abhyasa://vault/<shelf>/<id>`. These links work on each port that the app uses. If the app is closed, macOS starts it.
+- If the app is not installed but the Abhyasa server answers, the result opens in your browser. A concept opens at `<url>/c/<name>`, and other documents at `<url>/v/<shelf>/<id>`.
+- These links include ramabana sessions, memory entries and notes. A note that you saved with ⌘S or ⇧⌘S is on the main shelf. Thus it opens at `abhyasa://vault/store/<id>` or `<url>/v/store/<id>`.
 - In all other cases, Return shows all the text of the result in the panel. Push Return again to make it short.
 
 Push ⌥Return for more actions:
 
 - On a ramabana session, ⌥Return resumes the session with `ramabana --resume <id>`. If you use tmux, the session opens in a new window of your tmux session. If not, it opens in a new window of your terminal app.
 - On a ramabana memory entry, ⌥Return opens its file, such as `~/.config/ramabana/memory/<id>/MEMORY.md`.
+- On a document that has no file and no web page, ⌥Return opens the text as a Markdown file. An example is a note that you saved with ⌘S. Sanketa writes the file to `~/Library/Caches/Sanketa/Notes`. Only you can read it. The file opens in your default app for Markdown files.
 
 Put the pointer on a result that can open. An open button then shows. Click it to open the result.
 
@@ -172,13 +195,23 @@ Put the pointer on a result that can open. An open button then shows. Click it t
 
 Sanketa works alone. Three items in the menu-bar menu connect it to other tools. Each item changes one line in the settings file.
 
-| Item | Setting | Default | What it does |
+| Item | Setting | Needs | What it does |
 |---|---|---|---|
-| Search the Vault | `[vault] enabled` | on | Finds documents in the vault. Sanketa only reads the vault file. |
-| Vault: Search by Meaning, Save Notes | `[vault] mcp` | on | Starts the MCP server for hybrid search, ⌘S and ⇧⌘S. |
-| Open Vault Results in Abhyasa | `[abhyasa] enabled` | off | Return opens vault results in abhyasa. |
+| Search the Vault | `[vault] enabled` | the vault file | Finds documents in the vault. Sanketa only reads the vault file. |
+| Search by Meaning, Save Notes | `[vault] mcp` | the vault server | Starts the vault server for hybrid search, ⌘S and ⇧⌘S. |
+| Open in Abhyasa | `[abhyasa] enabled` | the Abhyasa app or server | Return opens vault results in Abhyasa. |
 
-If there is no vault file, vault search shows nothing. If abhyasa is off, Sanketa never connects to it. If abhyasa is on, Sanketa checks that abhyasa runs before it makes a link. It checks at most one time in 10 seconds. If abhyasa does not answer, Return shows the text in the panel.
+Each item is on when Sanketa finds the tool that it needs. Sanketa looks again each time that you open the menu. If you set a value to `false`, the item stays off. If the settings file has no value, the item is on when the tool is there. A click on an item writes `true` or `false`.
+
+If a tool is missing, its item is gray and tells you what it needs:
+
+- "Search the Vault (no vault file)": Sanketa does not find the vault file.
+- "Search by Meaning (needs the vault server)": Sanketa does not find the vault server. "Set Up the Vault…" then shows below.
+- "Open in Abhyasa (needs the Abhyasa app)": the Abhyasa app is not installed, and the Abhyasa server does not answer.
+
+The two vault options need Search the Vault. Saving needs no vault file: the first note makes the file.
+
+Sanketa finds the Abhyasa app through macOS. This check sends nothing on the network. If the app is not installed, Sanketa asks the Abhyasa server at `url` if it runs. It asks at most one time in 10 seconds. If Abhyasa is off, Sanketa never connects to it.
 
 The vault never leaves this Mac. The model for natural-language search does not get vault results.
 
@@ -219,7 +252,7 @@ The panel shows one tip card. It shows one key or one snippet from the current p
 
 ### Better ways
 
-Sanketa reads your fish and bash history on this Mac. It looks for commands that have a shorter or safer form. An example is `grep x f | wc -l`, which can be `grep -c x f`. At a local shell prompt, the tip card can then show the better way, such as "Instead of grep x f | wc -l · seen in 3 commands in your history". fish keeps each command only one time, so the number counts different commands, not runs.
+Sanketa reads your fish and bash history on this Mac. It looks for commands that have a shorter or safer form. An example is `grep x f | wc -l`, which can be `grep -c x f`. At a local shell prompt, the tip card can then show the better way. An example is "Instead of grep x f | wc -l · seen in 3 commands in your history". fish keeps each command only one time, so the number counts different commands, not runs.
 
 Sanketa looks at the history file one time each minute. It reads the end of the file only. It never writes to it, and it never sends it to a server. The cards are also in search. To turn this off, set `enabled = false` in `[coach]`.
 
@@ -229,12 +262,12 @@ You can type a question, such as "how do I split the window side by side". When 
 
 Sanketa tries these models in this order, and it uses the first one that works:
 
-1. The on-device model. It is off until you choose a model in the On-Device Model menu or with `--install-model`. Sanketa does not download a model by itself. When it is off, Sanketa does not start MLX and does not use the GPU for it. Each model needs a minimum of memory: its peak memory in our tests plus 3 GB for macOS and your apps, rounded up to a multiple of 8 GB. Gemma 4 E4B needs 16 GB. Each Qwen model needs 8 GB. The menu shows only the models that fit. On a Mac with less than 8 GB, the menu shows one line: "This Mac does not have enough memory for an on-device model. Search uses plain search." The menu item "No On-Device Model" turns the model off. Gemma 4 E4B is the best choice. It is a 5.4 GB download and uses about 5.2 GB of memory while it runs, so Sanketa shows it only on a Mac with 16 GB of memory or more. Qwen3.5-4B is a 3.1 GB download and uses about 3.7 GB. Use it on a Mac with 8 GB. Qwen3.5-2B is a 1.7 GB download and uses about 2.3 GB. If Gemma 4 E4B does not load on your Mac, the menu then offers Qwen3.5-4B 6-bit. It is a 4.1 GB download. Sanketa loads the model when you start a search. While the model loads, the search is plain, and the next search uses the model. Sanketa frees the memory after one minute with no search. The download needs the app build of Sanketa, which has MLX. A build from `swift build` has no MLX, so its download items are off.
+1. The on-device model. It is off until you choose a model in the On-Device Model menu or with `--install-model`. Sanketa does not download a model by itself. When it is off, Sanketa does not start MLX and does not use the GPU for it. Each model needs a minimum of memory: its peak memory in our tests plus 3 GB for macOS and your apps, rounded up to a multiple of 8 GB. Gemma 4 E4B needs 16 GB. Each Qwen model needs 8 GB. The menu shows only the models that fit. On a Mac with less than 8 GB, the menu shows one line: "This Mac does not have enough memory for an on-device model. Search uses plain search." The menu item "No On-Device Model" turns the model off. Gemma 4 E4B is the best choice. It is a 5.4 GB download and uses about 5.2 GB of memory while it runs. Thus Sanketa shows it only on a Mac with 16 GB of memory or more. Qwen3.5-4B is a 3.1 GB download and uses about 3.7 GB. Use it on a Mac with 8 GB. Qwen3.5-2B is a 1.7 GB download and uses about 2.3 GB. If Gemma 4 E4B does not load on your Mac, the menu then offers Qwen3.5-4B 6-bit. It is a 4.1 GB download. Sanketa loads the model when you start a search. While the model loads, the search is plain, and the next search uses the model. Sanketa frees the memory after one minute with no search. The download needs the app build of Sanketa, which has MLX. A build from `swift build` has no MLX, so its download items are off.
 2. Apple Intelligence. Sanketa uses it if you turned it on in System Settings. You do not have to.
 3. An OpenAI server. This is off until you set `openai = true` in `[llm]`.
 4. Plain search, when no model works. One gray line under the results then tells why, such as "Plain search: Apple Intelligence is off". Sanketa shows no popup and makes no sound.
 
-With OpenAI on, the OpenAI Model menu lists the models of the server. "Cheapest" is the default. It uses the model with the lowest price, such as gpt-5-nano. Sanketa keeps the list for 10 minutes. To use a different server that works like OpenAI, set `base_url`. The menu then shows the host of that server.
+With OpenAI on, the OpenAI Model menu lists the models of the server. "Cheapest" is the default. It uses the model with the lowest price, such as GPT-5 Nano. Sanketa keeps the list for 10 minutes. To use a different server that works like OpenAI, set `base_url`. The menu then shows the host of that server.
 
 Sanketa finds the API key in this order: the variable in its environment, then the same variable in your login shell, then the Keychain. To save a key in the Keychain, use OpenAI Key… in the menu. Sanketa keeps one key for each server host and sends it only to that host.
 
@@ -251,6 +284,7 @@ This is all that Sanketa sends, and only in these cases:
 - With OpenAI on, for each search of three words or more: one HTTPS request to the server. It holds the model name, the fixed instructions, your search text and up to 40 entries from the packs and your live tmux keys. Each entry has a short ref, the pack name, the title and the keys or snippet. A live tmux key that no pack describes has its raw tmux command as its title, so it stays on this Mac. The API key goes in the request header. To OpenAI, Sanketa also asks the server not to store the request.
 - With OpenAI on, when the OpenAI Model menu opens or Sanketa needs the cheapest model: one request for the model list, with the API key. Sanketa keeps the list for 10 minutes, so it does not ask for each search.
 - When you start a model download: plain requests to `huggingface.co` and its download servers, over HTTPS. They have no key and no data about you. Sanketa checks the size and the SHA-256 hash of each file.
+- When you click Set Up the Vault… and then Set Up: uv gets the vault server from the Python package index. Sanketa sends no data about you.
 
 The API key stays in your Keychain or your shell. Sanketa never writes it to a log, and Copy Debug Info never shows it.
 
@@ -284,27 +318,27 @@ base_url = "https://api.openai.com/v1"
 # api_key_env = "OPENROUTER_API_KEY"   # the variable with the key for base_url
 timeout_seconds = 5          # Sanketa stops waiting for the model after this
 
-[vault]                      # search your vishalakshi vault too
-enabled = true
+[vault]                      # search your vault too
+enabled = true               # on when the vault file exists; false: off
 path = ""                    # empty: VISHALAKSHI_VAULT, then ABHYASA_VAULT, then ~/.vishalakshi/vault.db
-mcp = true                   # search by meaning and save notes, through vishalakshi-mcp
-mcp_command = ""             # empty: ~/.local/bin, then /opt/homebrew/bin, then /usr/local/bin
+mcp = true                   # search by meaning and save notes, through the vault server; false: off
+mcp_command = ""             # the vault server; empty: ~/.local/bin, then /opt/homebrew/bin, then /usr/local/bin
 mcp_url = ""                 # a server that runs already on this Mac, such as "http://127.0.0.1:8000/mcp"
 mcp_timeout_seconds = 1.0    # then Sanketa shows the word results
 mcp_idle_seconds = 600       # the server stops after this time with no search
 
-[abhyasa]                    # off: Sanketa never connects to abhyasa
-enabled = false
-url = "http://127.0.0.1:5077"   # the old name of this setting, [vault] learning_url, also works
+[abhyasa]                    # the Abhyasa learning app
+enabled = true               # on when the app is installed or the server answers; false: Sanketa never connects to it
+url = "http://127.0.0.1:5077"   # the server, if the app is not installed; [vault] learning_url, the old name, also works
 ```
 
 The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. If another app uses the same keys, the footer tells you.
 
 Sanketa applies the file when you save it. You do not have to restart Sanketa. Open Config opens the file in the app that you set for `.toml` files. If you set no app, it opens in your default text editor.
 
-If you set `mcp_url`, Sanketa uses that server and starts no server. Sanketa accepts only an address on this Mac. Start such a server with `vishalakshi-mcp --http`. It listens on port 8000.
+If you set `mcp_url`, Sanketa uses that vault server and starts no server. Sanketa accepts only an address on this Mac. To start such a server, run the vault server with its `--http` option. It listens on port 8000.
 
-You can also set the translucency, the OpenAI model and the three tool items in the menu-bar menu. The change shows at once, and Sanketa writes only that line to the file. If the file has an error, Sanketa uses the default values.
+You can also set the translucency, the OpenAI model and the three vault items in the menu-bar menu. The change shows at once, and Sanketa writes only that line to the file. If the file has an error, Sanketa uses the default values.
 
 ## Terminals
 
@@ -426,12 +460,13 @@ After a release, run `make cask`. It writes the version and the SHA-256 hash of 
 
 The GitHub Actions job builds and tests each push to main and each pull request. It uploads a bundle with an ad-hoc signature as `Sanketa-<sha>.zip`. The job does not make or change a release.
 
-The code has five libraries and the app:
+The code has six libraries and the app:
 
 - `SanketaCore` has the logic: packs, settings, layers, the better-ways rules and the model choice rules.
 - `SanketaSystem` reads processes, tmux, Accessibility, ssh and shell history.
 - `SanketaAI` talks to Apple Intelligence and OpenAI servers, finds the API key and downloads the on-device model.
 - `SanketaMLX` loads the on-device model with MLX and runs it.
+- `SanketaVault` reads the vault file and talks to the vault server.
 - `SanketaUI` draws the panel.
 - `Sources/Sanketa` is the app.
 

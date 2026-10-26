@@ -4,7 +4,7 @@ A pack is one TOML file. It tells Sanketa which keys and tips to show for one pr
 
 - To open that folder, use Open Packs Folder in the menu-bar menu.
 - Sanketa loads a pack again when you save it. Reload Packs in the menu does the same.
-- The file name has no effect. Give the file the same name as the `id`, so that you can find it easily.
+- The file name has no effect. Give the file the same name as the `id`. Then you can find it quickly.
 
 If a file has an error, Sanketa does not load that file. It loads the other files. The footer of the panel shows one line for each bad file, such as "duckdb.toml: key 2 has no action." Click the line to open the file.
 
@@ -39,7 +39,7 @@ Sanketa can write the prompt for a pack for a GUI app. A model or a local agent,
 
 Return clicks the blue button. In a text box, Return starts a new line and ⌘Return clicks the blue button. Tab goes to the next box. Esc stops a request that runs. When no request runs, Esc closes the window, and the app that was in front before gets the focus again.
 
-The prompt contains the app name, the version, the bundle id, the menu shortcuts and your URLs. If you have a pack for the app, the prompt also contains its keys and tips, with no comments, and the window tells you so. Else it can contain the keys of the bundled pack for the app. The prompt does not contain window titles, file names, paths or your history. Before Sanketa fills the prompt, it removes menu items that can name a file or a person. These are the items of menus with "Recent", "History", "Bookmark", "Favorite" or "Profile" in the name, the Window-menu items with a number key, and titles with `/`, `~`, `@` or a file extension. The window shows the full prompt before you copy or send it.
+The prompt contains the app name, the version, the bundle id, the menu shortcuts and your URLs. If you have a pack for the app, the prompt also contains its keys and tips, with no comments, and the window tells you so. Else it can contain the keys of the bundled pack for the app. The prompt does not contain window titles, file names, paths or your history. Before Sanketa fills the prompt, it removes menu items that can name a file or a person. It removes these items: the items of menus with "Recent", "History", "Bookmark", "Favorite" or "Profile" in the name. It also removes the Window-menu items with a number key, and titles with `/`, `~`, `@` or a file extension. The window shows the full prompt before you copy or send it.
 
 Send to OpenAI sends the prompt and the model id from `[llm] openai_model`. It uses the same rules as search: https only, no redirects, and the key goes only to the server in `[llm] base_url`. For `api.openai.com`, the model can search the web. Another server gets the prompt only, and cannot read web pages.
 
@@ -117,7 +117,7 @@ Sanketa ignores other fields when it loads a pack, but the lint does not. For a 
 - Two keys with the same `keys` text in one group.
 - A `title_scope` or `titles` regex that is not valid. A `title_scope` also needs a group.
 
-It gives a warning for an action of more than six words, two tips with the same title, a short `match` string, and a pack with no way to show. A warning does not change the exit code.
+It gives a warning for these problems: an action of more than six words, or two tips with the same title. It also warns about a short `match` string, and a pack with no way to show. A warning does not change the exit code.
 
 ## How Sanketa picks a pack
 
@@ -165,7 +165,7 @@ The last part of the regex lets a browser add its name after the title, as Chrom
 
 ### An app in a browser
 
-An app can also run in a browser tab. Use `titles` to find it there. If the browser in front is in `title_apps`, and its window title matches one of the `titles` regexes, Sanketa shows the pack above the menu keys of the browser. The contexts of the pack also work there. A pack whose `apps` has the browser bundle id has priority. Make the `titles` regex match the full title of the app, from `^` to `$`. A short regex such as `leela` also matches a web page about Leela. The bundled Leela pack accepts only the shape of a Leela title, with or without the ` - Google Chrome – <profile>` part that Chrome adds.
+An app can also run in a browser tab. Use `titles` to find it there. The browser in front must be in `title_apps`, and its window title must match one of the `titles` regexes. Then Sanketa shows the pack above the menu keys of the browser. The contexts of the pack also work there. A pack whose `apps` has the browser bundle id has priority. Make the `titles` regex match the full title of the app, from `^` to `$`. A short regex such as `leela` also matches a web page about Leela. The bundled Leela pack accepts only the shape of a Leela title, with or without the ` - Google Chrome – <profile>` part that Chrome adds.
 
 In a normal Chrome tab, Chrome keeps some keys for itself, such as ⌘T, ⌘W and ⌘1 to ⌘9. Leela also uses some of these keys, but in a tab they go to Chrome. The panel shows the Leela key all the same. Use Leela.app or `leela --app` to get all the Leela keys.
 
