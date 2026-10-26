@@ -116,6 +116,8 @@ Sanketa gives each result a match level. It uses the same rules for keys, tips a
 
 A better level always comes first. Thus a vault document whose title has your search comes before a key that matches one word. In one level, more matches in the title come first. Vault results with the same match keep the order of the vault search.
 
+The rows do not move while you read them. When you type, the old list stays until the new list is ready. Sanketa waits for the vault for 0.5 seconds at most. Then it shows the new list in the order above. Results that come later, such as the picks of the model, go below the rows that show and below the selected row. If a result is in the list already, its text changes in its row. The selected row stays selected. Only a new search changes the order.
+
 The natural-language model can choose results. Its picks stay at the top only when no other result has a better title match. Else they go into the list with the other results.
 
 #### Scope
@@ -156,7 +158,7 @@ Push Return to open the selected result:
 
 - A web page opens in your browser.
 - A file opens in its app, if it is on this Mac.
-- If abhyasa is on, a concept opens at `<url>/c/<name>`. Other documents open in the vault viewer of abhyasa, at `<url>/v/<shelf>/<id>`. This includes ramabana sessions, memory entries and notes.
+- If abhyasa is on, a concept opens at `<url>/c/<name>`. Other documents open in the vault viewer of abhyasa, at `<url>/v/<shelf>/<id>`. This includes ramabana sessions, memory entries and notes. A note that you saved with ⌘S or ⇧⌘S is on the main shelf, so it opens at `<url>/v/store/<id>`.
 - In all other cases, Return shows all the text of the result in the panel. Push Return again to make it short.
 
 Push ⌥Return for more actions:
