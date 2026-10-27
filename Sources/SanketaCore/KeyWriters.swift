@@ -2,13 +2,14 @@ import Foundation
 
 /// Why a key change was not written.
 public enum KeyWriteError: Error, Equatable, LocalizedError {
-    case notJSON, noKeysObject, notFound(String), changedSince(String)
+    case notJSON, noKeysObject, notFound(String), changedSince(String), inUse(String)
 
     public var errorDescription: String? {
         switch self {
         case .notJSON: "keys.json is not valid JSON. Sanketa did not change it."
         case .noKeysObject: "keys.json has no \"keys\" part. Sanketa did not change it."
         case .notFound(let x): "Sanketa did not find \(x) in the file."
+        case .inUse(let x): "\(x) is in use in AeroSpace. Sanketa did not change the file."
         case .changedSince: "The file changed after the change. Undo did not run, so your edit stays."
         }
     }
@@ -27,7 +28,8 @@ public enum LeelaKeysWriter {
             return parts.joined(separator: " ")
         }
         var out = b
-        if let old = keys[action] as? String {
+        if let cur = keys[action] {
+            guard let old = cur as? String else { throw KeyWriteError.notFound(action) }
             guard let m = members.items.first(where: { $0.name == action }), m.value.count >= 2 else { throw KeyWriteError.notFound(action) }
             out.replaceSubrange(m.value, with: Array(literal(try swap(old)).utf8))
         } else {
@@ -72,7 +74,7 @@ public enum LeelaKeysWriter {
             switch b[p] {
             case 34: p = stringEnd(b, p); if depth == 0 { return p }; continue
             case 123, 91: depth += 1
-            case 125, 93: depth -= 1; if depth == 0 { return p + 1 }
+            case 125, 93: if depth == 0 { return p }; depth -= 1; if depth == 0 { return p + 1 }
             case 44 where depth == 0: return p
             default: if depth == 0, [32, 10, 13, 9].contains(b[p]) { return p }
             }
@@ -119,15 +121,22 @@ public enum LeelaKeysWriter {
 /// Edits the left side of one binding line of an AeroSpace config.
 public enum AeroSpaceWriter {
     public static func change(_ text: String, mode: String, from: Chord, to: Chord) throws -> String {
-        guard let b = AeroSpaceConfig.parse(text).modes[mode]?.first(where: { $0.chord == from }) else { throw KeyWriteError.notFound(from.aerospaceText) }
-        var lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        guard b.line >= 1, b.line <= lines.count else { throw KeyWriteError.notFound(from.aerospaceText) }
-        let line = lines[b.line - 1], lead = line.prefix { $0 == " " || $0 == "\t" }, rest = line.dropFirst(lead.count)
+        let bindings = AeroSpaceConfig.parse(text).modes[mode] ?? []
+        guard let b = bindings.first(where: { $0.chord == from }) else { throw KeyWriteError.notFound(from.aerospaceText) }
+        if to != from, bindings.contains(where: { $0.chord == to }) { throw KeyWriteError.inUse(to.aerospaceText) }
+        // find the line exactly as the parser does (every Character that isNewline ends a line), and edit it in place
+        var start = text.startIndex, n = 1
+        while n < b.line, let nl = text[start...].firstIndex(where: \.isNewline) { start = text.index(after: nl); n += 1 }
+        guard n == b.line else { throw KeyWriteError.notFound(from.aerospaceText) }
+        let end = text[start...].firstIndex(where: \.isNewline) ?? text.endIndex, line = text[start..<end]
+        let lead = line.prefix { $0 == " " || $0 == "\t" }, rest = line.dropFirst(lead.count)
         let quote = rest.first.flatMap { $0 == "'" || $0 == "\"" ? $0 : nil }
-        let key: Substring
-        if let quote { key = rest.dropFirst().prefix { $0 != quote }; lines[b.line - 1] = lead + String(quote) + to.aerospaceText + String(quote) + rest.dropFirst(key.count + 2) }
-        else { key = rest.prefix { $0 != "=" && $0 != " " && $0 != "\t" }; lines[b.line - 1] = lead + to.aerospaceText + rest.dropFirst(key.count) }
-        return lines.joined(separator: "\n")
+        let key = quote != nil ? rest.dropFirst().prefix { $0 != quote } : rest.prefix { $0 != "=" && $0 != " " && $0 != "\t" }
+        guard Chord.aerospace(String(key)) == from else { throw KeyWriteError.notFound(from.aerospaceText) }
+        let q = quote.map(String.init) ?? "", keyEnd = line.index(rest.startIndex, offsetBy: key.count + 2 * q.count)
+        var out = text
+        out.replaceSubrange(rest.startIndex..<keyEnd, with: q + to.aerospaceText + q)
+        return out
     }
 
     public static let reloadCandidates = ["/opt/homebrew/bin/aerospace", "/usr/local/bin/aerospace", "~/.local/bin/aerospace"]
@@ -152,15 +161,17 @@ public final class KeyChangeStore {
     let runner: CommandRunning, fm: FileManager
     public init(runner: CommandRunning, fileManager: FileManager = .default) { self.runner = runner; fm = fileManager }
 
-    /// True when the file is written and the reload (if any) worked; false: the file is changed but the reload failed.
-    @discardableResult public func apply(_ c: KeyChange) throws -> Bool {
+    /// Refuses with `.changedSince` when the file is not as `before`. Returns true when the reload ran or none was needed; false: the file is changed but the reload failed.
+    public func apply(_ c: KeyChange) throws -> Bool {
+        guard let now = try? Data(contentsOf: c.file), now == Data(c.before.utf8) else { throw KeyWriteError.changedSince(c.file.path) }
         try write(c.before, to: URL(fileURLWithPath: c.file.path + ".sanketa-bak"), like: c.file)
         try write(c.after, to: c.file, like: c.file)
         return reload(c)
     }
 
-    @discardableResult public func undo(_ c: KeyChange) throws -> Bool {
-        guard let now = try? String(contentsOf: c.file, encoding: .utf8), now == c.after else { throw KeyWriteError.changedSince(c.file.path) }
+    /// Same result as `apply`.
+    public func undo(_ c: KeyChange) throws -> Bool {
+        guard let now = try? Data(contentsOf: c.file), now == Data(c.after.utf8) else { throw KeyWriteError.changedSince(c.file.path) }
         try write(c.before, to: c.file, like: c.file)
         return reload(c)
     }
@@ -172,7 +183,7 @@ public final class KeyChangeStore {
 
     /// Writes `text` atomically to `url` (through a symlink), with the permissions of `like`.
     func write(_ text: String, to url: URL, like: URL) throws {
-        let perms = (try? fm.attributesOfItem(atPath: like.path))?[.posixPermissions]
+        let perms = (try? fm.attributesOfItem(atPath: like.resolvingSymlinksInPath().path))?[.posixPermissions]
         let target = url.resolvingSymlinksInPath()
         try text.write(to: target, atomically: true, encoding: .utf8)
         if let perms { try fm.setAttributes([.posixPermissions: perms], ofItemAtPath: target.path) }

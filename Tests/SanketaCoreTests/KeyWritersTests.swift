@@ -82,10 +82,10 @@ import Testing
         let dir = try tempDir(["k.json": "old"]), f = dir.appendingPathComponent("k.json")
         let store = KeyChangeStore(runner: runner())
         let c = KeyChange(file: f, before: "old", after: "new", reload: nil)
-        try store.apply(c)
+        _ = try store.apply(c)
         #expect(read(f) == "new" && read(dir.appendingPathComponent("k.json.sanketa-bak")) == "old")
         try "hand edit".write(to: f, atomically: true, encoding: .utf8)
-        #expect(throws: KeyWriteError.self) { try store.undo(c) }
+        #expect(throws: KeyWriteError.changedSince(f.path)) { try store.undo(c) }
         #expect(read(f) == "hand edit")
     }
     @Test func applyReloadsAndUndoRestoresBytes() throws {
@@ -106,5 +106,40 @@ import Testing
         let dir = try tempDir(["k": "old"]), f = dir.appendingPathComponent("k")
         let ok = try KeyChangeStore(runner: Fail()).apply(KeyChange(file: f, before: "old", after: "new", reload: ["/x", "y"]))
         #expect(!ok && (read(f)) == "new")
+    }
+
+    @Test func aerospaceHandlesCRLFAndMixedEndings() throws {
+        let crlf = "[mode.main.binding]\r\nalt-a = 'x'\r\nalt-b = 'y' # c\r\n"
+        let o1 = try AeroSpaceWriter.change(crlf, mode: "main", from: .aerospace("alt-b")!, to: .aerospace("alt-c")!)
+        #expect(o1 == "[mode.main.binding]\r\nalt-a = 'x'\r\nalt-c = 'y' # c\r\n")
+        let mixed = "# a\rb\u{2028}c\n[mode.main.binding]\nalt-a = 'x'\r\nalt-b = 'y'\n"
+        let o2 = try AeroSpaceWriter.change(mixed, mode: "main", from: .aerospace("alt-b")!, to: .aerospace("alt-c")!)
+        #expect(o2 == mixed.replacingOccurrences(of: "alt-b =", with: "alt-c ="))
+    }
+    @Test func aerospaceRefusesAKeyThatIsInUse() {
+        #expect(throws: KeyWriteError.inUse("cmd-alt-ctrl-shift-r")) { try AeroSpaceWriter.change(aeroSample, mode: "main", from: .aerospace("cmd-alt-ctrl-shift-e")!, to: .aerospace("cmd-alt-ctrl-shift-r")!) }
+        #expect(KeyWriteError.inUse("alt-a").localizedDescription == "alt-a is in use in AeroSpace. Sanketa did not change the file.")
+    }
+    @Test func leelaRefusesAValueThatIsNotAString() throws {
+        let t = "{\"keys\": {\"a\": null}}"
+        #expect(throws: KeyWriteError.notFound("a")) { try LeelaKeysWriter.change(t, action: "a", live: "hyper+a", from: .leela("hyper+a")!, to: .leela("alt+q")!) }
+        let out = try LeelaKeysWriter.change(t, action: "b", live: "hyper+a", from: .leela("hyper+a")!, to: .leela("alt+q")!)
+        let k = try #require((try JSONSerialization.jsonObject(with: Data(out.utf8)) as? [String: Any])?["keys"] as? [String: Any])
+        #expect(k["a"] is NSNull && k["b"] as? String == "alt+q")
+        #expect(out.hasPrefix("{\"keys\": {\"a\": null,"))
+    }
+    @Test func applyRefusesWhenTheFileIsNotAsBefore() throws {
+        let dir = try tempDir(["k": "hand"]), f = dir.appendingPathComponent("k")
+        #expect(throws: KeyWriteError.changedSince(f.path)) { try KeyChangeStore(runner: runner()).apply(KeyChange(file: f, before: "old", after: "new", reload: nil)) }
+        #expect(read(f) == "hand")
+    }
+    @Test func symlinkedFileKeepsItsPermissionsAndStaysALink() throws {
+        let dir = try tempDir(["real": "old"]), real = dir.appendingPathComponent("real"), link = dir.appendingPathComponent("link")
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: real.path)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        _ = try KeyChangeStore(runner: runner()).apply(KeyChange(file: link, before: "old", after: "new", reload: nil))
+        #expect(read(real) == "new")
+        #expect(try FileManager.default.attributesOfItem(atPath: real.path)[.posixPermissions] as? Int == 0o600)
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: link.path) == real.path)
     }
 }
