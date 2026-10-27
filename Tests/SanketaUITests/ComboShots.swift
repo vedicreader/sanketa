@@ -53,9 +53,13 @@ extension RenderTests {
     }
 
     static func comboScenarios(_ leela: Context) -> [Scenario] {
+        scenes(leela).map { var s = $0; if s.size == Theme.panelSize { s.size = Theme.comboSize }; return s }
+    }
+
+    private static func scenes(_ leela: Context) -> [Scenario] {
         [Scenario(name: "combo-caps", context: leela) { comboModel($0, clash: false) },
          Scenario(name: "combo-clash", context: leela) { comboModel($0, clash: true) },
-         Scenario(name: "combo-clash-tall", context: leela, setup: { comboModel($0, clash: true) }, size: CGSize(width: 340, height: 900)),
+         Scenario(name: "combo-clash-tall", context: leela, setup: { comboModel($0, clash: true) }, size: CGSize(width: Theme.comboSize.width, height: 900)),
          Scenario(name: "combo-pinned", context: leela) { comboModel($0, clash: true, pin: true) },
          Scenario(name: "combo-edit", context: leela) { m in
              comboModel(m, clash: false, pin: true)

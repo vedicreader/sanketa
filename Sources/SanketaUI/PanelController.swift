@@ -98,7 +98,17 @@ public final class SanketaPanel: NSPanel {
         }
         panel.setFrameAutosaveName("SanketaPanel")
         setTranslucency(model.translucency)
+        model.$combo.map { $0 != nil }.removeDuplicates().sink { [weak self] in self?.fit(combo: $0) }.store(in: &subs)
         model.$comboPinned.removeDuplicates().sink { [weak self] in self?.watchOutside($0) }.store(in: &subs)
+    }
+
+    /// Wider while the combo view shows, narrower after. The top-left corner stays, inside the screen's visible frame.
+    func fit(combo: Bool) {
+        let f = panel.frame, w = (combo ? Theme.comboSize : Theme.panelSize).width
+        guard f.width != w else { return }
+        var x = f.minX
+        if let s = (panel.screen ?? NSScreen.main)?.visibleFrame { x = max(s.minX, min(x, s.maxX - w)) }
+        panel.setFrame(NSRect(x: x, y: f.minY, width: w, height: f.height), display: panel.isVisible)
     }
 
     /// Low and Medium use regular glass under a strong adaptive tint; High is clear glass with a light tint.
