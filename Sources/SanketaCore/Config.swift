@@ -78,7 +78,7 @@ public struct CoachConfig: Codable, Equatable, Sendable {
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case enabled, fishHistory = "fish_history", bashHistory = "bash_history", maxEntries = "max_entries"
     }
 
@@ -112,7 +112,7 @@ public struct LLMConfig: Codable, Equatable, Sendable {
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case onDevice = "on_device", mlxModel = "mlx_model", appleFM = "apple_fm", suggest, openai
         case openaiModel = "openai_model", baseURL = "base_url", apiKeyEnv = "api_key_env", timeoutSeconds = "timeout_seconds"
     }
@@ -191,7 +191,7 @@ public struct VaultConfig: Codable, Equatable, Sendable {
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case enabled, path, mcp, learningURL = "learning_url", mcpCommand = "mcp_command", mcpURL = "mcp_url"
         case mcpTimeoutSeconds = "mcp_timeout_seconds", mcpIdleSeconds = "mcp_idle_seconds"
     }
@@ -242,7 +242,7 @@ public struct AbhyasaConfig: Codable, Equatable, Sendable {
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey { case enabled, url }
+    enum CodingKeys: String, CodingKey, CaseIterable { case enabled, url }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -281,7 +281,7 @@ public struct Config: Codable, Equatable {
 
     public init() {}
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm, vault, abhyasa
         case hyperLabel = "hyper_label", hold, holdDelay = "hold_delay"
     }
@@ -348,14 +348,53 @@ public struct Config: Codable, Equatable {
     /// `installed` tells if a model is downloaded, for a config with no `on_device` (see `LLMConfig.chooseOnDevice`).
     public static func load(_ url: URL, memory: UInt64 = ProcessInfo.processInfo.physicalMemory,
                             installed: (MLXModelChoice) -> Bool = { _ in false }) -> (config: Config, error: String?, note: String?) {
-        var c = Config(), failure: String?
+        var c = Config(), failure: String?, unknown: String?
         if let data = try? Data(contentsOf: url) {
-            do { c = try TOMLDecoder().decode(Config.self, from: data) }
+            do { c = try TOMLDecoder().decode(Config.self, from: data); unknown = unknownNote(in: data) }
             catch { failure = PackLint.describe(error, root: "") }
         }
         c.llm.chooseOnDevice(installed: installed, memory: memory)
-        let note = c.llm.fitMemory(memory, installed: installed)
-        return (c, failure, note)
+        let note = [c.llm.fitMemory(memory, installed: installed), unknown].compactMap { $0 }.joined(separator: " ")
+        return (c, failure, note.isEmpty ? nil : note)
+    }
+
+    private static func names<K: CaseIterable & RawRepresentable>(_: K.Type) -> Set<String> where K.RawValue == String {
+        Set(K.allCases.map(\.rawValue))
+    }
+
+    /// The keys that config.toml sets and Sanketa does not know, as `table.key` (or `key` at the top level), sorted.
+    /// `moved` has one line for each unknown table that holds known top-level keys: they sit under the wrong header.
+    public static func unknownKeys(in data: Data) -> (names: [String], moved: [String]) {
+        guard let root = try? TOMLDecoder().decode(TOMLValue.self, from: data).table else { return ([], []) }
+        let tables = ["coach": names(CoachConfig.CodingKeys.self), "llm": names(LLMConfig.CodingKeys.self),
+                      "vault": names(VaultConfig.CodingKeys.self), "abhyasa": names(AbhyasaConfig.CodingKeys.self)]
+        let top = names(CodingKeys.self)
+        func leaves(_ v: TOMLValue, _ path: String) -> [String] {
+            guard let t = v.table, !t.isEmpty else { return [path] }
+            return t.keys.sorted().flatMap { leaves(t[$0]!, "\(path).\($0)") }
+        }
+        var found = [String](), moved = [String]()
+        for (k, v) in root.sorted(by: { $0.key < $1.key }) {
+            if let known = tables[k] {
+                found += (v.table ?? [:]).sorted { $0.key < $1.key }.filter { !known.contains($0.key) }.flatMap { leaves($0.value, "\(k).\($0.key)") }
+            } else if !top.contains(k) {
+                found += leaves(v, k)
+                let own = (v.table ?? [:]).keys.sorted().filter { top.contains($0) && tables[$0] == nil }
+                if !own.isEmpty {
+                    moved.append("\(own.joined(separator: ", ")) \(own.count > 1 ? "are" : "is") under [\(k)]. Move \(own.count > 1 ? "them" : "it") above the first [table] line.")
+                }
+            }
+        }
+        return (found, moved)
+    }
+
+    /// One short line about unknown keys, such as "Sanketa does not know keypress.hold_delay: hold_delay is under
+    /// [keypress]. Move it above the first [table] line."; at most 3 names, then "and N more". nil: all keys are known.
+    public static func unknownNote(in data: Data) -> String? {
+        let (names, moved) = unknownKeys(in: data)
+        guard !names.isEmpty else { return nil }
+        let shown = names.prefix(3).joined(separator: ", "), more = names.count - 3
+        return "Sanketa does not know \(shown)\(more > 0 ? ", and \(more) more" : "")\(moved.isEmpty ? "." : ": " + moved.joined(separator: " "))"
     }
 }
 
@@ -426,11 +465,13 @@ public enum ConfigRead {
     /// The config to use after a read: the one that loaded, or, when the file has an error, the current one.
     public static func next(current: Config, loaded: Config, error: String?) -> Config { error == nil ? loaded : current }
 
-    /// The toast text.`error` is the message of a file that did not load; then Sanketa keeps the current settings.
-    public static func text(changes: [String], error: String?) -> String {
+    /// The toast text. `error` is the message of a file that did not load; then Sanketa keeps the current settings.
+    /// `note`, such as the line about unknown keys, follows the text of a file that loaded.
+    public static func text(changes: [String], error: String?, note: String? = nil) -> String {
         if let error { return "Sanketa cannot read config.toml: \(error.hasSuffix(".") ? String(error.dropLast()) : error). It keeps the last good settings." }
-        guard !changes.isEmpty else { return "Sanketa read config.toml. Nothing changed." }
+        let tail = note.map { " " + $0 } ?? ""
+        guard !changes.isEmpty else { return "Sanketa read config.toml. Nothing changed." + tail }
         let shown = changes.prefix(4).joined(separator: ", "), more = changes.count - 4
-        return "Sanketa read config.toml: \(shown)\(more > 0 ? ", and \(more) more" : "")."
+        return "Sanketa read config.toml: \(shown)\(more > 0 ? ", and \(more) more" : "")." + tail
     }
 }

@@ -238,6 +238,42 @@ struct CoachLLMConfigTests {
     }
 }
 
+struct ConfigUnknownKeyTests {
+    func note(_ toml: String) throws -> String? { Config.load(try writeConfig(toml), memory: 16 << 30).note }
+
+    @Test func aGoodFileHasNoWarning() throws {
+        #expect(try note("") == nil)
+        #expect(try note("hotkey = \"cmd+k\"\npollInterval = 2\nhold_delay = 0.5\n[coach]\nmax_entries = 9\n[llm]\napi_key_env = \"X\"\n[vault]\nlearning_url = \"u\"\n[abhyasa]\nurl = \"u\"\n") == nil)
+    }
+
+    @Test func anUnknownTopLevelKey() throws {
+        #expect(try note("holdDelay = 0.5\nhotkey = \"cmd+k\"\n") == "Sanketa does not know holdDelay.")
+    }
+
+    @Test func anUnknownKeyInsideATable() throws {
+        #expect(try note("[llm]\nmodel = \"x\"\nsuggest = false\n") == "Sanketa does not know llm.model.")
+        #expect(try note("[coach]\na = 1\n[vault]\nb = 1\n[abhyasa]\nc = 1\n[llm]\nd = 1\n")
+                == "Sanketa does not know abhyasa.c, coach.a, llm.d, and 1 more.")
+    }
+
+    @Test func aKnownKeyInAnUnknownTable() throws {
+        let toml = "hotkey = \"ctrl+opt+k\"\n\n[llm]\nmodel = \"x\"\n\n[abhyasa]\nenabled = true\nurl = \"http://127.0.0.1:5077\"\n\n[keypress]\nhold_delay = 0.01\n"
+        let r = Config.load(try writeConfig(toml), memory: 16 << 30)
+        #expect(r.error == nil && r.config.holdDelay == Config.dfltHoldDelay)
+        #expect(r.note == "Sanketa does not know keypress.hold_delay, llm.model: hold_delay is under [keypress]. Move it above the first [table] line.")
+        #expect(try note("[keypress]\nhold_delay = 0.01\n") == "Sanketa does not know keypress.hold_delay: hold_delay is under [keypress]. Move it above the first [table] line.")
+        #expect(try note("[x]\nhold_delay = 1\nhotkey = \"a\"\n[x.y]\nz = 1\n").map { $0.contains("x.hold_delay, x.hotkey, x.y.z: hold_delay, hotkey are under [x]. Move them") } == true)
+    }
+
+    @Test func toastHasTheWarning() {
+        let n = "Sanketa does not know keypress.hold_delay: hold_delay is under [keypress]. Move it above the first [table] line."
+        #expect(ConfigRead.text(changes: ["hotkey"], error: nil, note: n) == "Sanketa read config.toml: hotkey. " + n)
+        #expect(ConfigRead.text(changes: [], error: nil, note: n) == "Sanketa read config.toml. Nothing changed. " + n)
+        #expect(ConfigRead.text(changes: ["a", "b", "c", "d", "e"], error: nil, note: "N.") == "Sanketa read config.toml: a, b, c, d, and 1 more. N.")
+        #expect(ConfigRead.text(changes: [], error: "bad.", note: n) == "Sanketa cannot read config.toml: bad. It keeps the last good settings.")
+    }
+}
+
 struct ConfigReadTests {
     @Test func changesNameTheKeysInFileSpelling() {
         let old = Config()
