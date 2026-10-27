@@ -57,10 +57,18 @@ public enum Tmux {
         }
     }
 
+    /// True when the live command of a key is the pack's command. tmux versions write some defaults in other ways: a
+    /// `-T <name>` option comes and goes, and a newer default can wrap the command in an `if-shell` branch.
+    public static func sameCommand(_ pack: String, _ live: String) -> Bool {
+        let norm = { (s: String) in s.replacingOccurrences(of: #" -T \S+"#, with: "", options: .regularExpression) }
+        let (p, l) = (norm(pack), norm(live))
+        return p == l || (l.hasPrefix("if-shell ") && l.contains("{ \(p) }"))
+    }
+
     public static func mergeLive(_ pack: Pack, live: [KeyEntry]) -> Pack {
         var out = pack, merged: [KeyEntry] = [], used = Set<Int>()
         for (i, l) in live.enumerated() {
-            if let c = l.command, let p = pack.keys.first(where: { $0.command == c }) {
+            if let c = l.command, let p = pack.keys.first(where: { $0.command.map { sameCommand($0, c) } ?? false }) {
                 var e = p; e.keys = l.keys; merged.append(e); used.insert(i)
             }
         }

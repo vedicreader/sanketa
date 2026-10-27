@@ -48,8 +48,9 @@ import Testing
         _ = try #require(tmux(plain, ["-f", "/dev/null", "new", "-d", "-s", "p"]))
         let live = Tmux.parseKeys(try #require(tmux(plain, ["list-keys"])))
         let pack = try #require(try library().packs["tmux"])
-        let liveSet = Set(live.map { "\($0.keys)\t\($0.command ?? "")" })
-        for k in pack.keys { #expect(liveSet.contains("\(k.keys)\t\(k.command ?? "")"), "not a live default: \(k.keys) \(k.command ?? "")") }
+        for k in pack.keys {
+            #expect(live.contains { $0.keys == k.keys && Tmux.sameCommand(k.command ?? "", $0.command ?? "") }, "not a live default: \(k.keys) \(k.command ?? "")")
+        }
         let merged = Tmux.mergeLive(pack, live: live)
         for k in pack.keys { #expect(merged.keys.contains { $0.keys == k.keys && $0.action == k.action }, "\(k.action) lost in merge") }
     }

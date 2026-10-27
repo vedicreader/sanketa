@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
-      - run: brew install tmux fish htop
+      - run: brew install tmux fish htop neovim
       # make bundle compiles the MLX Metal shaders, which need this toolchain
       - run: xcodebuild -downloadComponent MetalToolchain
       - run: swift build

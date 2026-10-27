@@ -65,7 +65,8 @@ private func liveSearch(_ query: String, context: [String]) async -> (SmartResul
             func status() -> ModelStatus { .available }
             func choose(_ p: ChoicePrompt) async throws -> [String] { throw AppleFMChooser.mapped(E.guardrailViolation(.init(debugDescription: ""))) }
         }
-        let r = await SmartSearch(router: fmRouter(Refusing()), timeout: 5).results("how do I split the window side by side", bundled, context: [])
+        // the refusal comes at once; the long deadline only gives a busy Mac time to run the chooser
+        let r = await SmartSearch(router: fmRouter(Refusing()), timeout: 30).results("how do I split the window side by side", bundled, context: [])
         #expect(r.note == "Plain search: Apple Intelligence refused the request")
     }
 

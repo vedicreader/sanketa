@@ -62,4 +62,17 @@ func tmuxFixture(_ name: String) throws -> String {
         let m = Tmux.mergeLive(pack, live: live)
         #expect(m.keys.map(\.keys) == ["prefix ?", "prefix c"])
     }
+
+    /// Two tmux versions write some defaults in other ways; the pack label must stay on both.
+    @Test func sameCommandAcrossTmuxVersions() {
+        #expect(Tmux.sameCommand("new-window", "new-window"))
+        #expect(Tmux.sameCommand(#"command-prompt -T window-target -p index { select-window -t ":%%" }"#, #"command-prompt -p index { select-window -t ":%%" }"#))
+        #expect(Tmux.sameCommand(#"command-prompt -p index { select-window -t ":%%" }"#, #"command-prompt -T window-target -p index { select-window -t ":%%" }"#))
+        #expect(Tmux.sameCommand("resize-pane -U 5", ##"if-shell -F "#{?floating_pane_flag}" { resize-pane -D -5 } { resize-pane -U 5 }"##))
+        #expect(!Tmux.sameCommand("resize-pane -U 5", "resize-pane -U 10"))
+        #expect(!Tmux.sameCommand("resize-pane -U 5", "send-keys { resize-pane -U 5 }"), "only an if-shell branch counts")
+        let pack = Pack(id: "tmux", name: "tmux", keys: [KeyEntry(keys: "prefix M-Up", action: "Grow the pane up", command: "resize-pane -U 5")])
+        let live = [KeyEntry(keys: "prefix M-Up", action: "", group: "Live bindings", command: ##"if-shell -F "#{?floating_pane_flag}" { resize-pane -D -5 } { resize-pane -U 5 }"##)]
+        #expect(Tmux.mergeLive(pack, live: live).keys.map(\.action) == ["Grow the pane up"])
+    }
 }
