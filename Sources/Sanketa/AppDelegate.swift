@@ -64,6 +64,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// the open Make a Pack window, and the status-menu item that opens it
     var packMaker: PackMakerWindow?
     var makePackItem: NSMenuItem?
+    /// a read of config.toml before this time follows Sanketa's own write, so it shows no toast
+    var ownWriteUntil: Date?
 
     override init() {
         (config, configError, configNote) = readConfig()
@@ -112,7 +114,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         let reload: () -> Void = { [weak self] in MainActor.assumeIsolated { self?.reloadPacks() } }
         watchers = [FileWatcher(url: LeelaKeymap.defaultURL(), onChange: reload),
                     FileWatcher(url: packsDir, children: "toml", delay: 0.3, onChange: reload),
-                    FileWatcher(url: configURL, delay: 0.3) { [weak self] in MainActor.assumeIsolated { self?.reloadConfig() } }]
+                    FileWatcher(url: configURL, delay: 0.3) { [weak self] in MainActor.assumeIsolated { self?.configFileChanged() } }]
         startHold()
         monitor.start()
         coach.start()
@@ -136,10 +138,20 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         rotation?.tolerance = 5
     }
 
+    /// Call just before Sanketa writes config.toml: the read that follows shows no toast.
+    func markOwnWrite() { ownWriteUntil = Date().addingTimeInterval(ConfigRead.ownWriteSeconds) }
+
+    /// The file watcher saw a write to config.toml.
+    func configFileChanged() { reloadConfig(announce: ConfigRead.announce(now: Date(), ownWriteUntil: ownWriteUntil)) }
+
+    @objc func readConfigAgain() { reloadConfig(announce: true) }
+
     /// config.toml was saved: apply the hotkey, translucency, terminals, poll and tip timing, and the Hyper label.
-    func reloadConfig() {
+    /// With `announce`, a toast tells what Sanketa read.
+    func reloadConfig(announce: Bool = false) {
         let old = config
         (config, configError, configNote) = readConfig()
+        defer { if announce { savedToast(ConfigRead.text(changes: config.changes(from: old), error: configError)) } }
         model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
         model.configNote = configNote
         guard config != old else { return }
@@ -205,6 +217,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         add("Make a Pack…", #selector(makePackFromMenu))
         makePackItem = m.items.last
         add("Open Config", #selector(openConfig))
+        add("Read Config Again", #selector(readConfigAgain))
         add("Allow Accessibility…", #selector(grantAccessibility))
         add("Copy Debug Info", #selector(copyDebugInfo))
         m.addItem(.separator())
@@ -269,6 +282,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         guard let key = (sender.representedObject as? String).flatMap(VaultToggles.Key.init) else { return }
         if key == .abhyasa, !tools.abhyasa { NSWorkspace.shared.open(VaultToggles.abhyasaDownload); return }   // the download page
         guard let c = VaultToggles.change(key, config) else { return setUpVault() }
+        markOwnWrite()
         do { try Config.save(c.key, c.value, to: configURL, table: c.table) }
         catch { configNotSaved(error) }
         reloadConfig()
@@ -442,6 +456,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         config.translucency = t
         panel.setTranslucency(t)
         sender.menu?.items.forEach { $0.state = $0 === sender ? .on : .off }
+        markOwnWrite()
         do { try Config.save("translucency", "\"\(t.rawValue)\"", to: configURL) }
         catch { configNotSaved(error) }
     }
@@ -462,6 +477,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     @objc func openConfig() {
         let f = configDir.appendingPathComponent("config.toml")
         if !FileManager.default.fileExists(atPath: f.path) {
+            markOwnWrite()
             try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
             let c = Config(), k = c.coach, l = c.llm, v = c.vault
             try? """

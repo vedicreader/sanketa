@@ -114,6 +114,7 @@ extension AppDelegate {
         config.hold = s
         hold?.setting = s
         sender.menu?.items.forEach { $0.state = $0 === sender ? .on : .off }
+        markOwnWrite()
         do { try Config.save("hold", "\"\(s.rawValue)\"", to: configURL) }
         catch { configNotSaved(error) }
     }

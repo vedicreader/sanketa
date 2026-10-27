@@ -396,3 +396,38 @@ public struct Hotkey: Equatable {
         return key.map { Hotkey(keyCode: UInt32($0), carbonModifiers: mods) }
     }
 }
+
+extension Config {
+    /// The config-file keys whose values differ from `old`, in file spelling and in file order. A table that differs
+    /// shows as its header, such as `[llm]`.
+    public func changes(from old: Config) -> [String] {
+        let all: [(String, Bool)] = [
+            ("hotkey", hotkey != old.hotkey), ("terminals", terminals != old.terminals),
+            ("pollInterval", pollInterval != old.pollInterval), ("tipRotateSeconds", tipRotateSeconds != old.tipRotateSeconds),
+            ("translucency", translucency != old.translucency), ("hyper_label", hyperLabel != old.hyperLabel),
+            ("hold", hold != old.hold), ("hold_delay", holdDelay != old.holdDelay),
+            ("[coach]", coach != old.coach), ("[llm]", llm != old.llm),
+            ("[vault]", vault != old.vault), ("[abhyasa]", abhyasa != old.abhyasa)]
+        return all.filter(\.1).map(\.0)
+    }
+}
+
+/// The toast after Sanketa reads config.toml, and when to show it.
+public enum ConfigRead {
+    /// How long a read that follows Sanketa's own write stays quiet.
+    public static let ownWriteSeconds = 1.5
+
+    /// A read that the user caused shows the toast. A read inside the window after Sanketa's own write does not,
+    /// unless the user asked for it with "Read Config Again".
+    public static func announce(now: Date, ownWriteUntil: Date?, forced: Bool = false) -> Bool {
+        forced || ownWriteUntil.map { now >= $0 } ?? true
+    }
+
+    /// The toast text. `error` is the message of a file that did not load; then Sanketa uses the default settings.
+    public static func text(changes: [String], error: String?) -> String {
+        if let error { return "Sanketa cannot read config.toml: \(error.hasSuffix(".") ? String(error.dropLast()) : error). It uses the default settings." }
+        guard !changes.isEmpty else { return "Sanketa read config.toml. Nothing changed." }
+        let shown = changes.prefix(4).joined(separator: ", "), more = changes.count - 4
+        return "Sanketa read config.toml: \(shown)\(more > 0 ? ", and \(more) more" : "")."
+    }
+}

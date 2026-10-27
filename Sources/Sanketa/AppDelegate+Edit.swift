@@ -38,6 +38,7 @@ extension AppDelegate {
         let before: String
         // Sanketa's own config.toml can be missing: an empty file has the defaults
         if case .sanketa = e.source, !FileManager.default.fileExists(atPath: url.path) {
+            markOwnWrite()
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? Data().write(to: url)
         }
@@ -47,6 +48,7 @@ extension AppDelegate {
             let after: String, reload: [String]?, isAero: Bool
             switch e.source {
             case .sanketa:
+                markOwnWrite()
                 let change = KeyChange(file: url, before: before, after: try SanketaConfigWriter.change(before, to: new), reload: nil)
                 _ = try KeyChangeStore(runner: ProcessRunner()).apply(change)
                 reloadConfig()   // registers the new hotkey now
@@ -73,6 +75,7 @@ extension AppDelegate {
     /// Undo writes the file as it was before the change, if nobody changed it since.
     func undoChange(_ c: KeyChange) {
         do {
+            if c.file == configURL { markOwnWrite() }
             let ok = try KeyChangeStore(runner: ProcessRunner()).undo(c)
             if c.file == configURL {
                 reloadConfig()

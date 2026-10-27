@@ -237,3 +237,39 @@ struct CoachLLMConfigTests {
         #expect(Config.load(try writeConfig("[llm]\ntimeout_seconds = -1.5")).0.llm.timeoutSeconds == 5)
     }
 }
+
+struct ConfigReadTests {
+    @Test func changesNameTheKeysInFileSpelling() {
+        let old = Config()
+        #expect(old.changes(from: old).isEmpty)
+        var c = old
+        c.holdDelay = 0.5; c.hotkey = "cmd+k"; c.pollInterval = 2; c.tipRotateSeconds = 5; c.hyperLabel = "X"
+        c.translucency = .low; c.hold = .off; c.terminals = ["a"]
+        #expect(c.changes(from: old) == ["hotkey", "terminals", "pollInterval", "tipRotateSeconds", "translucency", "hyper_label", "hold", "hold_delay"])
+    }
+
+    @Test func aChangeInATableNamesTheTable() {
+        let old = Config()
+        var c = old
+        c.coach.maxEntries = 1; c.llm.openai = true; c.vault.mcp = false; c.abhyasa.enabled = false
+        #expect(c.changes(from: old) == ["[coach]", "[llm]", "[vault]", "[abhyasa]"])
+    }
+
+    @Test func textForChangesNothingAndError() {
+        #expect(ConfigRead.text(changes: ["hold_delay", "hotkey"], error: nil) == "Sanketa read config.toml: hold_delay, hotkey.")
+        #expect(ConfigRead.text(changes: [], error: nil) == "Sanketa read config.toml. Nothing changed.")
+        #expect(ConfigRead.text(changes: ["a", "b", "c", "d"], error: nil) == "Sanketa read config.toml: a, b, c, d.")
+        #expect(ConfigRead.text(changes: ["a", "b", "c", "d", "e", "f"], error: nil) == "Sanketa read config.toml: a, b, c, d, and 2 more.")
+        #expect(ConfigRead.text(changes: ["a"], error: "hotkey must be a string")
+                == "Sanketa cannot read config.toml: hotkey must be a string. It uses the default settings.")
+        #expect(ConfigRead.text(changes: [], error: "bad.") == "Sanketa cannot read config.toml: bad. It uses the default settings.")
+    }
+
+    @Test func ownWritesStayQuietInsideTheWindow() {
+        let t = Date(timeIntervalSince1970: 1000)
+        #expect(ConfigRead.announce(now: t, ownWriteUntil: nil))
+        #expect(!ConfigRead.announce(now: t, ownWriteUntil: t.addingTimeInterval(1)))
+        #expect(ConfigRead.announce(now: t, ownWriteUntil: t))
+        #expect(ConfigRead.announce(now: t, ownWriteUntil: t.addingTimeInterval(1), forced: true))
+    }
+}
