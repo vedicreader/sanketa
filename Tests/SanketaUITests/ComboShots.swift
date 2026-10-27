@@ -54,35 +54,58 @@ extension RenderTests {
         return [AppKeys(layer: "Notebook", entries: Array(all[..<7])), AppKeys(layer: "Panes", entries: Array(all[7...]))]
     }
 
-    static func comboModel(_ m: PanelModel, clash: Bool, mode: String = "main", pin: Bool = false, grouped: Bool = false) {
+    static func comboModel(_ m: PanelModel, clash: Bool, mode: String = "main", pin: Bool = false, grouped: Bool = false, taken: Bool = false) {
         let aero = AeroSpaceConfig.parse(grouped ? groupedAeroText : aeroText), apps = leelaKeys(clash: clash)
         let mods = Set(Modifier.allCases)
         let v = ComboView.build(mods: mods, mode: mode, aero: aero, appName: "Leela", apps: apps, hyperLabel: "Caps")
         let tmp = FileManager.default.temporaryDirectory
         m.editSources = EditSources(aero: aero, apps: apps, aeroFile: tmp.appendingPathComponent("fake-aerospace.toml"),
-                                    leelaFile: tmp.appendingPathComponent("fake-keys.json"))
+                                    leelaFile: tmp.appendingPathComponent("fake-keys.json"), sanketaFile: tmp.appendingPathComponent("fake-config.toml"),
+                                    system: { KeySuggest.systemChords })
+        m.hotkey = "ctrl+opt+k"
+        if taken { m.hotkeyConflict = "ctrl+opt+k" }
         m.showCombo(v, hyperLabel: "Caps")
         if pin { m.pinCombo() }
     }
 
+    /// The held view is narrow (the app's keys only); the pinned view is wide.
     static func comboScenarios(_ leela: Context) -> [Scenario] {
-        scenes(leela).map { var s = $0; if s.size == Theme.panelSize { s.size = Theme.comboSize }; return s }
+        let wide = Theme.comboSize
+        return [Scenario(name: "combo-held", context: leela) { comboModel($0, clash: true) },
+                Scenario(name: "combo-held-caps", context: leela) { comboModel($0, clash: false) },
+                Scenario(name: "combo-pinned", context: leela, setup: { comboModel($0, clash: true, pin: true) }, size: wide),
+                Scenario(name: "combo-pinned-sanketa", context: leela, setup: { comboModel($0, clash: false, pin: true, grouped: true, taken: true) },
+                         size: CGSize(width: wide.width, height: 640)),
+                Scenario(name: "combo-pinned-tall", context: leela, setup: { comboModel($0, clash: true, pin: true) }, size: CGSize(width: wide.width, height: 900)),
+                Scenario(name: "combo-edit", context: leela, setup: { m in
+                    comboModel(m, clash: false, pin: true)
+                    if let r = m.combo?.aero.first(where: { $0.action == "Move the tile left" }) { m.clickRow(r, aero: true) }
+                }, size: wide),
+                Scenario(name: "combo-choose", context: leela, setup: { m in
+                    comboModel(m, clash: true, pin: true)
+                    if let r = m.combo?.app.first(where: \.clash) { m.clickRow(r, aero: false) }
+                }, size: wide),
+                Scenario(name: "combo-edit-search", context: leela, setup: { m in
+                    comboModel(m, clash: false, pin: true, taken: true)
+                    if let r = m.sanketaRows().first { m.clickRow(r, aero: false) }
+                }, size: wide)]
     }
 
-    private static func scenes(_ leela: Context) -> [Scenario] {
-        [Scenario(name: "combo-caps", context: leela) { comboModel($0, clash: false) },
-         Scenario(name: "combo-clash", context: leela) { comboModel($0, clash: true) },
-         Scenario(name: "combo-clash-tall", context: leela, setup: { comboModel($0, clash: true) }, size: CGSize(width: Theme.comboSize.width, height: 900)),
-         Scenario(name: "combo-pinned", context: leela) { comboModel($0, clash: true, pin: true) },
-         Scenario(name: "combo-edit", context: leela) { m in
-             comboModel(m, clash: false, pin: true)
-             if let r = m.combo?.aero.first(where: { $0.action == "Move the tile left" }) { m.clickRow(r, aero: true) }
-         },
-         Scenario(name: "combo-choose", context: leela) { m in
-             comboModel(m, clash: true, pin: true)
-             if let r = m.combo?.app.first(where: \.clash) { m.clickRow(r, aero: false) }
-         },
-         Scenario(name: "combo-grouped", context: leela) { comboModel($0, clash: false, grouped: true) },
-         Scenario(name: "combo-aero-resize", context: leela) { comboModel($0, clash: false, mode: "resize") }]
+    /// The AeroSpace bar: its name, the combo view it shows, and the width of the screen (the bar wraps at 80 % of it).
+    struct BarScenario {
+        var name: String
+        var view: ComboView
+        var screen: CGFloat = 1440
+    }
+
+    static func barScenarios() -> [BarScenario] {
+        let hyper = Set(Modifier.allCases)
+        func view(_ text: String, mods: Set<Modifier> = hyper, mode: String = "main") -> ComboView {
+            ComboView.build(mods: mods, mode: mode, aero: .parse(text), appName: "Leela", apps: [], hyperLabel: "Caps")
+        }
+        return [BarScenario(name: "bar-grouped", view: view(groupedAeroText)),
+                BarScenario(name: "bar-grouped-wrap", view: view(groupedAeroText), screen: 760),
+                BarScenario(name: "bar-caps", view: view(aeroText)),
+                BarScenario(name: "bar-resize", view: view(aeroText, mods: [], mode: "resize"))]
     }
 }

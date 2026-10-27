@@ -167,7 +167,19 @@ struct RenderTests {
         return try #require(c.makeImage())
     }
 
-    static func compose(_ panel: CGImage, level: Translucency, scale: CGFloat, size: CGSize) throws -> CGImage {
+    /// The bar drawn at `scale`, and its size in points.
+    static func barBitmap(_ s: BarScenario, dark: Bool, scale: CGFloat) throws -> (CGImage, CGSize) {
+        NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        let bar = try #require(AeroBar(view: s.view))
+        let root = AeroBarView(bar: bar, maxWidth: (s.screen * AeroBar.maxShare).rounded(.down), translucency: .medium)
+            .environment(\.colorScheme, dark ? .dark : .light)
+        let r = ImageRenderer(content: root)
+        r.scale = scale; r.isOpaque = false
+        let img = try #require(r.cgImage)
+        return (img, CGSize(width: CGFloat(img.width) / scale, height: CGFloat(img.height) / scale))
+    }
+
+    static func compose(_ panel: CGImage, level: Translucency, scale: CGFloat, size: CGSize, radius: CGFloat = 18) throws -> CGImage {
         let margin: CGFloat = 36
         let W = Int((size.width + margin * 2) * scale), H = Int((size.height + margin * 2) * scale)
         let back = terminalBackdrop(w: W, h: H)
@@ -177,7 +189,7 @@ struct RenderTests {
         let full = CGRect(x: 0, y: 0, width: W, height: H)
         c.draw(back, in: full)
         let r = CGRect(x: margin * scale, y: margin * scale, width: size.width * scale, height: size.height * scale)
-        let path = CGPath(roundedRect: r, cornerWidth: 18 * scale, cornerHeight: 18 * scale, transform: nil)
+        let path = CGPath(roundedRect: r, cornerWidth: radius * scale, cornerHeight: radius * scale, transform: nil)
         c.saveGState()
         c.setShadow(offset: CGSize(width: 0, height: -8 * scale), blur: 30 * scale, color: NSColor.black.withAlphaComponent(0.55).cgColor)
         c.addPath(path); c.setFillColor(NSColor.black.cgColor); c.fillPath()
@@ -187,7 +199,8 @@ struct RenderTests {
         c.draw(blurred, in: full)
         c.draw(panel, in: r)
         c.restoreGState()
-        c.addPath(path); c.setStrokeColor(NSColor.white.withAlphaComponent(0.18).cgColor); c.setLineWidth(1 * scale); c.strokePath()
+        // the bar has no border line
+        if radius == 18 { c.addPath(path); c.setStrokeColor(NSColor.white.withAlphaComponent(0.18).cgColor); c.setLineWidth(1 * scale); c.strokePath() }
         return try #require(c.makeImage())
     }
 
@@ -207,8 +220,17 @@ struct RenderTests {
                 written.append(f)
             }
         }
+        for s in Self.barScenarios() {
+            for (dark, scale) in [(true, 2.0), (false, 2.0)] as [(Bool, CGFloat)] {
+                let (bar, size) = try Self.barBitmap(s, dark: dark, scale: scale)
+                let img = try Self.compose(bar, level: .medium, scale: scale, size: size, radius: min(size.height / 2, 16))
+                let f = Self.out.appendingPathComponent("\(s.name)-\(dark ? "dark" : "light")@\(Int(scale))x.png")
+                try NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:])!.write(to: f)
+                written.append(f)
+            }
+        }
         print("render output: \(Self.out.path) (\(written.count) files)")
-        #expect(written.count == Self.scenarios(lib).count * 3)
+        #expect(written.count == Self.scenarios(lib).count * 3 + Self.barScenarios().count * 2)
         #expect(written.allSatisfy { NSImage(contentsOf: $0)?.size.width ?? 0 > 0 })
     }
 }

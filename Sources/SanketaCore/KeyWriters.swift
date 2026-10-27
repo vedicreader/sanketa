@@ -1,8 +1,10 @@
 import Foundation
+import TOMLDecoder
 
 /// Why a key change was not written.
 public enum KeyWriteError: Error, Equatable, LocalizedError {
-    case notJSON, noKeysObject, notFound(String), changedSince(String), changedBefore(String), unsupportedKey(String), inUse(String), sameKey
+    case notJSON, noKeysObject, notFound(String), changedSince(String), changedBefore(String), unsupportedKey(String), inUse(String), sameKey,
+         notHotkey(String), notTOML
 
     public var errorDescription: String? {
         switch self {
@@ -14,6 +16,8 @@ public enum KeyWriteError: Error, Equatable, LocalizedError {
         case .changedBefore: "The file changed after Sanketa read it. Sanketa did not change it."
         case .unsupportedKey(let x): "Leela cannot use the key \(x). Sanketa did not change the file."
         case .sameKey: "The new key is the same as the old key. Sanketa did not change the file."
+        case .notHotkey(let x): "Sanketa cannot use \(x) as a hotkey. Use one or more modifier keys with a letter, a digit, Space, F1 to F12, or / . ,. Sanketa did not change the file."
+        case .notTOML: "config.toml is not valid TOML. Sanketa did not change it."
         }
     }
 }
@@ -222,6 +226,41 @@ public enum AeroSpaceWriter {
     /// The reload command line with the first aerospace that `exists`; nil: none.
     public static func reloadCommand(exists: (String) -> Bool = FileManager.default.isExecutableFile) -> [String]? {
         reloadCandidates.map { ($0 as NSString).expandingTildeInPath }.first(where: exists).map { [$0, "reload-config"] }
+    }
+}
+
+/// Edits only the value of the top-level `hotkey = "…"` line of Sanketa's config.toml, so every other byte stays. With no
+/// such line, it adds one before the first table.
+public enum SanketaConfigWriter {
+    public static func change(_ text: String, to new: Chord) throws -> String {
+        guard let value = new.hotkeyText else { throw KeyWriteError.notHotkey(new.display()) }
+        guard let now = try? TOMLDecoder().decode(Config.self, from: Data(text.utf8)) else { throw KeyWriteError.notTOML }
+        guard Chord.hotkey(now.hotkey) != new else { throw KeyWriteError.sameKey }
+        let b = Array(text.utf8), quoted = Array("\"\(value)\"".utf8)
+        let nl: [UInt8] = text.contains("\r\n") ? [13, 10] : [10], line = Array("hotkey = ".utf8) + quoted + nl
+        func skip(_ i: Int, _ end: Int) -> Int { var p = i; while p < end, b[p] == 32 || b[p] == 9 { p += 1 }; return p }
+        var out: [UInt8]?, start = 0
+        while out == nil, start < b.count {
+            let end = b[start...].firstIndex(of: 10) ?? b.count, p = skip(start, end)
+            if p < end, b[p] == 91 { out = Array(b[..<start]) + line + Array(b[start...]); break }   // [
+            let name = Array("hotkey".utf8)
+            if end - p > name.count, Array(b[p..<p + name.count]) == name {
+                var q = skip(p + name.count, end)
+                if q < end, b[q] == 61 {   // =
+                    q = skip(q + 1, end)
+                    if q < end, b[q] == 34 || b[q] == 39 {
+                        var e = q + 1
+                        while e < end, b[e] != b[q] { e += b[q] == 34 && b[e] == 92 ? 2 : 1 }
+                        if e < end { out = Array(b[..<q]) + quoted + Array(b[(e + 1)...]) }
+                    }
+                    if out == nil { throw KeyWriteError.notTOML }
+                }
+            }
+            start = end + 1
+        }
+        let result = String(decoding: out ?? (b + (b.isEmpty || b.last == 10 ? [] : nl) + line), as: UTF8.self)
+        guard (try? TOMLDecoder().decode(Config.self, from: Data(result.utf8)))?.hotkey == value else { throw KeyWriteError.notTOML }
+        return result
     }
 }
 

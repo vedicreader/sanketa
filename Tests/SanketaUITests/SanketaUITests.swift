@@ -287,7 +287,7 @@ func threadCPUSeconds() -> Double {
         }
         #expect(!m.showsFooter)
         m.hotkeyConflict = "ctrl+opt+k"
-        #expect(m.showsFooter)
+        #expect(!m.showsFooter)   // the Search row of the pinned view says "✕ taken · Change"
     }
 }
 

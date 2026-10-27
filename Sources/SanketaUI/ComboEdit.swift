@@ -3,7 +3,8 @@ import SanketaCore
 
 /// One key change in the pinned combo view: the chord to change, where it is written, and the free chords to offer.
 public struct KeyEdit: Equatable {
-    public enum Source: Equatable { case aerospace(mode: String), leela(action: String, live: String) }
+    /// `sanketa`: Sanketa's own search hotkey in config.toml
+    public enum Source: Equatable { case aerospace(mode: String), leela(action: String, live: String), sanketa }
     public var row: ComboRow
     public var source: Source
     public var chord: Chord
@@ -42,8 +43,14 @@ public struct EditSources {
     public var leelaFile: URL?
     /// the chords of every pack that Sanketa knows; read only when an AeroSpace key changes
     public var known: () -> Set<Chord>
-    public init(aero: AeroSpaceConfig? = nil, apps: [AppKeys] = [], aeroFile: URL? = nil, leelaFile: URL? = nil, known: @escaping () -> Set<Chord> = { [] }) {
+    /// Sanketa's config.toml; nil: Sanketa's own keys do not change
+    public var sanketaFile: URL?
+    /// the chords that macOS uses; read only when Sanketa's own key changes
+    public var system: () -> Set<Chord>
+    public init(aero: AeroSpaceConfig? = nil, apps: [AppKeys] = [], aeroFile: URL? = nil, leelaFile: URL? = nil, known: @escaping () -> Set<Chord> = { [] },
+                sanketaFile: URL? = nil, system: @escaping () -> Set<Chord> = { KeySuggest.systemChords }) {
         self.aero = aero; self.apps = apps; self.aeroFile = aeroFile; self.leelaFile = leelaFile; self.known = known
+        self.sanketaFile = sanketaFile; self.system = system
     }
 }
 
@@ -57,6 +64,18 @@ public struct ToastAction {
 extension PanelModel {
     public static let notChecked = "Sanketa does not check apps that have no pack."
     public static let reloadFailed = "Sanketa changed the file, but aerospace reload-config failed."
+    /// the pack of Sanketa's own rows
+    public static let sanketaPack = "sanketa"
+    public static let searchAction = "Search"
+
+    /// Sanketa's own keys for the combo view: Search, when the view is pinned or its chord uses the held modifiers.
+    public func sanketaRows() -> [ComboRow] {
+        guard let v = combo else { return [] }
+        let c = Chord.hotkey(hotkey)
+        guard comboPinned || c?.mods == v.mods else { return [] }
+        return [ComboRow(keys: c?.display(hyperLabel: comboHyperLabel) ?? hotkey, action: Self.searchAction, chords: c.map { [$0] } ?? [],
+                         command: "search", group: "Sanketa", pack: Self.sanketaPack)]
+    }
 
     /// A click on the panel while the combo view shows: it stays after the let-go, until Esc or a click outside.
     public func pinCombo() { if combo != nil { comboPinned = true } }
@@ -89,10 +108,18 @@ extension PanelModel {
         editChoices = []
         guard let v = combo else { return }
         let i = Self.suggestInputs(row: c.row, chord: c.chord, source: c.source, view: v, sources: editSources, hyperLabel: comboHyperLabel)
-        let aero: Bool = if case .aerospace = c.source { true } else { false }
-        editing = KeyEdit(row: c.row, source: c.source, chord: c.chord,
-                          suggestions: KeySuggest.suggest(action: c.action, mods: c.chord.mods, partners: i.partners, used: i.used, hyperLabel: comboHyperLabel),
-                          action: c.action, file: aero ? editSources.aeroFile : editSources.leelaFile, note: aero ? Self.notChecked : nil)
+        switch c.source {
+        case .sanketa:
+            let taken = hotkeyConflict.map { _ in "macOS or another app uses \(c.chord.display(hyperLabel: comboHyperLabel)) now." }
+            editing = KeyEdit(row: c.row, source: c.source, chord: c.chord,
+                              suggestions: KeySuggest.suggestHotkey(action: c.action, used: i.used, system: editSources.system(), hyperLabel: comboHyperLabel),
+                              action: c.action, file: editSources.sanketaFile, note: taken)
+        case .aerospace, .leela:
+            let aero: Bool = if case .aerospace = c.source { true } else { false }
+            editing = KeyEdit(row: c.row, source: c.source, chord: c.chord,
+                              suggestions: KeySuggest.suggest(action: c.action, mods: c.chord.mods, partners: i.partners, used: i.used, hyperLabel: comboHyperLabel),
+                              action: c.action, file: aero ? editSources.aeroFile : editSources.leelaFile, note: aero ? Self.notChecked : nil)
+        }
     }
 
     /// The new chord: a suggestion or a pressed chord. The confirm step shows next. False: the chord is the key now, or
@@ -101,7 +128,9 @@ extension PanelModel {
         guard let e = editing, let v = combo else { return false }
         let inMode: Bool = if case .aerospace(let m) = e.source, m != "main" { true } else { false }
         let leelaBad: Bool = if case .leela = e.source { c.leelaText == nil } else { false }
+        let ownBad: Bool = if case .sanketa = e.source { !c.mods.isEmpty && c.hotkeyText == nil } else { false }
         let warning = leelaBad ? "Leela cannot use \(c.display(hyperLabel: comboHyperLabel)). Press a different chord."
+            : ownBad ? "Sanketa cannot use \(c.display(hyperLabel: comboHyperLabel)) as a hotkey. Press a different chord."
             : c == e.chord ? "\(c.display(hyperLabel: comboHyperLabel)) is the key now. Press a different chord."
             : c.mods.isEmpty && !inMode ? "Press a chord with one or more modifier keys." : nil
         editing?.warning = warning
@@ -125,6 +154,9 @@ extension PanelModel {
             if aeroIn("main") { return ("AeroSpace", false) }
         case .leela:
             if let a = app({ $0.pack == e.row.pack }) { return (a.layer, true) }
+            if aeroIn(view.mode) || aeroIn("main") { return ("AeroSpace", false) }
+        case .sanketa:
+            if sources.system().contains(c) { return ("macOS", false) }
             if aeroIn(view.mode) || aeroIn("main") { return ("AeroSpace", false) }
         }
         if let a = app({ _ in true }) { return (a.layer, false) }
@@ -159,6 +191,10 @@ extension PanelModel {
             return EditChoice(title: title ?? "\(c.display(hyperLabel: hyperLabel)) · \(b.action)", row: r, source: .aerospace(mode: mode), chord: c, action: b.action)
         }
         if aeroColumn { return editTargets(row).compactMap { aeroChoice($0, title: nil) } }
+        if row.pack == sanketaPack {
+            guard sources.sanketaFile != nil, let c = row.chords.first else { return [] }
+            return [EditChoice(title: c.display(hyperLabel: hyperLabel), row: row, source: .sanketa, chord: c, action: row.action)]
+        }
         let leela = row.pack == LeelaKeymap.packID ? row.command : nil
         func leelaChoice(_ c: Chord, title: String) -> EditChoice? {
             leela.map { EditChoice(title: title, row: row, source: .leela(action: $0, live: live(row, apps: sources.apps, hyperLabel: hyperLabel)), chord: c, action: row.action) }
@@ -191,6 +227,7 @@ extension PanelModel {
         switch source {
         case .aerospace: used.formUnion(sources.known()); column = view.aero
         case .leela: column = view.app.filter { $0.pack == row.pack }
+        case .sanketa: used.formUnion(sources.system()); used.formUnion(row.chords); column = []
         }
         let others = row.group == nil ? [] : column.filter { $0 != row && $0.group == row.group }
         return ((row.chords + others.flatMap(\.chords)).filter { $0 != chord }, used)

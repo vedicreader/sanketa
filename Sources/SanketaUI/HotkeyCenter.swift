@@ -31,6 +31,18 @@ import SanketaCore
         refs = [:]
     }
 
+    /// The enabled chords of the system's own shortcuts (Spotlight, input sources, screenshots), as macOS lists them.
+    public static func systemChords() -> Set<Chord> {
+        var out: Unmanaged<CFArray>?
+        guard CopySymbolicHotKeys(&out) == noErr, let list = out?.takeRetainedValue() as? [[String: Any]] else { return [] }
+        let bits: [(Int, Modifier)] = [(controlKey, .ctrl), (optionKey, .opt), (shiftKey, .shift), (cmdKey, .cmd)]
+        return Set(list.compactMap { d -> Chord? in
+            guard d[kHISymbolicHotKeyEnabled as String] as? Bool ?? true, let code = d[kHISymbolicHotKeyCode as String] as? Int,
+                  let m = d[kHISymbolicHotKeyModifiers as String] as? Int, let key = PanelModel.keyNames[code] else { return nil }
+            return Chord(mods: Set(bits.filter { m & $0.0 != 0 }.map(\.1)), key: key)
+        })
+    }
+
     static func install() {
         guard !installed else { return }
         installed = true

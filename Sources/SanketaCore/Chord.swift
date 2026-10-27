@@ -89,4 +89,24 @@ public struct Chord: Hashable, Sendable {
         let order: [(Modifier, String)] = [(.cmd, "mod"), (.ctrl, "ctrl"), (.opt, "alt"), (.shift, "shift")]
         return ((isHyper ? ["hyper"] : order.filter { mods.contains($0.0) }.map(\.1)) + [k]).joined(separator: "+")
     }
+
+    /// Sanketa's own hotkey grammar of config.toml (`ctrl+opt+k`, see `Hotkey.parse`); nil for a chord Sanketa cannot register.
+    public static func hotkey(_ s: String) -> Chord? {
+        var mods = Set<Modifier>(), key: String?
+        for t in s.lowercased().split(separator: "+", omittingEmptySubsequences: false).map({ $0.trimmingCharacters(in: .whitespaces) }) {
+            if let m = hotkeyMods.first(where: { $0.1 == t || (t == "alt" && $0.0 == .opt) })?.0 { mods.insert(m) }
+            else if Hotkey.keys[t] != nil, key == nil { key = t }
+            else { return nil }
+        }
+        return key.map { Chord(mods: mods, key: $0) }
+    }
+
+    static let hotkeyMods: [(Modifier, String)] = [(.ctrl, "ctrl"), (.opt, "opt"), (.shift, "shift"), (.cmd, "cmd")]
+
+    /// The chord in config.toml's `hotkey` grammar (`opt+shift+space`); nil with no modifier, or for a key that Sanketa
+    /// cannot register.
+    public var hotkeyText: String? {
+        guard !mods.isEmpty, Hotkey.keys[key] != nil else { return nil }
+        return (Self.hotkeyMods.filter { mods.contains($0.0) }.map(\.1) + [key]).joined(separator: "+")
+    }
 }

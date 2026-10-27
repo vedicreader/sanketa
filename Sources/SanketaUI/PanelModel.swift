@@ -72,6 +72,8 @@ struct StackState {
     @Published public var aeroError: PackLoadError?
     /// the footer lists every bad pack file, not only the count
     @Published public var showAllErrors = false
+    /// Sanketa's search hotkey (config.toml's grammar), and the same text when Sanketa cannot register it
+    @Published public var hotkey = Config().hotkey
     @Published public var hotkeyConflict: String?
     /// The list top to bottom: the innermost layer's keys first, then the tip cards, then the outer layers.
     @Published public private(set) var blocks: [PanelBlock] = []
@@ -197,7 +199,7 @@ struct StackState {
         toastUntil = nil
     }
 
-    public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || configError != nil || aeroError != nil || configNote != nil || hotkeyConflict != nil }
+    public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || configError != nil || aeroError != nil || configNote != nil }
     public var needsAccessibility: Bool { !context.axTrusted && !context.bundleID.isEmpty }
 
     /// One footer line for a file that did not load. A click opens the file, or (for the count line) lists the files.

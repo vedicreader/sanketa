@@ -37,11 +37,8 @@ struct ComboEditSheet: View {
     func edit(_ e: KeyEdit) -> some View {
         VStack(alignment: .leading, spacing: Theme.rowGap) {
             Text("Change \(e.action)").font(Theme.header).foregroundStyle(Theme.secondary)
-            HStack(spacing: 6) {
-                KeyLabel(text: e.chord.display(hyperLabel: hyper)).frame(width: Theme.keyColumn, alignment: .leading)
-                Text("the key now").font(Theme.small).foregroundStyle(Theme.secondary)
-            }
             if let text = model.confirmText {
+                keys(e, suggestions: [])
                 Text(text).font(Theme.small).fixedSize(horizontal: false, vertical: true).padding(.top, 4)
                 if let u = e.inUse {
                     Text(u + (e.blocked ? " Pick a different chord." : "")).font(Theme.small).foregroundStyle(Theme.secondary)
@@ -54,17 +51,7 @@ struct ComboEditSheet: View {
                 }
                 .padding(.top, 4)
             } else {
-                ForEach(Array(e.suggestions.enumerated()), id: \.offset) { _, s in
-                    Button { model.pick(s.chord) } label: {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            KeyLabel(text: s.chord.display(hyperLabel: hyper)).frame(width: Theme.keyColumn, alignment: .leading)
-                            Text(s.reason).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 0)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain).padding(.vertical, Theme.rowPad)
-                }
+                keys(e, suggestions: e.suggestions)
                 if e.suggestions.isEmpty { Text("Sanketa found no free chord with these keys.").font(Theme.small).foregroundStyle(Theme.secondary) }
                 Button(action: record) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -80,6 +67,26 @@ struct ComboEditSheet: View {
                 if let w = e.warning { Text(w).font(Theme.small).foregroundStyle(Theme.primary).fixedSize(horizontal: false, vertical: true) }
                 if let n = e.note { Text(n).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true) }
                 link("Cancel", action: cancel).padding(.top, 4)
+            }
+        }
+    }
+
+    /// The key now, then the suggestions, in a grid: the reasons start after the widest key (`⌥⇧space`).
+    func keys(_ e: KeyEdit, suggestions: [Suggestion]) -> some View {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Theme.comboKeyGap, verticalSpacing: Theme.rowGap) {
+            GridRow {
+                KeyLabel(text: e.chord.display(hyperLabel: hyper)).frame(minWidth: Theme.keyColumn, alignment: .leading)
+                Text("the key now").font(Theme.small).foregroundStyle(Theme.secondary)
+            }
+            ForEach(Array(suggestions.enumerated()), id: \.offset) { _, s in
+                GridRow {
+                    Button { model.pick(s.chord) } label: { KeyLabel(text: s.chord.display(hyperLabel: hyper)).contentShape(Rectangle()) }
+                    Button { model.pick(s.chord) } label: {
+                        Text(s.reason).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }
+                }
+                .buttonStyle(.plain).padding(.vertical, Theme.rowPad)
             }
         }
     }
