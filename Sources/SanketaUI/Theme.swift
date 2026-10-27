@@ -32,8 +32,8 @@ public enum Theme {
     public static let panelSize = CGSize(width: 340, height: 520)
     /// The panel while the combo view shows: wide enough for a key and its action on one line.
     public static let comboSize = CGSize(width: 620, height: 580)
-    /// Least width of the key column in a combo row; a wider key pushes its action right.
-    static let comboKey: CGFloat = 36
+    /// the space between a combo key and its action
+    static let comboKeyGap: CGFloat = 10
     static let comboRowGap: CGFloat = 6
 
     /// Opacity of the adaptive dimming tint over the glass (black in dark mode, white in light mode).

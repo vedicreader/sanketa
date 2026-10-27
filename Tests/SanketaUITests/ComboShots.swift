@@ -30,6 +30,19 @@ extension RenderTests {
     esc = 'mode main'
     """
 
+    /// A real-world shape: arrows, H J K L and 1 to 9 of one command each become one row with a wide key label.
+    static let groupedAeroText: String = {
+        let p = "cmd-alt-ctrl-shift-"
+        var l = ["[mode.main.binding]"]
+        l += ["left", "down", "up", "right"].map { "\(p)\($0) = 'move \($0)'" }
+        l += zip(["h", "j", "k", "l"], ["left", "down", "up", "right"]).map { "\(p)\($0) = 'focus \($1)'" }
+        l += (1...9).map { "\(p)\($0) = 'workspace \($0)'" }
+        l += ["\(p)space = 'layout floating tiling'", "\(p)tab = 'workspace-back-and-forth'", "\(p)f = 'fullscreen'",
+              "\(p)w = 'move-node-to-workspace --wrap-around --focus-follows-window next'",
+              "\(p)minus = 'resize smart -50'", "\(p)equal = 'resize smart +50'"]
+        return l.joined(separator: "\n")
+    }()
+
     static func leelaKeys(clash: Bool) -> [AppKeys] {
         func e(_ k: String, _ a: String) -> KeyEntry { KeyEntry(keys: hyper + k, action: a, command: a) }
         let notebook = [e("Z", "Undo the last change"), e("B", "Toggle the sidebar"), e("T", "Open a new tab"), e("S", "Save the notebook"),
@@ -41,8 +54,8 @@ extension RenderTests {
         return [AppKeys(layer: "Notebook", entries: Array(all[..<7])), AppKeys(layer: "Panes", entries: Array(all[7...]))]
     }
 
-    static func comboModel(_ m: PanelModel, clash: Bool, mode: String = "main", pin: Bool = false) {
-        let aero = AeroSpaceConfig.parse(aeroText), apps = leelaKeys(clash: clash)
+    static func comboModel(_ m: PanelModel, clash: Bool, mode: String = "main", pin: Bool = false, grouped: Bool = false) {
+        let aero = AeroSpaceConfig.parse(grouped ? groupedAeroText : aeroText), apps = leelaKeys(clash: clash)
         let mods = Set(Modifier.allCases)
         let v = ComboView.build(mods: mods, mode: mode, aero: aero, appName: "Leela", apps: apps, hyperLabel: "Caps")
         let tmp = FileManager.default.temporaryDirectory
@@ -69,6 +82,7 @@ extension RenderTests {
              comboModel(m, clash: true, pin: true)
              if let r = m.combo?.app.first(where: \.clash) { m.clickRow(r, aero: false) }
          },
+         Scenario(name: "combo-grouped", context: leela) { comboModel($0, clash: false, grouped: true) },
          Scenario(name: "combo-aero-resize", context: leela) { comboModel($0, clash: false, mode: "resize") }]
     }
 }

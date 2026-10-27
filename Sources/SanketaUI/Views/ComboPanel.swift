@@ -31,31 +31,36 @@ struct ComboPanel: View {
         .padding(.vertical, 4).padding(.horizontal, 6)
     }
 
+    /// A grid, so each column's keys are as wide as its widest key (`← ↑ ↓ →`, `1 — 9`); the actions start after them.
     func column(_ title: String, rows: [ComboRow], aero: Bool, notes: [String] = [], empty: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: Theme.comboRowGap) {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Theme.comboKeyGap, verticalSpacing: Theme.comboRowGap) {
             Text(title).font(Theme.header).foregroundStyle(Theme.secondary)
             if rows.isEmpty, let empty { Text(empty).font(Theme.small).foregroundStyle(Theme.secondary) }
             ForEach(Array(rows.enumerated()), id: \.offset) { i, r in
                 if let l = r.layer, i == 0 || rows[i - 1].layer != l {
                     Text(l).font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, i == 0 ? 0 : 8)
                 }
-                if canEdit(r, aero) {
-                    Button { click(r, aero) } label: { row(r).contentShape(Rectangle()) }.buttonStyle(.plain)
-                } else { row(r) }
+                row(r, aero: aero)
             }
             ForEach(notes, id: \.self) { Text($0).font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, 2) }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
-    func row(_ r: ComboRow) -> some View {
-        let color: Color = r.clash || r.muted ? Theme.secondary : .primary
+    func row(_ r: ComboRow, aero: Bool) -> some View {
         let action = Text(r.action).strikethrough(r.clash) + Text(r.clash ? " · AeroSpace" : "")
-        return HStack(alignment: .firstTextBaseline, spacing: 8) {
-            KeyLabel(text: r.keys).strikethrough(r.clash).fixedSize().frame(minWidth: Theme.comboKey, alignment: .leading)
-            action.font(Theme.small).lineLimit(1).truncationMode(.tail)
+        return GridRow {
+            cell(r, aero: aero) { KeyLabel(text: r.keys).strikethrough(r.clash) }
+            cell(r, aero: aero) { action.font(Theme.small).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading) }
         }
-        .foregroundStyle(color)
+        .foregroundStyle(r.clash || r.muted ? Theme.secondary : .primary)
         .padding(.vertical, Theme.rowPad)
+    }
+
+    /// A cell of a row that can change is a button; both cells of the row do the same.
+    @ViewBuilder func cell(_ r: ComboRow, aero: Bool, @ViewBuilder _ content: () -> some View) -> some View {
+        if canEdit(r, aero) {
+            Button { click(r, aero) } label: { content().contentShape(Rectangle()) }.buttonStyle(.plain)
+        } else { content() }
     }
 }
