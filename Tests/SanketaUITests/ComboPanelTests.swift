@@ -138,13 +138,73 @@ import Testing
         let x = Chord(mods: hyper, key: "x"), z = Chord(mods: hyper, key: "z")
         let i = PanelModel.suggestInputs(row: row("Toggle tools"), chord: x, source: .leela(action: "toggle-tools", live: "hyper+x"), view: view, sources: sources)
         #expect(i.partners == [z])
-        #expect(!i.used.contains(x))
+        #expect(i.used.contains(x))   // the chord now is never offered
         #expect(i.used.isSuperset(of: [z, Chord(mods: [.opt, .shift], key: "b"), Chord(mods: hyper, key: "5"), Chord(mods: [.ctrl, .opt], key: "t")]))
         #expect(!i.used.contains(Chord(mods: hyper, key: "q")))   // every pack is checked only for AeroSpace keys
         let three = Chord(mods: hyper, key: "3")
         let a = PanelModel.suggestInputs(row: row("Go to a workspace"), chord: three, source: .aerospace(mode: "main"), view: view, sources: sources)
-        #expect(a.used.contains(Chord(mods: hyper, key: "q")) && !a.used.contains(three))
+        #expect(a.used.contains(Chord(mods: hyper, key: "q")) && a.used.contains(three))
         #expect(a.partners.count == 8 && !a.partners.contains(three))
+    }
+    @Test func suggestionsNeverOfferTheChordNow() throws {
+        let m = try model()
+        for (r, aero) in view.aero.map({ ($0, true) }) + view.app.map({ ($0, false) }) {
+            for c in PanelModel.choices(r, aeroColumn: aero, view: view, sources: sources, hyperLabel: "Caps") {
+                m.choose(c)
+                #expect(m.editing?.suggestions.isEmpty == false)
+                #expect(m.editing?.suggestions.contains { $0.chord == c.chord } == false, "\(c.title)")
+            }
+        }
+    }
+    @Test func pickRefusesTheChordNow() throws {
+        let m = try model()
+        m.clickRow(row("Toggle tools"), aero: false)
+        m.editing?.recording = true
+        #expect(!m.pick(Chord(mods: hyper, key: "x")))
+        #expect(m.editing?.new == nil && m.editing?.recording == true)
+        #expect(m.editing?.warning == "Caps\u{a0}X is the key now. Press a different chord.")
+        #expect(m.pick(Chord(mods: hyper, key: "y")) && m.editing?.warning == nil)
+    }
+    @Test func aChordNeedsAModifierOutsideAnAeroSpaceMode() throws {
+        let m = try model()
+        m.clickRow(row("Toggle tools"), aero: false)
+        #expect(!m.pick(Chord(mods: [], key: "y")))
+        #expect(m.editing?.warning == "Press a chord with one or more modifier keys.")
+        let modes = AeroSpaceConfig.parse("[mode.resize.binding]\nminus = 'resize smart -50'\nesc = 'mode main'")
+        let r = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
+        r.editSources = EditSources(aero: modes, aeroFile: URL(fileURLWithPath: "/a.toml"))
+        r.showCombo(ComboView.build(mods: [], mode: "resize", aero: modes, appName: "x", apps: [], hyperLabel: "Caps"))
+        r.clickRow(r.combo!.aero[0], aero: true)
+        #expect(r.editing?.source == .aerospace(mode: "resize"))
+        #expect(r.pick(Chord(mods: [], key: "y")))
+    }
+    @Test func aChordInUseShowsItsOwner() throws {
+        let m = try model()
+        m.clickRow(row("Toggle tools"), aero: false)
+        m.pick(Chord(mods: hyper, key: "z"))   // another Leela key: the same file
+        #expect(m.editing?.inUse == "Caps\u{a0}Z is in use by Leela." && m.editing?.blocked == true)
+        m.pick(Chord(mods: hyper, key: "5"))   // AeroSpace gets it first, but keys.json can hold it
+        #expect(m.editing?.inUse == "Caps\u{a0}5 is in use by AeroSpace." && m.editing?.blocked == false)
+        m.pick(Chord(mods: hyper, key: "y"))
+        #expect(m.editing?.inUse == nil && m.editing?.blocked == false)
+
+        m.clickRow(row("Go to a workspace"), aero: true); m.choose(m.editChoices[2])
+        m.pick(Chord(mods: [.ctrl, .opt], key: "t"))   // the same AeroSpace mode
+        #expect(m.editing?.inUse == "⌃⌥T is in use by AeroSpace." && m.editing?.blocked == true)
+        m.pick(Chord(mods: hyper, key: "x"))
+        #expect(m.editing?.inUse == "Caps\u{a0}X is in use by Leela." && m.editing?.blocked == false)
+        m.pick(Chord(mods: hyper, key: "q"))   // only a pack that is not in front has it
+        #expect(m.editing?.inUse == "Caps\u{a0}Q is in use." && m.editing?.blocked == false)
+    }
+    @Test func theUndoToastStaysLonger() throws {
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")))
+        var t = Date()
+        m.now = { t }
+        m.showSaveToast("Changed.", action: ToastAction(title: "Undo") {})
+        t += PanelModel.saveToastSeconds + 1; m.expireToast()
+        #expect(m.toast == "Changed.")
+        t += 10; m.expireToast()
+        #expect(m.toast == nil)
     }
     @Test func confirmTextNamesTheChangeAndTheFile() throws {
         let m = try model()

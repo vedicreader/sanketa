@@ -149,10 +149,6 @@ struct ResultsList: View {
     var expanded: String?
     var copy: (String) -> Void = { _ in }
     var openResult: (Int) -> Void = { _ in }
-    /// the key change of the pinned combo view: the chord field takes the focus, the change is written, or it stops
-    var record: () -> Void = {}
-    var applyEdit: () -> Void = {}
-    var cancelEdit: () -> Void = {}
     /// the keys that save to the vault: one muted line at the end
     var saveHint: String?
     var scope = SearchScope.all

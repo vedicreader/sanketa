@@ -2,7 +2,7 @@ import Foundation
 
 /// Why a key change was not written.
 public enum KeyWriteError: Error, Equatable, LocalizedError {
-    case notJSON, noKeysObject, notFound(String), changedSince(String), inUse(String)
+    case notJSON, noKeysObject, notFound(String), changedSince(String), inUse(String), sameKey
 
     public var errorDescription: String? {
         switch self {
@@ -11,6 +11,7 @@ public enum KeyWriteError: Error, Equatable, LocalizedError {
         case .notFound(let x): "Sanketa did not find \(x) in the file."
         case .inUse(let x): "\(x) is in use in AeroSpace. Sanketa did not change the file."
         case .changedSince: "The file changed after the change. Undo did not run, so your edit stays."
+        case .sameKey: "The new key is the same as the old key. Sanketa did not change the file."
         }
     }
 }
@@ -18,12 +19,14 @@ public enum KeyWriteError: Error, Equatable, LocalizedError {
 /// Edits the top-level `keys` object of Leela's keys.json as text, so every other byte stays.
 public enum LeelaKeysWriter {
     public static func change(_ text: String, action: String, live: String, from: Chord, to: Chord) throws -> String {
+        guard from != to else { throw KeyWriteError.sameKey }
         guard let root = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else { throw KeyWriteError.notJSON }
         guard let keys = root["keys"] as? [String: Any] else { throw KeyWriteError.noKeysObject }
         let b = Array(text.utf8), members = try members(b, of: "keys")
         func swap(_ v: String) throws -> String {
             var parts = v.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
-            guard let i = parts.firstIndex(of: from.leelaText) else { throw KeyWriteError.notFound(from.leelaText) }
+            // compare chords, not spellings: "shift+alt+b" and "N" (shift+n) are written by hand too
+            guard let i = parts.firstIndex(where: { Chord.leela($0) == from }) else { throw KeyWriteError.notFound(from.leelaText) }
             parts[i] = to.leelaText
             return parts.joined(separator: " ")
         }
@@ -121,9 +124,10 @@ public enum LeelaKeysWriter {
 /// Edits the left side of one binding line of an AeroSpace config.
 public enum AeroSpaceWriter {
     public static func change(_ text: String, mode: String, from: Chord, to: Chord) throws -> String {
+        guard from != to else { throw KeyWriteError.sameKey }
         let bindings = AeroSpaceConfig.parse(text).modes[mode] ?? []
         guard let b = bindings.first(where: { $0.chord == from }) else { throw KeyWriteError.notFound(from.aerospaceText) }
-        if to != from, bindings.contains(where: { $0.chord == to }) { throw KeyWriteError.inUse(to.aerospaceText) }
+        if bindings.contains(where: { $0.chord == to }) { throw KeyWriteError.inUse(to.aerospaceText) }
         // find the line exactly as the parser does (every Character that isNewline ends a line), and edit it in place
         var start = text.startIndex, n = 1
         while n < b.line, let nl = text[start...].firstIndex(where: \.isNewline) { start = text.index(after: nl); n += 1 }

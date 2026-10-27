@@ -64,7 +64,8 @@ extension AppDelegate {
     func undoChange(_ c: KeyChange) {
         do {
             let ok = try KeyChangeStore(runner: ProcessRunner()).undo(c)
-            savedToast(ok ? "Sanketa undid the change." : PanelModel.reloadFailed)
+            let needsReload = c.file == aeroURL && c.reload == nil
+            savedToast(!ok ? PanelModel.reloadFailed : needsReload ? "Sanketa undid the change. Run aerospace reload-config to use the old key." : "Sanketa undid the change.")
             if c.file == aeroURL { readAeroSpace() } else { reloadPacks() }
         } catch { savedToast(error.localizedDescription) }
     }

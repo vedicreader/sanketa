@@ -17,6 +17,14 @@ import Testing
         #expect(Chord.sanketa("⌃⌥⇧⌘X") == Chord.leela("hyper+x"))
         #expect(Chord.sanketa("⌥⇧B") == Chord.leela("alt+shift+b"))
     }
+    @Test func leelaUpperCaseLetterMeansShift() {
+        // as LeelaKeymap.render reads it
+        #expect(Chord.leela("N") == Chord(mods: [.shift], key: "n"))
+        #expect(Chord.leela("alt+N") == Chord(mods: [.opt, .shift], key: "n"))
+        #expect(Chord.leela("n") == Chord(mods: [], key: "n"))
+        #expect(Chord.leela("hyper+Z") == Chord.leela("hyper+z"))
+        #expect(Chord.leela("F5") == Chord(mods: [], key: "f5"))
+    }
     @Test func formatsBack() {
         let c = Chord.aerospace("cmd-alt-ctrl-shift-leftSquareBracket")!
         #expect(c.display() == "Caps\u{a0}[")

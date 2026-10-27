@@ -18,6 +18,11 @@ public struct KeyEdit: Equatable {
     public var recording = false
     /// a line under the suggestions, such as which apps Sanketa did not check
     public var note: String?
+    /// why the last pressed chord was not taken
+    public var warning: String?
+    /// "<chord> is in use by <owner>." for the new chord, and true when the same file uses it: then Change is off
+    public var inUse: String?
+    public var blocked = false
 }
 
 /// One line of the list that shows before an edit: a chord of a group row, or which app's key changes.
@@ -90,10 +95,39 @@ extension PanelModel {
                           action: c.action, file: aero ? editSources.aeroFile : editSources.leelaFile, note: aero ? Self.notChecked : nil)
     }
 
-    /// The new chord: a suggestion or a pressed chord. The confirm step shows next.
-    public func pick(_ c: Chord) {
+    /// The new chord: a suggestion or a pressed chord. The confirm step shows next. False: the chord is the key now, or
+    /// it has no modifier outside an AeroSpace mode; the warning says why, and the field still reads.
+    @discardableResult public func pick(_ c: Chord) -> Bool {
+        guard let e = editing, let v = combo else { return false }
+        let inMode: Bool = if case .aerospace(let m) = e.source, m != "main" { true } else { false }
+        let warning = c == e.chord ? "\(c.display(hyperLabel: comboHyperLabel)) is the key now. Press a different chord."
+            : c.mods.isEmpty && !inMode ? "Press a chord with one or more modifier keys." : nil
+        editing?.warning = warning
+        guard warning == nil else { return false }
+        let o = Self.owner(of: c, edit: e, view: v, sources: editSources, hyperLabel: comboHyperLabel)
+        editing?.inUse = o.map { "\(c.display(hyperLabel: comboHyperLabel)) is in use" + ($0.name.map { " by \($0)" } ?? "") + "." }
+        editing?.blocked = o?.blocks ?? false
         editing?.new = c
         editing?.recording = false
+        return true
+    }
+
+    /// Who uses `c`: the same file first (AeroSpace in the edit's mode, or the edit's app), then AeroSpace, the front app's
+    /// layers and, for an AeroSpace key, every pack. `blocks` is true for the same file, so a key is never written twice.
+    public static func owner(of c: Chord, edit e: KeyEdit, view: ComboView, sources: EditSources, hyperLabel: String) -> (name: String?, blocks: Bool)? {
+        func aeroIn(_ m: String) -> Bool { sources.aero?.modes[m]?.contains { $0.chord == c } == true }
+        func app(_ ok: (AppKeys) -> Bool) -> AppKeys? { sources.apps.first { ok($0) && $0.entries.contains { $0.chords(hyperLabel: hyperLabel).contains(c) } } }
+        switch e.source {
+        case .aerospace(let mode):
+            if aeroIn(mode) { return ("AeroSpace", true) }
+            if aeroIn("main") { return ("AeroSpace", false) }
+        case .leela:
+            if let a = app({ $0.pack == e.row.pack }) { return (a.layer, true) }
+            if aeroIn(view.mode) || aeroIn("main") { return ("AeroSpace", false) }
+        }
+        if let a = app({ _ in true }) { return (a.layer, false) }
+        if case .aerospace = e.source, sources.known().contains(c) { return (nil, false) }
+        return nil
     }
 
     public func cancelEdit() { editing = nil; editChoices = [] }
@@ -141,7 +175,7 @@ extension PanelModel {
     }
 
     /// `used`: AeroSpace's current mode and `main`, the rows of this view and every chord of the front app's layers (with
-    /// every pack Sanketa knows for an AeroSpace key), but not the chord that changes. `partners`: the other chords of the
+    /// every pack Sanketa knows for an AeroSpace key); the chord that changes is in it too, so it is never offered. `partners`: the other chords of the
     /// row and the rows of its column with the same group.
     public static func suggestInputs(row: ComboRow, chord: Chord, source: KeyEdit.Source, view: ComboView, sources: EditSources,
                                     hyperLabel: String = "Caps") -> (partners: [Chord], used: Set<Chord>) {
@@ -153,7 +187,6 @@ extension PanelModel {
         case .aerospace: used.formUnion(sources.known()); column = view.aero
         case .leela: column = view.app.filter { $0.pack == row.pack }
         }
-        used.remove(chord)
         let others = row.group == nil ? [] : column.filter { $0 != row && $0.group == row.group }
         return ((row.chords + others.flatMap(\.chords)).filter { $0 != chord }, used)
     }

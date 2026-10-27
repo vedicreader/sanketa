@@ -315,16 +315,17 @@ extension PanelController {
         guard model.editing != nil, !searching else { return }
         editApp = Self.frontmostOther
         model.editing?.new = nil
+        model.editing?.warning = nil
         model.editing?.recording = true
         panel.makeKey()
         panel.makeFirstResponder(nil)
     }
 
-    /// Esc with no modifier stops the edit; a modifier key alone waits for the key. Focus goes back after one chord.
+    /// Esc with no modifier stops the edit; a modifier key alone waits for the key. Focus goes back after one chord that is taken.
     func record(_ e: NSEvent) {
         if Int(e.keyCode) == kEscape, Self.mods(e.modifierFlags).isEmpty { return cancelEdit() }
-        guard let c = PanelModel.chord(keyCode: Int(e.keyCode), flags: e.modifierFlags) else { return }
-        model.pick(c)
+        // a chord that is not taken (the key now, or no modifier) shows why, and the field still reads
+        guard let c = PanelModel.chord(keyCode: Int(e.keyCode), flags: e.modifierFlags), model.pick(c) else { return }
         endRecording()
     }
 
@@ -342,7 +343,7 @@ extension PanelController {
 
     /// "Change" in the confirm step: the app writes the change; the view stays pinned.
     func confirmEdit() {
-        guard let e = model.editing, e.new != nil else { return }
+        guard let e = model.editing, e.new != nil, !e.blocked else { return }
         model.cancelEdit()
         endRecording()
         applyEdit(e)

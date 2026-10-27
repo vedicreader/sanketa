@@ -246,8 +246,8 @@ You can change an AeroSpace key or a Leela key from the panel:
 
 1. Hold the combo, and click the panel. The panel then stays when you release the keys. To keep the view without a hold, choose Your Keys… in the menu: it shows the Caps keys of the app in front.
 2. Click a key row. A row for a group of keys, such as "1 – 9", first lists its keys: click one. A row with a line through it lets you choose "Change Leela's key" (the first choice) or "Change AeroSpace's key".
-3. Sanketa shows up to three free chords, each with its reason, for example "free, next to your Caps T and Caps U, left hand". Click one. Or click "Press a new chord" and press the chord. Only then does the panel take keyboard focus, and only to read that one chord. Press Esc to stop.
-4. Sanketa shows the change, for example "Change Toggle tools: Caps X → Caps Y in ~/.config/leela/keys.json?". Click Change or Cancel. Then the app in front gets the focus again.
+3. Sanketa shows up to three free chords, each with its reason, for example "free, next to your Caps T and Caps U, left hand". Click one. Or click "Press a new chord" and press the chord. Only then does the panel take keyboard focus, and only to read that one chord. Press ⎋ (Esc) to stop.
+4. Sanketa shows the change, for example "Change Toggle tools: Caps X → Caps Y in ~/.config/leela/keys.json?". Click Change or Cancel. Then the app in front gets the focus again. If a key in the same file already uses the chord, Sanketa tells you, and Change is off. Sanketa does not take the key that you have now, or a chord with no modifier key (except in an AeroSpace mode).
 5. Sanketa keeps a copy of the old file as `<file>.sanketa-bak`, for example `keys.json.sanketa-bak`. It writes the new key and changes nothing else in the file. For AeroSpace, it then runs `aerospace reload-config`. Leela reads `keys.json` again by itself.
 6. The toast says "Changed." and has an Undo button. Undo puts the old file back. If you changed the file after the change, Undo does not run, so your edit stays.
 

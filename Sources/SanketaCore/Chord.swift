@@ -32,7 +32,7 @@ public struct Chord: Hashable, Sendable {
 
     /// Canonical key for any spelling; single letters fold to lower case and unknown names stay as is.
     static func norm(_ k: String) -> String {
-        canonical[k.lowercased()] ?? (k.count == 1 || (k.first == "f" && Int(k.dropFirst()) != nil) ? k.lowercased() : k)
+        canonical[k.lowercased()] ?? (k.count == 1 || (k.first?.lowercased() == "f" && Int(k.dropFirst()) != nil) ? k.lowercased() : k)
     }
 
     public static func aerospace(_ s: String) -> Chord? {
@@ -52,6 +52,8 @@ public struct Chord: Hashable, Sendable {
         if key.isEmpty, parts.last?.isEmpty == true { parts.removeLast(); key = "+" }   // `mod++`
         guard !key.isEmpty else { return nil }
         var mods = Set<Modifier>()
+        // Leela reads a single upper-case ASCII letter as shift + the letter
+        if key.count == 1, let c = key.first, c.isASCII, c.isUppercase { mods.insert(.shift) }
         for m in parts.map({ $0.lowercased() }) {
             if m == "hyper" { mods.formUnion(Modifier.allCases) } else if let mod = leelaMods[m] { mods.insert(mod) } else { return nil }
         }

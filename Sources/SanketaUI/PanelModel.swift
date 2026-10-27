@@ -130,6 +130,8 @@ struct StackState {
     public nonisolated static let toastSeconds: TimeInterval = 1.2
     /// how long the toast of a save stays, so the user can read the title or the reason
     public nonisolated static let saveToastSeconds: TimeInterval = 4
+    /// a toast with a button, such as Undo, stays longer so the user can click it
+    public nonisolated static let actionToastSeconds: TimeInterval = 10
     let pasteboard: NSPasteboard
     /// the clock for the toast; tests set it
     var now: () -> Date = Date.init
@@ -175,7 +177,7 @@ struct StackState {
     }
 
     /// The toast of a save: what was saved, or why it was not. It stays for `saveToastSeconds`.
-    public func showSaveToast(_ text: String, action: ToastAction? = nil) { showToast(text, seconds: Self.saveToastSeconds, action: action) }
+    public func showSaveToast(_ text: String, action: ToastAction? = nil) { showToast(text, seconds: action == nil ? Self.saveToastSeconds : Self.actionToastSeconds, action: action) }
 
     /// The pointer is on the toast (true) or left it (false). The toast stays while the pointer is on it, and for
     /// `toastSeconds` after it leaves.

@@ -29,6 +29,22 @@ import Testing
         #expect(try keys(out)["toggle_left"] == "hyper+z alt+q")
         #expect(out.replacingOccurrences(of: "hyper+z alt+q", with: "hyper+z alt+shift+b") == leela)
     }
+    @Test func leelaMatchesChordsNotSpellings() throws {
+        let t = "{\n  \"keys\": { \"a\": \"shift+alt+b cmd+shift+k N\" }\n}\n"
+        let b = try LeelaKeysWriter.change(t, action: "a", live: "", from: .leela("alt+shift+b")!, to: .leela("alt+q")!)
+        #expect(try keys(b)["a"] == "alt+q cmd+shift+k N")   // the other alternatives keep the file's spelling
+        let k = try LeelaKeysWriter.change(t, action: "a", live: "", from: Chord(mods: [.cmd, .shift], key: "k"), to: .leela("hyper+k")!)
+        #expect(try keys(k)["a"] == "shift+alt+b hyper+k N")
+        let n = try LeelaKeysWriter.change(t, action: "a", live: "", from: Chord(mods: [.shift], key: "n"), to: .leela("alt+n")!)
+        #expect(try keys(n)["a"] == "shift+alt+b cmd+shift+k alt+n")
+    }
+    @Test func writersRefuseTheSameKey() {
+        let z = Chord.leela("hyper+z")!
+        #expect(throws: KeyWriteError.sameKey) { try LeelaKeysWriter.change(leela, action: "toggle_left", live: "", from: z, to: z) }
+        let e = Chord.aerospace("cmd-alt-ctrl-shift-e")!
+        #expect(throws: KeyWriteError.sameKey) { try AeroSpaceWriter.change(aeroSample, mode: "main", from: e, to: e) }
+        #expect(KeyWriteError.sameKey.localizedDescription == "The new key is the same as the old key. Sanketa did not change the file.")
+    }
     @Test func leelaAddsAMissingActionToKeys() throws {
         let out = try LeelaKeysWriter.change(leela, action: "ask_ai", live: "hyper+a", from: .leela("hyper+a")!, to: .leela("alt+q")!)
         let k = try keys(out)

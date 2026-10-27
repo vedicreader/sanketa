@@ -43,8 +43,13 @@ struct ComboEditSheet: View {
             }
             if let text = model.confirmText {
                 Text(text).font(Theme.small).fixedSize(horizontal: false, vertical: true).padding(.top, 4)
+                if let u = e.inUse {
+                    Text(u + (e.blocked ? " Pick a different chord." : "")).font(Theme.small).foregroundStyle(Theme.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 HStack(spacing: 16) {
-                    link("Change", primary: true, action: apply)
+                    // a chord in use in the same file is never written
+                    link("Change", primary: !e.blocked, action: apply).disabled(e.blocked)
                     link("Cancel", action: cancel)
                 }
                 .padding(.top, 4)
@@ -65,13 +70,14 @@ struct ComboEditSheet: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         // a thin saffron bar marks the field while it reads the key press
                         RoundedRectangle(cornerRadius: 1).fill(e.recording ? Theme.accent : Theme.hairline).frame(width: 2.5, height: 13)
-                        Text(e.recording ? "Press a new chord now. Esc stops." : "Press a new chord").font(Theme.small)
+                        Text(e.recording ? "Press a new chord now. ⎋ stops." : "Press a new chord").font(Theme.small)
                             .foregroundStyle(e.recording ? Theme.primary : Theme.secondary)
                         Spacer(minLength: 0)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).padding(.top, 4)
+                if let w = e.warning { Text(w).font(Theme.small).foregroundStyle(Theme.primary).fixedSize(horizontal: false, vertical: true) }
                 if let n = e.note { Text(n).font(Theme.small).foregroundStyle(Theme.secondary).fixedSize(horizontal: false, vertical: true) }
                 link("Cancel", action: cancel).padding(.top, 4)
             }
