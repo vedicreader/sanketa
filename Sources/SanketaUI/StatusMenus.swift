@@ -102,7 +102,8 @@ public enum StatusMenus {
 
 /// The three toggles of the status menu that connect Sanketa to other tools, and "Set Up the Vault…". Each toggle writes
 /// one key: `[vault] enabled`, `[vault] mcp` and `[abhyasa] enabled`. A missing key means "on when the tool is there";
-/// only `false` turns a tool off. A tool that is missing shows as a disabled line that tells what it needs.
+/// only `false` turns a tool off. A missing vault file or server shows as a disabled line that tells what it needs. A
+/// missing Abhyasa app shows as "Get the Abhyasa App…", which opens its download page.
 public enum VaultToggles {
     public enum Key: String, CaseIterable, Sendable { case vault, hybrid, abhyasa, setup }
 
@@ -112,7 +113,9 @@ public enum VaultToggles {
     public static let setupTitle = "Set Up the Vault…"
     public static let noVaultFile = "Search the Vault (no vault file)"
     public static let noServer = "Search by Meaning (needs the vault server)"
-    public static let noAbhyasa = "Open in Abhyasa (needs the Abhyasa app)"
+    /// with no Abhyasa app, the Abhyasa line opens the download section of the Abhyasa README
+    public static let noAbhyasa = "Get the Abhyasa App…"
+    public static let abhyasaDownload = URL(string: "https://github.com/vedicreader/abhyasa#download")!
 
     /// One line for each toggle, and "Set Up the Vault…" when the vault server is missing. A check mark shows only when the
     /// tool is on and there. The two vault options need vault search on. Saving needs no vault file: the first note makes
@@ -122,7 +125,7 @@ public enum VaultToggles {
         var out: [(key: Key, line: MenuLine)] = [
             (.vault, t.vaultFile ? MenuLine(vaultTitle, checked: vault) : MenuLine(noVaultFile, enabled: false)),
             (.hybrid, t.server ? MenuLine(hybridTitle, enabled: on, checked: on && c.vault.mcp) : MenuLine(noServer, enabled: false)),
-            (.abhyasa, t.abhyasa ? MenuLine(abhyasaTitle, enabled: vault, checked: vault && c.abhyasa.enabled) : MenuLine(noAbhyasa, enabled: false)),
+            (.abhyasa, t.abhyasa ? MenuLine(abhyasaTitle, enabled: vault, checked: vault && c.abhyasa.enabled) : MenuLine(noAbhyasa)),
         ]
         if !t.server { out.append((.setup, MenuLine(settingUp ? "Setting Up the Vault…" : setupTitle, enabled: !settingUp))) }
         return out

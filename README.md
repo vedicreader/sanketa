@@ -207,7 +207,7 @@ If a tool is missing, its item is gray and tells you what it needs:
 
 - "Search the Vault (no vault file)": Sanketa does not find the vault file.
 - "Search by Meaning (needs the vault server)": Sanketa does not find the vault server. "Set Up the Vault…" then shows below.
-- "Open in Abhyasa (needs the Abhyasa app)": the Abhyasa app is not installed, and the Abhyasa server does not answer.
+- "Get the Abhyasa App…": the Abhyasa app is not installed, and the Abhyasa server does not answer. Click it to open the download page of Abhyasa.
 
 The two vault options need Search the Vault. Saving needs no vault file: the first note makes the file.
 

@@ -70,16 +70,17 @@ import SanketaVault
         #expect(titles(noServer, settingUp: true).last == "Setting Up the Vault…")
         #expect(VaultToggles.lines(c, noServer, settingUp: true).last?.line.enabled == false, "one setup at a time")
         let noApp = VaultTools(vaultFile: true, server: true, abhyasa: false)
-        #expect(titles(noApp) == ["Search the Vault", "Search by Meaning, Save Notes", "Open in Abhyasa (needs the Abhyasa app)"])
-        #expect(enabled(noApp) == [true, true, false] && VaultToggles.lines(c, noApp)[2].line.checked == false)
+        #expect(titles(noApp) == ["Search the Vault", "Search by Meaning, Save Notes", "Get the Abhyasa App…"])
+        #expect(enabled(noApp) == [true, true, true] && VaultToggles.lines(c, noApp)[2].line.checked == false, "a link to the download page")
+        #expect(VaultToggles.abhyasaDownload.absoluteString == "https://github.com/vedicreader/abhyasa#download")
         let noFile = VaultTools(vaultFile: false, server: true, abhyasa: true)
         #expect(titles(noFile) == ["Search the Vault (no vault file)", "Search by Meaning, Save Notes", "Open in Abhyasa"])
         #expect(enabled(noFile) == [false, true, false], "the server can save the first note, which makes the file")
         #expect(VaultToggles.lines(c, noFile).map(\.line.checked) == [false, true, false])
         let none = VaultTools(vaultFile: false, server: false, abhyasa: false)
         #expect(titles(none) == ["Search the Vault (no vault file)", "Search by Meaning (needs the vault server)",
-                                 "Open in Abhyasa (needs the Abhyasa app)", "Set Up the Vault…"])
-        #expect(enabled(none) == [false, false, false, true])
+                                 "Get the Abhyasa App…", "Set Up the Vault…"])
+        #expect(enabled(none) == [false, false, true, true])
     }
 
     @Test func detectsTheVaultTools() {

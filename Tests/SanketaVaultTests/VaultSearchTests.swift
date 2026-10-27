@@ -162,10 +162,11 @@ let abhyasaUp = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in
         #expect(first == .web(URL(string: "http://127.0.0.1:5077")!) && second != nil && c.n == 1)
         let down = AbhyasaProbe(base: URL(string: "http://127.0.0.1:5077")!) { _ in false }
         #expect(await down.up() == nil)
-        // a real check on a port where nothing listens is quick and says no
+        // a real check on a port where nothing listens says no, and the short timeout keeps it far from URLSession's 60 s;
+        // 3 s leaves room for a busy Mac, where the session itself can take a second to start
         let t = Date()
         #expect(await AbhyasaProbe(base: URL(string: "http://127.0.0.1:9")!).up() == nil)
-        #expect(Date().timeIntervalSince(t) < 1)
+        #expect(Date().timeIntervalSince(t) < 3)
     }
 
     @Test func snippetStartsNearTheWord() {

@@ -238,9 +238,11 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         }
     }
 
-    /// Writes the toggle's key to config.toml, then applies the config. "Set Up the Vault…" asks first.
+    /// Writes the toggle's key to config.toml, then applies the config. "Set Up the Vault…" asks first. "Get the Abhyasa
+    /// App…" opens the download page.
     @objc func toggleVault(_ sender: NSMenuItem) {
         guard let key = (sender.representedObject as? String).flatMap(VaultToggles.Key.init) else { return }
+        if key == .abhyasa, !tools.abhyasa { NSWorkspace.shared.open(VaultToggles.abhyasaDownload); return }   // the download page
         guard let c = VaultToggles.change(key, config) else { return setUpVault() }
         do { try Config.save(c.key, c.value, to: configURL, table: c.table) }
         catch { configNotSaved(error) }
