@@ -239,7 +239,7 @@ public final class KeyChangeStore {
     let runner: CommandRunning, fm: FileManager
     public init(runner: CommandRunning, fileManager: FileManager = .default) { self.runner = runner; fm = fileManager }
 
-    /// Refuses with `.changedSince` when the file is not as `before`. Returns true when the reload ran or none was needed; false: the file is changed but the reload failed.
+    /// Refuses with `.changedBefore` when the file is not as `before`. Returns true when the reload ran or none was needed; false: the file is changed but the reload failed.
     public func apply(_ c: KeyChange) throws -> Bool {
         guard let now = try? Data(contentsOf: c.file), now == Data(c.before.utf8) else { throw KeyWriteError.changedBefore(c.file.path) }
         try write(c.before, to: URL(fileURLWithPath: c.file.path + ".sanketa-bak"), like: c.file)

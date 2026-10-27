@@ -82,10 +82,10 @@ public struct Chord: Hashable, Sendable {
     /// Leela's key names for the canonical keys that differ; the others are one character, `names` or f1–f12.
     static let leelaNames = ["esc": "escape"]
 
-    /// The chord in Leela's grammar (`mod+ctrl+alt+shift+key`); nil when Leela has no name for the key.
+    /// The chord in Leela's grammar (`mod+ctrl+alt+shift+key`); nil when Leela has no name for the key, or for `+`, which Leela splits on.
     public var leelaText: String? {
         let k = Self.leelaNames[key] ?? key, f = key.first == "f" ? Int(key.dropFirst()) : nil
-        guard key.count == 1 || Self.names.contains(key) || (f.map { (1...12).contains($0) } ?? false) else { return nil }
+        guard key != "+", key.count == 1 || Self.names.contains(key) || (f.map { (1...12).contains($0) } ?? false) else { return nil }
         let order: [(Modifier, String)] = [(.cmd, "mod"), (.ctrl, "ctrl"), (.opt, "alt"), (.shift, "shift")]
         return ((isHyper ? ["hyper"] : order.filter { mods.contains($0.0) }.map(\.1)) + [k]).joined(separator: "+")
     }

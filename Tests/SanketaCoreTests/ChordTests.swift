@@ -35,13 +35,14 @@ import Testing
     }
     @Test func leelaTextRoundTripsInLeelaNames() {
         for c in [Chord(mods: [.cmd], key: "k"), Chord(mods: [.cmd, .shift, .opt], key: "p"), Chord(mods: [], key: "esc"), Chord(mods: Set(Modifier.allCases), key: "left"),
-                  Chord(mods: [.ctrl], key: "f12"), Chord(mods: [.opt], key: "delete"), Chord(mods: [.cmd], key: "+")] {
+                  Chord(mods: [.ctrl], key: "f12"), Chord(mods: [.opt], key: "delete")] {
             #expect(Chord.leela(c.leelaText!) == c, "\(c)")
         }
         #expect(Chord(mods: [.cmd, .shift], key: "p").leelaText == "mod+shift+p")
         #expect(Chord(mods: [.cmd, .ctrl, .opt, .shift], key: "k").leelaText == "hyper+k")
         #expect(Chord(mods: [.opt], key: "esc").leelaText == "alt+escape")
         #expect(Chord(mods: [.ctrl], key: "f13").leelaText == nil && Chord(mods: [.ctrl], key: "insert").leelaText == nil)
+        #expect(Chord(mods: [.cmd], key: "+").leelaText == nil)   // Leela splits on `+`, so `mod++` has no base key
     }
     @Test func capitalKeyNamesFold() {
         #expect(Chord.leela("hyper+Left") == Chord.leela("hyper+left"))
