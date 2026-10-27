@@ -46,6 +46,8 @@ public final class SanketaPanel: NSPanel {
     var editApp: NSRunningApplication?
     /// sees clicks in other apps while the combo view is pinned
     var outside: Any?
+    /// true while the combo view shows; the panel width follows it. `$combo` sends in willSet, so the panel keeps its own copy.
+    var wide = false
     var subs = Set<AnyCancellable>()
 
     public init(model: PanelModel, search: SearchModel, hotkeyLabel: String? = nil) {
@@ -98,13 +100,16 @@ public final class SanketaPanel: NSPanel {
         }
         panel.setFrameAutosaveName("SanketaPanel")
         setTranslucency(model.translucency)
-        model.$combo.map { $0 != nil }.removeDuplicates().sink { [weak self] in self?.fit(combo: $0) }.store(in: &subs)
+        // each change, not only a change between list and combo: a frame from elsewhere must not stay
+        model.$combo.sink { [weak self] in self?.wide = $0 != nil; self?.fit() }.store(in: &subs)
         model.$comboPinned.removeDuplicates().sink { [weak self] in self?.watchOutside($0) }.store(in: &subs)
     }
 
-    /// Wider while the combo view shows, narrower after. The top-left corner stays, inside the screen's visible frame.
-    func fit(combo: Bool) {
-        let f = panel.frame, w = (combo ? Theme.comboSize : Theme.panelSize).width
+    var width: CGFloat { (wide ? Theme.comboSize : Theme.panelSize).width }
+
+    /// Wide while the combo view shows, narrow after. The top-left corner stays, inside the screen's visible frame.
+    func fit() {
+        let f = panel.frame, w = width
         guard f.width != w else { return }
         var x = f.minX
         if let s = (panel.screen ?? NSScreen.main)?.visibleFrame { x = max(s.minX, min(x, s.maxX - w)) }
@@ -121,6 +126,7 @@ public final class SanketaPanel: NSPanel {
 
     /// Shows without taking key or activating the app.
     public func show() {
+        fit()
         panel.orderFrontRegardless()
         panel.contentView?.layoutSubtreeIfNeeded()
     }
@@ -302,6 +308,12 @@ public final class SanketaPanel: NSPanel {
         }
         return true
     }
+
+    /// A drag changes only the height; the width follows the state.
+    public func windowWillResize(_ sender: NSWindow, to size: NSSize) -> NSSize { NSSize(width: width, height: size.height) }
+
+    /// A frame from elsewhere (the autosaved frame, a window manager, a screen change) gets the width of the state again.
+    public func windowDidResize(_ n: Notification) { fit() }
 
     /// Clicking elsewhere ends search quietly. The field gives up its field editor, so the next click on it goes to the
     /// field itself and starts search again.
