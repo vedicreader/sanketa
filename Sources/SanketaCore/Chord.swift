@@ -18,11 +18,13 @@ public struct Chord: Hashable, Sendable {
     /// AeroSpace key names; the canonical key is the value.
     static let aeroNames = ["leftSquareBracket": "[", "rightSquareBracket": "]", "minus": "-", "equal": "=", "backtick": "`",
                             "semicolon": ";", "quote": "'", "comma": ",", "period": ".", "slash": "/", "backslash": "\\",
-                            "pageUp": "pageup", "pageDown": "pagedown"]
+                            "pageUp": "pageup", "pageDown": "pagedown", "forwardDelete": "delete"]
     /// Other spellings (Leela names, display glyphs) of canonical keys.
     static let aliases = ["return": "enter", "↩": "enter", "escape": "esc", "⎋": "esc", "⌫": "backspace", "bspace": "backspace",
                           "⇥": "tab", "↑": "up", "↓": "down", "←": "left", "→": "right", "pgup": "pageup", "pgdn": "pagedown",
                           "⇞": "pageup", "⇟": "pagedown", "del": "delete", "⌦": "delete"]
+    /// Canonical key names, which fold from any capitals ("Left", "PageUp").
+    static let names: Set<String> = ["enter", "esc", "tab", "backspace", "delete", "space", "up", "down", "left", "right", "home", "end", "pageup", "pagedown"]
     static let canonical = aeroNames.reduce(into: [String: String]()) { $0[$1.key.lowercased()] = $1.value }
         .merging(aliases) { a, _ in a }
     static let aeroText = Dictionary(uniqueKeysWithValues: aeroNames.map { ($1, $0) })
@@ -32,7 +34,7 @@ public struct Chord: Hashable, Sendable {
 
     /// Canonical key for any spelling; single letters fold to lower case and unknown names stay as is.
     static func norm(_ k: String) -> String {
-        canonical[k.lowercased()] ?? (k.count == 1 || (k.first?.lowercased() == "f" && Int(k.dropFirst()) != nil) ? k.lowercased() : k)
+        canonical[k.lowercased()] ?? (k.count == 1 || names.contains(k.lowercased()) || (k.first?.lowercased() == "f" && Int(k.dropFirst()) != nil) ? k.lowercased() : k)
     }
 
     public static func aerospace(_ s: String) -> Chord? {
@@ -77,8 +79,14 @@ public struct Chord: Hashable, Sendable {
         (Self.aeroOrder.filter { mods.contains($0.0) }.map(\.1) + [Self.aeroText[key] ?? key]).joined(separator: "-")
     }
 
-    public var leelaText: String {
-        let names: [Modifier: String] = [.ctrl: "ctrl", .opt: "alt", .shift: "shift", .cmd: "cmd"]
-        return (isHyper ? ["hyper"] : mods.sorted().map { names[$0]! }).joined(separator: "+") + (mods.isEmpty ? "" : "+") + key
+    /// Leela's key names for the canonical keys that differ; the others are one character, `names` or f1–f12.
+    static let leelaNames = ["esc": "escape"]
+
+    /// The chord in Leela's grammar (`mod+ctrl+alt+shift+key`); nil when Leela has no name for the key.
+    public var leelaText: String? {
+        let k = Self.leelaNames[key] ?? key, f = key.first == "f" ? Int(key.dropFirst()) : nil
+        guard key.count == 1 || Self.names.contains(key) || (f.map { (1...12).contains($0) } ?? false) else { return nil }
+        let order: [(Modifier, String)] = [(.cmd, "mod"), (.ctrl, "ctrl"), (.opt, "alt"), (.shift, "shift")]
+        return ((isHyper ? ["hyper"] : order.filter { mods.contains($0.0) }.map(\.1)) + [k]).joined(separator: "+")
     }
 }

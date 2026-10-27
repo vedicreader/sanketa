@@ -2,7 +2,7 @@ import Foundation
 
 /// Why a key change was not written.
 public enum KeyWriteError: Error, Equatable, LocalizedError {
-    case notJSON, noKeysObject, notFound(String), changedSince(String), inUse(String), sameKey
+    case notJSON, noKeysObject, notFound(String), changedSince(String), changedBefore(String), unsupportedKey(String), inUse(String), sameKey
 
     public var errorDescription: String? {
         switch self {
@@ -11,6 +11,8 @@ public enum KeyWriteError: Error, Equatable, LocalizedError {
         case .notFound(let x): "Sanketa did not find \(x) in the file."
         case .inUse(let x): "\(x) is in use in AeroSpace. Sanketa did not change the file."
         case .changedSince: "The file changed after the change. Undo did not run, so your edit stays."
+        case .changedBefore: "The file changed after Sanketa read it. Sanketa did not change it."
+        case .unsupportedKey(let x): "Leela cannot use the key \(x). Sanketa did not change the file."
         case .sameKey: "The new key is the same as the old key. Sanketa did not change the file."
         }
     }
@@ -20,14 +22,15 @@ public enum KeyWriteError: Error, Equatable, LocalizedError {
 public enum LeelaKeysWriter {
     public static func change(_ text: String, action: String, live: String, from: Chord, to: Chord) throws -> String {
         guard from != to else { throw KeyWriteError.sameKey }
+        guard let new = to.leelaText else { throw KeyWriteError.unsupportedKey(to.display()) }
         guard let root = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else { throw KeyWriteError.notJSON }
         guard let keys = root["keys"] as? [String: Any] else { throw KeyWriteError.noKeysObject }
         let b = Array(text.utf8), members = try members(b, of: "keys")
         func swap(_ v: String) throws -> String {
             var parts = v.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
             // compare chords, not spellings: "shift+alt+b" and "N" (shift+n) are written by hand too
-            guard let i = parts.firstIndex(where: { Chord.leela($0) == from }) else { throw KeyWriteError.notFound(from.leelaText) }
-            parts[i] = to.leelaText
+            guard let i = parts.firstIndex(where: { Chord.leela($0) == from }) else { throw KeyWriteError.notFound(from.leelaText ?? from.display()) }
+            parts[i] = new
             return parts.joined(separator: " ")
         }
         var out = b
@@ -238,7 +241,7 @@ public final class KeyChangeStore {
 
     /// Refuses with `.changedSince` when the file is not as `before`. Returns true when the reload ran or none was needed; false: the file is changed but the reload failed.
     public func apply(_ c: KeyChange) throws -> Bool {
-        guard let now = try? Data(contentsOf: c.file), now == Data(c.before.utf8) else { throw KeyWriteError.changedSince(c.file.path) }
+        guard let now = try? Data(contentsOf: c.file), now == Data(c.before.utf8) else { throw KeyWriteError.changedBefore(c.file.path) }
         try write(c.before, to: URL(fileURLWithPath: c.file.path + ".sanketa-bak"), like: c.file)
         try write(c.after, to: c.file, like: c.file)
         return reload(c)

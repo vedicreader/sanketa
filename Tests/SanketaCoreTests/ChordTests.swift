@@ -33,4 +33,24 @@ import Testing
         #expect(Chord.leela("hyper+z")!.leelaText == "hyper+z")
         #expect(Chord(mods: [.opt, .ctrl], key: "1").aerospaceText == "alt-ctrl-1")
     }
+    @Test func leelaTextRoundTripsInLeelaNames() {
+        for c in [Chord(mods: [.cmd], key: "k"), Chord(mods: [.cmd, .shift, .opt], key: "p"), Chord(mods: [], key: "esc"), Chord(mods: Set(Modifier.allCases), key: "left"),
+                  Chord(mods: [.ctrl], key: "f12"), Chord(mods: [.opt], key: "delete"), Chord(mods: [.cmd], key: "+")] {
+            #expect(Chord.leela(c.leelaText!) == c, "\(c)")
+        }
+        #expect(Chord(mods: [.cmd, .shift], key: "p").leelaText == "mod+shift+p")
+        #expect(Chord(mods: [.cmd, .ctrl, .opt, .shift], key: "k").leelaText == "hyper+k")
+        #expect(Chord(mods: [.opt], key: "esc").leelaText == "alt+escape")
+        #expect(Chord(mods: [.ctrl], key: "f13").leelaText == nil && Chord(mods: [.ctrl], key: "insert").leelaText == nil)
+    }
+    @Test func capitalKeyNamesFold() {
+        #expect(Chord.leela("hyper+Left") == Chord.leela("hyper+left"))
+        #expect(Chord.leela("alt+Tab") == Chord.leela("alt+tab") && Chord.leela("alt+PageUp") == Chord.leela("alt+pageup"))
+        #expect(Chord.aerospace("alt-leftSquareBracket") == Chord(mods: [.opt], key: "[") && Chord.aerospace("alt-pageUp")?.key == "pageup")
+    }
+    @Test func aeroSpaceForwardDelete() {
+        let c = Chord(mods: [.cmd], key: "delete")
+        #expect(c.aerospaceText == "cmd-forwardDelete" && Chord.aerospace("cmd-forwardDelete") == c)
+        #expect(Chord.aerospace("cmd-backspace")?.key == "backspace")
+    }
 }

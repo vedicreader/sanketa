@@ -100,7 +100,9 @@ extension PanelModel {
     @discardableResult public func pick(_ c: Chord) -> Bool {
         guard let e = editing, let v = combo else { return false }
         let inMode: Bool = if case .aerospace(let m) = e.source, m != "main" { true } else { false }
-        let warning = c == e.chord ? "\(c.display(hyperLabel: comboHyperLabel)) is the key now. Press a different chord."
+        let leelaBad: Bool = if case .leela = e.source { c.leelaText == nil } else { false }
+        let warning = leelaBad ? "Leela cannot use \(c.display(hyperLabel: comboHyperLabel)). Press a different chord."
+            : c == e.chord ? "\(c.display(hyperLabel: comboHyperLabel)) is the key now. Press a different chord."
             : c.mods.isEmpty && !inMode ? "Press a chord with one or more modifier keys." : nil
         editing?.warning = warning
         guard warning == nil else { return false }
@@ -129,6 +131,9 @@ extension PanelModel {
         if case .aerospace = e.source, sources.known().contains(c) { return (nil, false) }
         return nil
     }
+
+    /// The pinned view may read the files again; not while an edit is open.
+    public var pinnedRefreshable: Bool { comboPinned && combo != nil && editing == nil }
 
     public func cancelEdit() { editing = nil; editChoices = [] }
 
@@ -171,7 +176,7 @@ extension PanelModel {
     /// chord of the action, not only the chords of this combo, so the other chords stay when the action is not yet in `keys`.
     public static func live(_ row: ComboRow, apps: [AppKeys], hyperLabel: String) -> String {
         let entry = apps.filter { $0.pack == row.pack }.lazy.flatMap(\.entries).first { $0.command != nil && $0.command == row.command }
-        return (entry?.chords(hyperLabel: hyperLabel) ?? row.chords).map(\.leelaText).joined(separator: " ")
+        return (entry?.chords(hyperLabel: hyperLabel) ?? row.chords).compactMap(\.leelaText).joined(separator: " ")
     }
 
     /// `used`: AeroSpace's current mode and `main`, the rows of this view and every chord of the front app's layers (with

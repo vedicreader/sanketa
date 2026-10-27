@@ -165,6 +165,21 @@ import Testing
         #expect(m.editing?.warning == "Caps\u{a0}X is the key now. Press a different chord.")
         #expect(m.pick(Chord(mods: hyper, key: "y")) && m.editing?.warning == nil)
     }
+    @Test func aLeelaKeyThatLeelaCannotReadIsRefused() throws {
+        let m = try model()
+        m.clickRow(row("Toggle tools"), aero: false)
+        #expect(!m.pick(Chord(mods: hyper, key: "f13")) && m.editing?.new == nil)
+        #expect(m.editing?.warning == "Leela cannot use Caps\u{a0}F13. Press a different chord.")
+        #expect(m.pick(Chord(mods: hyper, key: "f12")))
+    }
+    @Test func aPinnedViewDoesNotRefreshUnderAnOpenEdit() throws {
+        let m = try model()
+        #expect(m.pinnedRefreshable == false)
+        m.clickRow(row("Toggle tools"), aero: false)
+        #expect(m.editing != nil && m.pinnedRefreshable == false)
+        m.cancelEdit()
+        #expect(m.pinnedRefreshable == true)
+    }
     @Test func aChordNeedsAModifierOutsideAnAeroSpaceMode() throws {
         let m = try model()
         m.clickRow(row("Toggle tools"), aero: false)

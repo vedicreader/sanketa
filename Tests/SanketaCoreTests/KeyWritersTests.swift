@@ -24,6 +24,19 @@ import Testing
         #expect(out.contains("\"toggle_left\": \"alt+shift+b hyper+left\""))   // _defaults untouched
         #expect(out.replacingOccurrences(of: "hyper+y alt", with: "hyper+z alt") == leela)
     }
+    @Test func leelaWritesLeelaNames() throws {
+        let out = try LeelaKeysWriter.change(leela, action: "toggle_left", live: "hyper+z alt+shift+b", from: .leela("hyper+z")!, to: Chord(mods: [.cmd, .shift], key: "p"))
+        #expect(out.contains("mod+shift+p") && !out.contains("cmd+"))
+        let e = try LeelaKeysWriter.change(leela, action: "toggle_left", live: "hyper+z", from: .leela("hyper+z")!, to: Chord(mods: [.cmd], key: "esc"))
+        #expect(e.contains("mod+escape"))
+    }
+    @Test func leelaRefusesAKeyLeelaCannotRead() throws {
+        let dir = try tempDir(["k.json": leela]), f = dir.appendingPathComponent("k.json")
+        let f13 = Chord(mods: [.ctrl], key: "f13")
+        #expect(throws: KeyWriteError.unsupportedKey("⌃F13")) { try LeelaKeysWriter.change(leela, action: "toggle_left", live: "hyper+z", from: .leela("hyper+z")!, to: f13) }
+        #expect(read(f) == leela)
+        #expect(KeyWriteError.unsupportedKey("⌃F13").localizedDescription == "Leela cannot use the key ⌃F13. Sanketa did not change the file.")
+    }
     @Test func leelaChangesTheSecondAlternative() throws {
         let out = try LeelaKeysWriter.change(leela, action: "toggle_left", live: "hyper+z alt+shift+b", from: .leela("alt+shift+b")!, to: .leela("alt+q")!)
         #expect(try keys(out)["toggle_left"] == "hyper+z alt+q")
@@ -146,6 +159,7 @@ import Testing
         #expect(KeyWriteError.noKeysObject.localizedDescription == "keys.json has no \"keys\" part. Sanketa did not change it.")
         #expect(KeyWriteError.notFound("x").localizedDescription == "Sanketa did not find x in the file.")
         #expect(KeyWriteError.changedSince("f").localizedDescription == "The file changed after the change. Undo did not run, so your edit stays.")
+        #expect(KeyWriteError.changedBefore("f").localizedDescription == "The file changed after Sanketa read it. Sanketa did not change it.")
     }
     @Test func undoRefusesWhenTheFileChanged() throws {
         let dir = try tempDir(["k.json": "old"]), f = dir.appendingPathComponent("k.json")
@@ -199,7 +213,7 @@ import Testing
     }
     @Test func applyRefusesWhenTheFileIsNotAsBefore() throws {
         let dir = try tempDir(["k": "hand"]), f = dir.appendingPathComponent("k")
-        #expect(throws: KeyWriteError.changedSince(f.path)) { try KeyChangeStore(runner: runner()).apply(KeyChange(file: f, before: "old", after: "new", reload: nil)) }
+        #expect(throws: KeyWriteError.changedBefore(f.path)) { try KeyChangeStore(runner: runner()).apply(KeyChange(file: f, before: "old", after: "new", reload: nil)) }
         #expect(read(f) == "hand")
     }
     @Test func symlinkedFileKeepsItsPermissionsAndStaysALink() throws {

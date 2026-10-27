@@ -52,9 +52,9 @@ extension AppDelegate {
         refreshPinnedCombo()
     }
 
-    /// A pinned view stays: a hold does not change it.
-    func showCombo(_ mods: Set<Modifier>) {
-        guard !panel.searching, !panel.panel.isKeyWindow, !model.comboPinned else { return }
+    /// A pinned view stays: a hold does not change it. `force`: an explicit command works also when the panel has the focus.
+    func showCombo(_ mods: Set<Modifier>, force: Bool = false) {
+        guard !panel.searching, force || !panel.panel.isKeyWindow, !model.comboPinned else { return }
         if !panel.isVisible { model.shownForCombo = true; panel.show() }
         setCombo(mods)
     }

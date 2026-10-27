@@ -13,7 +13,7 @@ extension AppDelegate {
 
     /// The pinned view reads the files again, so it shows a changed key.
     func refreshPinnedCombo(appName: String? = nil) {
-        guard model.comboPinned, let c = model.combo else { return }
+        guard model.pinnedRefreshable, let c = model.combo else { return }
         setCombo(c.mods, appName: appName)
     }
 
@@ -28,7 +28,7 @@ extension AppDelegate {
         if panel.searching { panel.endSearch() }
         model.cancelEdit()
         model.comboPinned = false
-        showCombo(Set(Modifier.allCases))
+        showCombo(Set(Modifier.allCases), force: true)
         model.pinCombo()
     }
 
