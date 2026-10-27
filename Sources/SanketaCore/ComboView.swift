@@ -36,7 +36,7 @@ public struct ComboView: Equatable, Sendable {
     static func keyLabel(_ key: String) -> String { String(KeyNotation.compose([Modifier.cmd.rawValue], key).dropFirst()) }
 
     /// The modifiers of a combo in Mac order, or the hyper label for all four.
-    static func modsLabel(_ m: Set<Modifier>, _ hyperLabel: String) -> String {
+    public static func modsLabel(_ m: Set<Modifier>, _ hyperLabel: String) -> String {
         String(Chord(mods: m, key: "x").display(hyperLabel: hyperLabel).dropLast()).trimmingCharacters(in: .whitespaces)
     }
 

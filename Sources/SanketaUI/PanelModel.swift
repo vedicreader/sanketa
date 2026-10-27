@@ -68,6 +68,8 @@ struct StackState {
     @Published public var configError: PackLoadError?
     /// a note from config.toml that is not an error, such as "Gemma 4 E4B needs 16 GB of memory…"
     @Published public var configNote: String?
+    /// why the AeroSpace config file could not be read
+    @Published public var aeroError: PackLoadError?
     /// the footer lists every bad pack file, not only the count
     @Published public var showAllErrors = false
     @Published public var hotkeyConflict: String?
@@ -130,7 +132,12 @@ struct StackState {
     public func showCombo(_ v: ComboView, hyperLabel: String = "Caps", hasAero: Bool = true) {
         comboHyperLabel = hyperLabel; comboHasAero = hasAero; combo = v
     }
-    public func hideCombo() { combo = nil }
+    /// Clears the combo view and `shownForCombo`; true when the panel was shown only for the combo.
+    @discardableResult public func hideCombo() -> Bool {
+        combo = nil
+        defer { shownForCombo = false }
+        return shownForCombo
+    }
 
     /// Id of key `i` of group `g` in section `s`, for `expandedRow`.
     public nonisolated static func rowID(_ s: LayerSectionData, _ g: RowGroup, _ i: Int) -> String { groupID(s, g) + "#\(i)" }
@@ -176,7 +183,7 @@ struct StackState {
         toastUntil = nil
     }
 
-    public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || configError != nil || configNote != nil || hotkeyConflict != nil }
+    public var showsFooter: Bool { needsAccessibility || !packErrors.isEmpty || configError != nil || aeroError != nil || configNote != nil || hotkeyConflict != nil }
     public var needsAccessibility: Bool { !context.axTrusted && !context.bundleID.isEmpty }
 
     /// One footer line for a file that did not load. A click opens the file, or (for the count line) lists the files.
@@ -198,7 +205,7 @@ struct StackState {
         let packs = packErrors.count > Self.errorLinesShown && !showAllErrors
             ? [ErrorLine(text: "\(packErrors.count) pack files did not load. Click to see them.", action: .showAll)]
             : packErrors.map(line)
-        return (configError.map { [line($0)] } ?? []) + packs
+        return (configError.map { [line($0)] } ?? []) + (aeroError.map { [line($0)] } ?? []) + packs
     }
 
     nonisolated static func sectionID(_ i: Int, _ l: Layer) -> String { "\(i)|\(l.id)" }

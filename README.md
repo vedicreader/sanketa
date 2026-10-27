@@ -218,7 +218,7 @@ The vault never leaves this Mac. The model for natural-language search does not 
 
 ### Hold a combo
 
-Hold two or more modifier keys (for example ⌃⌥⇧⌘, which Caps Lock can send) and press nothing else. After a short wait, the panel shows the keys of that combo. If you press a key at once, the panel stays as it is. This lets you use a combo for fast key presses with no flicker.
+Hold two or more modifier keys (for example ⌃⌥⇧⌘, which Caps Lock can send) and press nothing else. After a short wait, the panel shows the keys of that combo. If you press a key before the panel shows, the panel does not show. A mouse click or a scroll also stops the wait. This lets you use a combo for fast key presses with no flicker.
 
 The panel has two columns. The left column shows your AeroSpace keys for the combo. Sanketa reads them from `~/.aerospace.toml`, or from `aerospace/aerospace.toml` in your config folder. If it finds no file, the left column does not show. Sanketa reads the file again when you save it. The right column shows the keys of the app in front.
 

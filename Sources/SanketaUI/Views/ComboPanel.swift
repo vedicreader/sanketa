@@ -8,12 +8,8 @@ struct ComboPanel: View {
     /// false when there is no AeroSpace config file: the left column then does not show
     var showsAero = true
 
-    var combo: String { Self.comboLabel(view.mods, hyperLabel: hyperLabel) }
+    var combo: String { ComboView.modsLabel(view.mods, hyperLabel) }
 
-    /// The modifiers in Mac order, or the hyper label for all four.
-    static func comboLabel(_ mods: Set<Modifier>, hyperLabel: String) -> String {
-        String(Chord(mods: mods, key: "x").display(hyperLabel: hyperLabel).dropLast()).trimmingCharacters(in: .whitespaces)
-    }
     static func emptyAppLine(appName: String, combo: String) -> String { "No \(combo) keys" }
     static func freeLine(_ keys: [String], combo: String) -> String { "Free \(combo) keys: " + keys.joined(separator: " ") }
 
@@ -21,7 +17,7 @@ struct ComboPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 14) {
                 if showsAero {
-                    column("AeroSpace · \(combo)", rows: view.aero, notes: view.also)
+                    column("AeroSpace · \(combo)", rows: view.aero, notes: view.also, empty: Self.emptyAppLine(appName: "AeroSpace", combo: combo))
                 }
                 column("\(view.appName) · \(combo)", rows: view.app, empty: Self.emptyAppLine(appName: view.appName, combo: combo))
             }
@@ -48,11 +44,25 @@ struct ComboPanel: View {
     }
 
     func row(_ r: ComboRow) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            KeyLabel(text: r.keys).strikethrough(r.clash)
-            Text(r.action + (r.clash ? " · AeroSpace" : "")).font(Theme.small).strikethrough(r.clash)
+        let color: Color = r.clash || r.muted ? Theme.secondary : .primary
+        let why = Text(" · AeroSpace").font(Theme.small)
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                KeyLabel(text: r.keys).strikethrough(r.clash).frame(width: Theme.keyColumn, alignment: .leading)
+                HStack(spacing: 0) {
+                    Text(r.action).font(Theme.small).strikethrough(r.clash)
+                    if r.clash { why }
+                }.lineLimit(1)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                KeyLabel(text: r.keys).strikethrough(r.clash)
+                HStack(spacing: 0) {
+                    Text(r.action).font(Theme.small).strikethrough(r.clash)
+                    if r.clash { why }
+                }
+            }
         }
-        .foregroundStyle(r.clash || r.muted ? Theme.secondary : .primary)
+        .foregroundStyle(color)
         .padding(.vertical, Theme.rowPad)
     }
 }

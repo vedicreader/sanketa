@@ -32,13 +32,18 @@ extension AppDelegate {
         NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: feed)
         NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { feed($0); return $0 }
         readAeroSpace()
-        if let u = aeroURL { watchers.append(FileWatcher(url: u, delay: 0.3) { [weak self] in MainActor.assumeIsolated { self?.readAeroSpace() } }) }
+        // every place the file can be, so a file that is made later is found
+        let reload: () -> Void = { [weak self] in MainActor.assumeIsolated { self?.readAeroSpace() } }
+        watchers += AeroSpaceConfig.urls(env: ProcessInfo.processInfo.environment, home: homeDir).map { FileWatcher(url: $0, delay: 0.3, onChange: reload) }
     }
 
-    /// Reads the AeroSpace config again; nil when there is no file.
+    /// Reads the AeroSpace config again; `aero` is nil when there is no file, and a file that cannot be read shows as an error.
     func readAeroSpace() {
-        aeroURL = aeroURL ?? AeroSpaceConfig.url(env: ProcessInfo.processInfo.environment, home: homeDir) { FileManager.default.fileExists(atPath: $0) }
-        aero = aeroURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) }.map(AeroSpaceConfig.parse)
+        aeroURL = AeroSpaceConfig.url(env: ProcessInfo.processInfo.environment, home: homeDir) { FileManager.default.fileExists(atPath: $0) }
+        aero = nil; model.aeroError = nil
+        guard let u = aeroURL else { return }
+        do { aero = AeroSpaceConfig.parse(try String(contentsOf: u, encoding: .utf8)) }
+        catch { model.aeroError = PackLoadError(file: u.path, message: "Could not read this file. \(error.localizedDescription)") }
     }
 
     func showCombo(_ mods: Set<Modifier>) {
@@ -50,8 +55,7 @@ extension AppDelegate {
     }
 
     func hideCombo() {
-        model.hideCombo()
-        if model.shownForCombo { model.shownForCombo = false; panel.panel.orderOut(nil) }
+        if model.hideCombo(), !panel.searching, !panel.panel.isKeyWindow { panel.panel.orderOut(nil) }
     }
 
     func buildHoldMenu() -> NSMenuItem {

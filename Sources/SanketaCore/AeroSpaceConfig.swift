@@ -107,7 +107,12 @@ public struct AeroSpaceConfig: Sendable {
 
     /// The config file: `~/.aerospace.toml`, else `$XDG_CONFIG_HOME/aerospace/aerospace.toml` (or `~/.config/...`); nil when none exists.
     public static func url(env: [String: String], home: URL, fileExists: (String) -> Bool) -> URL? {
+        urls(env: env, home: home).first { fileExists($0.path) }
+    }
+
+    /// The places where the config file can be, in order; a watcher on each finds a file that is made later.
+    public static func urls(env: [String: String], home: URL) -> [URL] {
         let xdg = env["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) } ?? home.appendingPathComponent(".config")
-        return [home.appendingPathComponent(".aerospace.toml"), xdg.appendingPathComponent("aerospace/aerospace.toml")].first { fileExists($0.path) }
+        return [home.appendingPathComponent(".aerospace.toml"), xdg.appendingPathComponent("aerospace/aerospace.toml")]
     }
 }
