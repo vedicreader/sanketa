@@ -77,6 +77,8 @@ struct RenderTests {
                           app: "Kaku", bid: K, menu: kaku)
         let remote = ctx(lib, [(.program, "nvtop", "nvtop", "gpubox"), (.shell, "bash", "bash", "gpubox"), (.remote, "gpubox", nil, nil),
                                (.shell, "fish", "fish", nil), (.terminal, "Kaku", nil, nil)], app: "Kaku", bid: K, menu: kaku)
+        let rama = ctx(lib, [(.program, "ramabana", "ramabana", nil), (.shell, "fish", "fish", nil), (.terminal, "Kaku", nil, nil)],
+                       app: "Kaku", bid: K, menu: kaku)
         return [
             Scenario(name: "yazi", context: yazi),
             Scenario(name: "htop-tmux", context: htop),
@@ -90,7 +92,7 @@ struct RenderTests {
             Scenario(name: "htop-tmux-high", context: htop, level: .high),
             Scenario(name: "tall-htop-tmux", context: htop, size: CGSize(width: 340, height: 2900)),
             Scenario(name: "htop-tmux-low", context: htop, level: .low),
-        ] + comboScenarios(leela)
+        ] + comboScenarios(leela) + [Scenario(name: "combo-single-ramabana", context: rama) { singleModel($0, mods: [.opt]) }]
     }
 
     /// A real load error: a pack in a temp folder with a key that has no `action`.
