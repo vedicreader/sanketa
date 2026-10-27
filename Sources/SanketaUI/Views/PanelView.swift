@@ -42,7 +42,7 @@ struct PanelView: View {
             ScrollViewReader { proxy in
                 PanelScroll(position: $position, offset: { model.scrollOffset = $0 }) {
                     VStack(alignment: .leading, spacing: Theme.sectionGap) {
-                        if showsList { content } else { results }
+                        if let c = model.combo { ComboPanel(view: c, hyperLabel: model.comboHyperLabel, showsAero: model.comboHasAero) } else if showsList { content } else { results }
                     }
                     .padding(.horizontal, Theme.pad - 6).padding(.bottom, Theme.pad)
                 }

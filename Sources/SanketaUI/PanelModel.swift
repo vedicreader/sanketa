@@ -75,6 +75,13 @@ struct StackState {
     @Published public private(set) var blocks: [PanelBlock] = []
     /// Changes when the layer stack changes; the view then scrolls to `scrollTarget` and fades the list in.
     @Published public private(set) var scrollToken = 0
+    /// the keys of the combo that the user holds; the panel shows them in place of the list
+    @Published public private(set) var combo: ComboView?
+    /// the panel was hidden before the hold, so the app hides it again when the hold ends
+    public var shownForCombo = false
+    public private(set) var comboHyperLabel = "Caps"
+    /// false when AeroSpace has no config file: the combo view then has no AeroSpace column
+    public private(set) var comboHasAero = true
     /// where the list was when the user last left this stack; 0 (the top) for a new stack
     public private(set) var scrollTarget: CGFloat = 0
     /// the list's scroll offset, written by the view as the user scrolls; not published, so it costs no update
@@ -119,6 +126,11 @@ struct StackState {
     public init(tips: TipStore, seed: UInt64 = .random(in: 0...UInt64.max), pasteboard: NSPasteboard = .general) {
         store = tips; self.seed = seed; self.pasteboard = pasteboard
     }
+
+    public func showCombo(_ v: ComboView, hyperLabel: String = "Caps", hasAero: Bool = true) {
+        comboHyperLabel = hyperLabel; comboHasAero = hasAero; combo = v
+    }
+    public func hideCombo() { combo = nil }
 
     /// Id of key `i` of group `g` in section `s`, for `expandedRow`.
     public nonisolated static func rowID(_ s: LayerSectionData, _ g: RowGroup, _ i: Int) -> String { groupID(s, g) + "#\(i)" }

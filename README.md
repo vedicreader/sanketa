@@ -12,7 +12,7 @@ In a terminal, Sanketa finds each program in the stack. The stack starts at the 
 
 The panel does not take the keyboard focus from your terminal. It takes the focus only when you start a search.
 
-Sanketa needs macOS 26 on Apple Silicon. It needs the Accessibility permission and no other permission. It does not monitor input, and it does not record keystrokes. It uses the network only if you turn on OpenAI search, download the on-device model or set up the vault.
+Sanketa needs macOS 26 on Apple Silicon. It needs the Accessibility permission and no other permission. It sees which modifier keys you hold, so that it can show their keys. It does not see or record the other keys that you press. It uses the network only if you turn on OpenAI search, download the on-device model or set up the vault.
 
 ## Download
 
@@ -66,6 +66,7 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Show or Hide Panel
 - Search (with the hotkey)
 - Translucency: Low, Medium or High
+- Show Keys When Held: All Combos, Caps Only or Off. See "Hold a combo".
 - Use OpenAI: turns OpenAI search on or off. When you turn it on, Sanketa looks for the key in the environment, in your login shell and in your Keychain. The next line tells where it found the key, for example "Key: environment". If Sanketa finds no key, the key box opens. Click Save to keep the key in your Keychain and turn OpenAI on. Click Cancel to keep it off.
 - OpenAI Model: the model for OpenAI search, when Use OpenAI is on. The menu shows each model by its name, such as GPT-5 Nano.
 - OpenAI Key…: save an API key for the server in your Keychain
@@ -215,6 +216,22 @@ Sanketa finds the Abhyasa app through macOS. This check sends nothing on the net
 
 The vault never leaves this Mac. The model for natural-language search does not get vault results.
 
+### Hold a combo
+
+Hold two or more modifier keys (for example ⌃⌥⇧⌘, which Caps Lock can send) and press nothing else. After a short wait, the panel shows the keys of that combo. If you press a key at once, the panel stays as it is. This lets you use a combo for fast key presses with no flicker.
+
+The panel has two columns. The left column shows your AeroSpace keys for the combo. Sanketa reads them from `~/.aerospace.toml`, or from `aerospace/aerospace.toml` in your config folder. If it finds no file, the left column does not show. Sanketa reads the file again when you save it. The right column shows the keys of the app in front.
+
+If AeroSpace and the app use the same key, the app row has a line through it. The row ends with "· AeroSpace", because AeroSpace gets the key first. The last line lists the free keys: the keys that no AeroSpace key and no app key uses for this combo. Use them when you pick a new key.
+
+The panel never takes keyboard focus. When you release the keys, the panel goes back to how it was. A panel that was hidden hides again. Sanketa does not show the keys while you search.
+
+To choose which combos show their keys, use Show Keys When Held in the menu, or set `hold` in the config file:
+
+- `all`: any combo of two or more modifier keys (the default)
+- `caps`: only the combo of all four modifier keys, which Caps Lock sends in a Hyper setup
+- `off`: never
+
 ### Layers and sections
 
 The breadcrumb at the top lists the layers, the innermost first, for example `htop › tmux › fish › Kaku`. Click a layer to go to its section and open all its groups. When you click the panel outside a search, the focus goes back to the app that you used. When you click the search field, the search starts and the field keeps the focus.
@@ -300,6 +317,7 @@ pollInterval = 1.0           # seconds between checks while a terminal is in fro
 tipRotateSeconds = 120       # how often the tip cards change
 translucency = "medium"      # low, medium or high
 hyper_label = "Caps"         # how Leela's Hyper key (⌃⌥⇧⌘) shows
+hold = "all"                 # show the keys of a combo that you hold: "all", "caps" or "off"
 
 [coach]                      # better ways from your shell history, on this Mac only
 enabled = true

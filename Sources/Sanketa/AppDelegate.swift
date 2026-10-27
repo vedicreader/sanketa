@@ -52,6 +52,11 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     var searchItem: NSMenuItem?
     /// Leela's keys.json, the user packs folder and config.toml: a save applies without a restart
     var watchers: [FileWatcher] = []
+    /// the hold-a-combo detector, the AeroSpace config (nil: no file) and the mode whose keys show (Task 6 sets it)
+    var hold: HoldDetector?
+    var aero: AeroSpaceConfig?
+    var aeroURL: URL?
+    var aeroMode = "main"
     /// the open Make a Pack window, and the status-menu item that opens it
     var packMaker: PackMakerWindow?
     var makePackItem: NSMenuItem?
@@ -102,6 +107,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         watchers = [FileWatcher(url: LeelaKeymap.defaultURL(), onChange: reload),
                     FileWatcher(url: packsDir, children: "toml", delay: 0.3, onChange: reload),
                     FileWatcher(url: configURL, delay: 0.3) { [weak self] in MainActor.assumeIsolated { self?.reloadConfig() } }]
+        startHold()
         monitor.start()
         coach.start()
         panel.show()
@@ -137,6 +143,12 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
                 $0.state = $0.representedObject as? String == config.translucency.rawValue ? .on : .off
             }
         }
+        if config.hold != old.hold {
+            hold?.setting = config.hold
+            status?.menu?.item(withTitle: "Show Keys When Held")?.submenu?.items.forEach {
+                $0.state = $0.representedObject as? String == config.hold.rawValue ? .on : .off
+            }
+        }
         if config.tipRotateSeconds != old.tipRotateSeconds { scheduleRotation() }
         if config.hyperLabel != old.hyperLabel { library = loadLibrary(config: config); model.packErrors = library.errors; search.setSource(library: library) }
         if config.llm != old.llm { rebuildLLM() }
@@ -166,6 +178,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             i.state = t == config.translucency ? .on : .off
         }
         m.addItem(withTitle: "Translucency", action: nil, keyEquivalent: "").submenu = tr
+        m.addItem(buildHoldMenu())
         menus.add(to: m)
         m.addItem(.separator())
         for key in VaultToggles.Key.allCases {
@@ -445,6 +458,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # tipRotateSeconds = \(c.tipRotateSeconds)
             # translucency = "\(c.translucency.rawValue)"   # low, medium or high
             # hyper_label = "\(c.hyperLabel)"   # how Leela's Hyper key (⌃⌥⇧⌘) shows
+            # hold = "\(c.hold.rawValue)"   # show the keys of a combo that you hold: "all", "caps" or "off"
             # terminals = [\(c.terminals.map { "\"\($0)\"" }.joined(separator: ", "))]
 
             # [coach]   # tips from your shell history; Sanketa reads it on this Mac only
