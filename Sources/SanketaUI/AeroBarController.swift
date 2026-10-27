@@ -64,13 +64,13 @@ final class AeroBarPanel: NSPanel {
         let maxWidth = (vf.width * AeroBar.maxShare).rounded(.down)
         host.rootView = AeroBarView(bar: bar, maxWidth: maxWidth, translucency: model.translucency)
         let size = Self.fitting(host)
-        guard size.width > 0, size.height > 0 else { Self.log.error("bar skip: the bar measures \(size.width)x\(size.height)"); return hide() }
+        guard size.width > 0, size.height > 0 else { Self.log.error("bar skip: the bar measures \(size.width, privacy: .public)x\(size.height, privacy: .public)"); return hide() }
         self.bar = bar
         glass.cornerRadius = min(size.height / 2, 16)
         let f = Self.frame(size: size, visible: vf)
         panel.setFrame(f, display: false)
         panel.orderFrontRegardless()
-        Self.log.debug("bar show: \(bar.items.count) items at \(f.debugDescription)")
+        Self.log.debug("bar show: \(bar.items.count, privacy: .public) items at \(f.debugDescription, privacy: .public)")
     }
 
     public func hide() {

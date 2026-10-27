@@ -27,7 +27,7 @@ extension AppDelegate {
             let t0 = ProcessInfo.processInfo.systemUptime
             showCombo($0)
             let now = ProcessInfo.processInfo.systemUptime
-            AeroBarController.log.debug("hold show: \(String(format: "%.3f", t0 - self.lastFlags)) s after the last modifier change, the show took \(String(format: "%.3f", now - t0)) s")
+            AeroBarController.log.debug("hold show: \(String(format: "%.3f", t0 - self.lastFlags), privacy: .public) s after the last modifier change, the show took \(String(format: "%.3f", now - t0), privacy: .public) s")
         }
         d.onHide = { [weak self] in   // a mode view stays until the main link, and comes back after a hold
             guard let self else { return }
@@ -37,7 +37,7 @@ extension AppDelegate {
         hold = d
         let feed: (NSEvent) -> Void = { e in
             let mods = Self.mods(e.modifierFlags), t = e.timestamp, now = ProcessInfo.processInfo.systemUptime
-            AeroBarController.log.debug("flags \(mods.map(\.rawValue).sorted().joined()): delivered \(String(format: "%.3f", now - t)) s after the event")
+            AeroBarController.log.debug("flags \(mods.map(\.rawValue).sorted().joined(), privacy: .public): delivered \(String(format: "%.3f", now - t), privacy: .public) s after the event")
             MainActor.assumeIsolated { self.lastFlags = now; d.flags(mods, at: t) }
         }
         NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: feed)
@@ -64,10 +64,10 @@ extension AppDelegate {
     /// panel has the focus. `bar`: false when the view is pinned at once, so the bar does not flash.
     func showCombo(_ mods: Set<Modifier>, force: Bool = false, bar showsBar: Bool = true) {
         guard !panel.searching, force || !panel.panel.isKeyWindow, !model.comboPinned else {
-            return AeroBarController.log.debug("bar skip: searching \(self.panel.searching), panel key \(self.panel.panel.isKeyWindow), pinned \(self.model.comboPinned)")
+            return AeroBarController.log.debug("bar skip: searching \(self.panel.searching, privacy: .public), panel key \(self.panel.panel.isKeyWindow, privacy: .public), pinned \(self.model.comboPinned, privacy: .public)")
         }
         let v = comboView(mods)
-        if showsBar, v.aero.isEmpty { AeroBarController.log.debug("bar skip: AeroSpace config \(self.aero == nil ? "not read" : "has no keys for this combo"), mode \(self.aeroMode)") }
+        if showsBar, v.aero.isEmpty { AeroBarController.log.debug("bar skip: AeroSpace config \(self.aero == nil ? "not read" : "has no keys for this combo", privacy: .public), mode \(self.aeroMode, privacy: .public)") }
         bar.show(showsBar ? AeroBar(view: v) : nil)
         if mods.isEmpty, aeroMode != "main" { return hidePanelCombo() }
         if !panel.isVisible { model.shownForCombo = true; panel.show() }
