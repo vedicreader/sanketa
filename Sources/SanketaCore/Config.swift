@@ -269,6 +269,8 @@ public struct Config: Codable, Equatable {
     public var translucency = Translucency.medium
     /// How Leela's Hyper (⌃⌥⇧⌘) shows in the panel; Caps Lock sends Hyper on the author's Mac.
     public var hyperLabel = "Caps"
+    /// Which held modifier combos show their keys.
+    public var hold = HoldSetting.all
     public var coach = CoachConfig()
     public var llm = LLMConfig()
     public var vault = VaultConfig()
@@ -278,7 +280,7 @@ public struct Config: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm, vault, abhyasa
-        case hyperLabel = "hyper_label"
+        case hyperLabel = "hyper_label", hold
     }
 
     public init(from decoder: Decoder) throws {
@@ -292,6 +294,7 @@ public struct Config: Codable, Equatable {
         pollInterval = try num(.pollInterval, pollInterval)
         tipRotateSeconds = try num(.tipRotateSeconds, tipRotateSeconds)
         hyperLabel = try c.decodeIfPresent(String.self, forKey: .hyperLabel) ?? hyperLabel
+        hold = try c.decodeIfPresent(HoldSetting.self, forKey: .hold) ?? hold
         coach = try c.decodeIfPresent(CoachConfig.self, forKey: .coach) ?? coach
         llm = try c.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? llm
         vault = try c.decodeIfPresent(VaultConfig.self, forKey: .vault) ?? vault
