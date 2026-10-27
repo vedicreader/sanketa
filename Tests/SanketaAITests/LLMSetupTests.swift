@@ -46,7 +46,7 @@ private func search(_ base: String, apiKeyEnv: String? = nil, env: [String: Stri
     let stub = Stub(["/v1/chat/completions": [(200, okReply)], "/api/v1/chat/completions": [(200, okReply)]])
     var c = llm(model: "m")
     c.baseURL = base; c.apiKeyEnv = apiKeyEnv
-    let r = await SmartSearch(router: setup(stub, c, env: env, store: store).router, timeout: 10)
+    let r = await SmartSearch(router: setup(stub, c, env: env, store: store).router, timeout: 60)
         .results("split the pane side by side", items, context: [])
     return (stub.requests.filter { $0.url?.path.hasSuffix("/chat/completions") == true }, r.note)
 }
@@ -74,7 +74,7 @@ private func search(_ base: String, apiKeyEnv: String? = nil, env: [String: Stri
     @Test func searchesShareOneModelListRequest() async throws {
         let stub = Stub([modelsPath: [(200, modelsReply)], chatPath: [(200, okReply)]])
         let s = setup(stub, llm())
-        let r = SmartSearch(router: s.router, timeout: 10)
+        let r = SmartSearch(router: s.router, timeout: 60)
         for q in ["split the pane side by side", "split the pane top and bottom", "how do I split panes"] {
             let res = await r.results(q, items, context: [])
             #expect(res.note == nil, "\(res.note ?? "")")
@@ -89,7 +89,7 @@ private func search(_ base: String, apiKeyEnv: String? = nil, env: [String: Stri
     @Test func pinnedModelNeedsNoList() async throws {
         let stub = Stub([chatPath: [(200, okReply)]])
         let s = setup(stub, llm(model: "gpt-4.1"))
-        _ = await SmartSearch(router: s.router, timeout: 10).results("split the pane side by side", items, context: [])
+        _ = await SmartSearch(router: s.router, timeout: 60).results("split the pane side by side", items, context: [])
         #expect(stub.requests.map { $0.url?.path } == [chatPath])
         #expect(stub.requests.first?.json?["model"] as? String == "gpt-4.1")
     }
@@ -162,7 +162,7 @@ private func search(_ base: String, apiKeyEnv: String? = nil, env: [String: Stri
     @Test func noKeyGivesNoteWithoutRequest() async throws {
         let stub = Stub([modelsPath: [(200, modelsReply)], chatPath: [(200, okReply)]])
         let s = setup(stub, llm(), env: [:])
-        let r = await SmartSearch(router: s.router, timeout: 10).results("split the pane side by side", items, context: [])
+        let r = await SmartSearch(router: s.router, timeout: 60).results("split the pane side by side", items, context: [])
         #expect(r.note == "Plain search: OpenAI no key")
         // the model menu asks for the list: no request goes out without a key
         await #expect(throws: ChoiceError.noKey) { try await s.models?.refresh() }

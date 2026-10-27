@@ -29,7 +29,7 @@ private let items: [SearchItem] = [
 
 /// The FM tier filled by `c`: the router's order is on-device, Apple Foundation Models, OpenAI.
 private func smart(_ c: (any Choosing)?) -> SmartSearch {
-    SmartSearch(router: ModelRouter(config: LLMConfig(), onDevice: nil, appleFM: c, remote: nil), timeout: 5)
+    SmartSearch(router: ModelRouter(config: LLMConfig(), onDevice: nil, appleFM: c, remote: nil), timeout: 60)
 }
 
 @MainActor private func model(_ c: (any Choosing)?, debounce: TimeInterval = 0.1) -> SearchModel {

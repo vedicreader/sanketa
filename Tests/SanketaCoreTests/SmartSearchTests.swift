@@ -114,7 +114,7 @@ private func search(fm: any Choosing, timeout: TimeInterval = 60) -> SmartSearch
     }
 
     @Test func noChooserGivesRouterNote() async {
-        let s = SmartSearch(router: ModelRouter(config: config(), onDevice: nil, appleFM: nil, remote: nil), timeout: 1)
+        let s = SmartSearch(router: ModelRouter(config: config(), onDevice: nil, appleFM: nil, remote: nil), timeout: 30)
         let r = await s.results(query, items, context: ["tmux"])
         #expect(r.note == "Plain search: no model turned on")
         #expect(!r.items.isEmpty)

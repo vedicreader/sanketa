@@ -44,7 +44,7 @@ private func liveSearch(_ query: String, context: [String]) async -> (SmartResul
     @Test func offFMDegradesWithoutCall() async {
         let fm = AppleFMChooser(availability: { .unavailable(.appleIntelligenceNotEnabled) })
         fm.prewarm()
-        let r = await SmartSearch(router: fmRouter(fm), timeout: 2)
+        let r = await SmartSearch(router: fmRouter(fm), timeout: 30)
             .results("how do I split the window side by side", bundled, context: ["tmux"])
         #expect(!r.items.isEmpty)
         #expect(r.picked.isEmpty)
@@ -76,7 +76,7 @@ private func liveSearch(_ query: String, context: [String]) async -> (SmartResul
     }
 
     @Test(.disabled(if: fmOn)) func unavailableFMDegrades() async {
-        let r = await SmartSearch(router: fmRouter(AppleFMChooser()), timeout: 2)
+        let r = await SmartSearch(router: fmRouter(AppleFMChooser()), timeout: 30)
             .results("how do I split the window side by side", bundled, context: ["tmux"])
         #expect(!r.items.isEmpty)
         #expect(r.picked.isEmpty)

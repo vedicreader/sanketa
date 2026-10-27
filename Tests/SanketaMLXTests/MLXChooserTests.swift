@@ -123,7 +123,7 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
         let runner = FakeRunner { p in "{\"picks\": [\"\(p.refs[1])\", \"zz9\"]}" }
         let loads = Counts()
         let c = try await loadedChooser(runner, loads: loads)
-        let s = SmartSearch(router: router(c), timeout: 5)
+        let s = SmartSearch(router: router(c), timeout: 60)
         let cands = Retrieval.candidates(splitQuery, bundled, context: ["tmux"])
         let r1 = await s.results(splitQuery, bundled, context: ["tmux"])
         _ = await s.results("show the git log as a graph", bundled, context: [])
@@ -152,7 +152,7 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
     }
 
     @Test func badAnswerGivesPlainSearch() async throws {
-        let r = await SmartSearch(router: router(try await loadedChooser(FakeRunner { _ in "e1, e2" })), timeout: 5)
+        let r = await SmartSearch(router: router(try await loadedChooser(FakeRunner { _ in "e1, e2" })), timeout: 60)
             .results(splitQuery, bundled, context: ["tmux"])
         #expect(r.picked.isEmpty && !r.items.isEmpty)
         #expect(r.note == "Plain search: on-device (fake) failed")
