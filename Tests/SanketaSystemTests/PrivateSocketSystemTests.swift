@@ -13,7 +13,7 @@ import Testing
     static let packs = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().appendingPathComponent("Resources/Packs")
 
-    func tmux(_ sock: String, _ args: [String]) -> String? { r.run(tmuxBin, ["-L", sock] + args, timeout: 3.0) }
+    func tmux(_ sock: String, _ args: [String]) -> String? { r.run(tmuxBin, ["-L", sock] + args, timeout: 15.0) }   // 15 s: room for a busy Mac
     func trimmed(_ s: String?) -> String? { s?.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     /// Starts the outer server with fish, types `tmux -L inner -f conf new -s inner <cmd>` into it and waits for the

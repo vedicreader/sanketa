@@ -14,11 +14,12 @@ import Testing
 
     /// run with a controlled environment: `env -u TMUX -u XDG_CONFIG_HOME [VAR=val…] cmd…`
     func run(_ env: [String], _ cmd: [String]) -> String? {
-        r.run("/usr/bin/env", ["-u", "TMUX", "-u", "XDG_CONFIG_HOME", "-u", "PROMPT_COMMAND"] + env + cmd, timeout: 10)
+        r.run("/usr/bin/env", ["-u", "TMUX", "-u", "XDG_CONFIG_HOME", "-u", "PROMPT_COMMAND"] + env + cmd, timeout: 30)   // real shells: room for a busy Mac
     }
 
     var host: String {
-        let h = r.run("/bin/hostname", ["-s"])!.trimmingCharacters(in: .whitespacesAndNewlines)
+        // a busy Mac can be slow to start hostname; a nil answer fails the test that needs it, and does not crash the run
+        let h = (r.run("/bin/hostname", ["-s"], timeout: 30) ?? "no-hostname").trimmingCharacters(in: .whitespacesAndNewlines)
         return String(String(h.map { $0.isASCII && ($0.isLetter || $0.isNumber || "._-".contains($0)) ? $0 : "_" }).prefix(64))
     }
 

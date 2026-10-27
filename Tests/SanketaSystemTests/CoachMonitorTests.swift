@@ -20,7 +20,7 @@ import Testing
         let q = { (s: String) in "'" + s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'") + "'" }
         let appends = commands.map { "history append \(q($0))" }.joined(separator: "; ")
         _ = ProcessRunner().run("/usr/bin/env", ["XDG_DATA_HOME=\(d.path)", "XDG_CONFIG_HOME=\(d.path)", "/opt/homebrew/bin/fish",
-                                                 "--no-config", "-c", "set -g fish_history sktest; \(appends); history save"], timeout: 5)
+                                                 "--no-config", "-c", "set -g fish_history sktest; \(appends); history save"], timeout: 30)
         return d.appendingPathComponent("fish/sktest_history")
     }
 

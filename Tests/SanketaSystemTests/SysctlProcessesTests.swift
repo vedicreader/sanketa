@@ -35,7 +35,7 @@ func threadCPUSeconds() -> Double {
     @Test func snapshotTTYOfRealPty() throws {
         let sock = "sanketa-test-\(ProcessInfo.processInfo.processIdentifier)-1"
         let r = ProcessRunner()
-        defer { _ = r.run(tmuxBin, ["-L", sock, "kill-server"], timeout: 2.0) }
+        defer { _ = r.run(tmuxBin, ["-L", sock, "kill-server"], timeout: 10.0) }
         _ = try #require(r.run(tmuxBin, ["-L", sock, "new", "-d", "-s", "t", "/bin/sleep", "30"], timeout: 3.0))
         let out = try #require(r.run(tmuxBin, ["-L", sock, "display", "-p", "-t", "t", "#{pane_tty} #{pane_pid}"], timeout: 3.0))
         let parts = out.split(whereSeparator: \.isWhitespace).map(String.init)

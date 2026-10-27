@@ -9,7 +9,7 @@ import Testing
     let outer = "sanketa-test-\(ProcessInfo.processInfo.processIdentifier)-outer"
     let inner = "sanketa-test-\(ProcessInfo.processInfo.processIdentifier)-inner"
 
-    func tmux(_ sock: String, _ args: [String]) -> String? { r.run(tmuxBin, ["-L", sock] + args, timeout: 3.0) }
+    func tmux(_ sock: String, _ args: [String]) -> String? { r.run(tmuxBin, ["-L", sock] + args, timeout: 15.0) }   // 15 s: room for a busy Mac
 
     func startOuter(_ cmd: [String]) throws -> Int32 {
         _ = try #require(tmux(outer, ["-f", "/dev/null", "new", "-d", "-s", "outer", "-x", "200", "-y", "50"] + cmd))

@@ -184,7 +184,8 @@ private func router(_ c: any OnDeviceChooser, fm: (any Choosing)? = nil) -> Mode
         let runner = FakeRunner { p in "{\"picks\": [\"\(p.refs[0])\"]}" }
         let loads = Counts()
         let c = fakeChooser(runner, loads: loads, loadTime: .seconds(2))
-        let s = SmartSearch(router: router(c), timeout: 5)
+        // the chooser says "loading" at once; the long deadline only gives a busy Mac time to run it
+        let s = SmartSearch(router: router(c), timeout: 30)
         let clock = ContinuousClock(), t = clock.now
         let first = await s.results(splitQuery, bundled, context: ["tmux"])
         // it did not wait for the 2 s load
