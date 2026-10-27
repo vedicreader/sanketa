@@ -8,16 +8,26 @@ public struct ComboRow: Hashable, Sendable {
     public var muted: Bool
     public var clash: Bool
     public var layer: String?
-    public init(keys: String, action: String, chords: [Chord], muted: Bool = false, clash: Bool = false, layer: String? = nil) {
+    /// the app key's command (for Leela, its action id); nil for AeroSpace rows
+    public var command: String?
+    /// the pack group of an app key, or the kind of an AeroSpace command; rows of one group are partners
+    public var group: String?
+    /// the pack id of an app row; nil for AeroSpace rows
+    public var pack: String?
+    public init(keys: String, action: String, chords: [Chord], muted: Bool = false, clash: Bool = false, layer: String? = nil,
+                command: String? = nil, group: String? = nil, pack: String? = nil) {
         self.keys = keys; self.action = action; self.chords = chords; self.muted = muted; self.clash = clash; self.layer = layer
+        self.command = command; self.group = group; self.pack = pack
     }
 }
 
 /// The keys of one app layer (for example a Leela pane or a tmux table).
 public struct AppKeys: Sendable {
     public var layer: String
+    /// the pack id; the layer name when not given
+    public var pack: String
     public var entries: [KeyEntry]
-    public init(layer: String, entries: [KeyEntry]) { self.layer = layer; self.entries = entries }
+    public init(layer: String, pack: String? = nil, entries: [KeyEntry]) { self.layer = layer; self.pack = pack ?? layer; self.entries = entries }
 }
 
 /// What the panel shows while a modifier combo is held: AeroSpace keys, front-app keys, and the free keys.
@@ -52,7 +62,7 @@ public struct ComboView: Equatable, Sendable {
             let rs: [ComboRow] = a.entries.compactMap { e in
                 let cs = e.keys.components(separatedBy: " / ").compactMap { Chord.sanketa($0, hyperLabel: hyperLabel) }.filter { $0.mods == mods }
                 return cs.isEmpty ? nil : ComboRow(keys: cs.map { keyLabel($0.key) }.joined(separator: " / "), action: e.action, chords: cs,
-                                                   clash: cs.contains { aeroChords.contains($0) })
+                                                   clash: cs.contains { aeroChords.contains($0) }, command: e.command, group: e.group, pack: a.pack)
             }
             if !rs.isEmpty { layers.append((a.layer, rs)) }
         }
@@ -87,7 +97,8 @@ public struct ComboView: Equatable, Sendable {
             let ms = members ?? [i]
             used.formUnion(ms)
             let label = b.chord.mods == mods ? keyLabel(b.chord.key) : b.chord.display(hyperLabel: hyperLabel)
-            out.append((b.kind, ComboRow(keys: members == nil ? label : (b.chord.mods == mods ? "" : modsLabel(b.chord.mods, hyperLabel) + " ") + keys, action: action, chords: ms.map { bs[$0].chord }, muted: b.kind == .resize), b))
+            out.append((b.kind, ComboRow(keys: members == nil ? label : (b.chord.mods == mods ? "" : modsLabel(b.chord.mods, hyperLabel) + " ") + keys, action: action, chords: ms.map { bs[$0].chord }, muted: b.kind == .resize,
+                                         group: String(describing: b.kind)), b))
         }
         return out
     }

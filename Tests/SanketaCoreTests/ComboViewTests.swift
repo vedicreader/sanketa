@@ -29,6 +29,14 @@ import Testing
         #expect(v.app.first?.layer == nil)
         #expect(!v.free.contains("Z") && !v.free.contains("R") && v.free.contains("O"))
     }
+    @Test func rowsKeepTheirCommandGroupAndPack() {
+        let leela = AppKeys(layer: "Leela", pack: "leela", entries: [
+            KeyEntry(keys: "Caps\u{a0}Z / ⌥⇧B", action: "Toggle file pane", group: "Panes", command: "toggle-files")])
+        let v = ComboView.build(mods: hyper, mode: "main", aero: aero, appName: "leela", apps: [leela], hyperLabel: "Caps")
+        #expect(v.app.first?.command == "toggle-files" && v.app.first?.group == "Panes" && v.app.first?.pack == "leela")
+        #expect(v.aero.first?.command == nil && v.aero.first?.group == "moveTile" && v.aero.first?.pack == nil)
+        #expect(AppKeys(layer: "tmux", entries: []).pack == "tmux")
+    }
     @Test func otherModeShowsAllItsKeys() {
         let v = ComboView.build(mods: [], mode: "resize", aero: aero, appName: "Kaku", apps: [], hyperLabel: "Caps")
         #expect(v.aero.map(\.keys) == ["-", "esc"])

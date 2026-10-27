@@ -53,7 +53,7 @@ extension AppDelegate {
 
     func showCombo(_ mods: Set<Modifier>) {
         guard !panel.searching, !panel.panel.isKeyWindow else { return }
-        let apps = model.sections.map { AppKeys(layer: $0.pack.name, entries: $0.groups.flatMap(\.keys)) }
+        let apps = model.sections.map { AppKeys(layer: $0.pack.name, pack: $0.pack.id, entries: $0.groups.flatMap(\.keys)) }
         let v = ComboView.build(mods: mods, mode: aeroMode, aero: aero, appName: monitor.context.appName, apps: apps, hyperLabel: config.hyperLabel)
         if !panel.isVisible { model.shownForCombo = true; panel.show() }
         model.showCombo(v, hyperLabel: config.hyperLabel, hasAero: aero != nil)
