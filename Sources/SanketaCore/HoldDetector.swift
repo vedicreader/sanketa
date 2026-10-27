@@ -4,8 +4,15 @@ import Foundation
 public enum HoldSetting: String, Codable, CaseIterable, Sendable { case off, caps, all }
 
 /// Tells when the user holds a modifier combo and presses nothing else. The app feeds it `flags` and supplies the clock.
+/// `flags`, the scheduled block and writes to `setting` all run on the main thread; there is no lock.
 public final class HoldDetector {
-    public var setting: HoldSetting
+    public var setting: HoldSetting {
+        didSet {
+            guard !qualifies(mods) else { return }
+            wait += 1
+            if showing != nil { showing = nil; onHide?() }
+        }
+    }
     public var onShow: ((Set<Modifier>) -> Void)?
     public var onHide: (() -> Void)?
     public private(set) var showing: Set<Modifier>?
@@ -28,7 +35,7 @@ public final class HoldDetector {
         guard qualifies(new) else { return }
         let id = wait
         schedule(delay) { [weak self] in
-            guard let self, id == wait, sinceInput() >= delay else { return }
+            guard let self, id == wait, qualifies(mods), sinceInput() >= delay else { return }
             showing = mods; onShow?(mods)
         }
     }

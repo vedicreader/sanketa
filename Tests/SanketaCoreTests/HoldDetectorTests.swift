@@ -42,4 +42,20 @@ import TOMLDecoder
         let f = Fake(), d = make(f); d.flags(hyper, at: 0); f.pending?(); d.flags(hyper, at: 1)
         #expect(f.hides == 0); #expect(f.all.count == 1)
     }
+    @Test func offWhileWaitingStopsTheShow() {
+        let f = Fake(), d = make(f); d.flags(hyper, at: 0); d.setting = .off; f.pending?()
+        #expect(f.shown.isEmpty)
+    }
+    @Test func capsWhileWaitingOnAnotherComboStopsTheShow() {
+        let f = Fake(), d = make(f); d.flags([.cmd, .opt], at: 0); d.setting = .caps; f.pending?()
+        #expect(f.shown.isEmpty)
+    }
+    @Test func offWhileShowingHidesAtOnce() {
+        let f = Fake(), d = make(f); d.flags(hyper, at: 0); f.pending?(); d.setting = .off
+        #expect(f.hides == 1); #expect(d.showing == nil)
+    }
+    @Test func aBadHoldValueKeepsTheDefaultAndTheRest() throws {
+        let c = try TOMLDecoder().decode(Config.self, from: Data("hold = \"al\"\nhotkey = \"ctrl+opt+j\"".utf8))
+        #expect(c.hold == .all); #expect(c.hotkey == "ctrl+opt+j")
+    }
 }

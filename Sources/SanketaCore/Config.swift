@@ -294,7 +294,7 @@ public struct Config: Codable, Equatable {
         pollInterval = try num(.pollInterval, pollInterval)
         tipRotateSeconds = try num(.tipRotateSeconds, tipRotateSeconds)
         hyperLabel = try c.decodeIfPresent(String.self, forKey: .hyperLabel) ?? hyperLabel
-        hold = try c.decodeIfPresent(HoldSetting.self, forKey: .hold) ?? hold
+        hold = (try? c.decodeIfPresent(HoldSetting.self, forKey: .hold)).flatMap { $0 } ?? hold
         coach = try c.decodeIfPresent(CoachConfig.self, forKey: .coach) ?? coach
         llm = try c.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? llm
         vault = try c.decodeIfPresent(VaultConfig.self, forKey: .vault) ?? vault
