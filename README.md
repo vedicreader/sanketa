@@ -68,7 +68,7 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Translucency: Low, Medium or High
 - Show Keys When Held: All Combos, Caps Only or Off. See "Hold a combo".
 - Show AeroSpace Mode Keys…: shows only when Sanketa finds an AeroSpace file. See "AeroSpace modes".
-- Your Keys…: shows the Caps keys of the app in front, and keeps them on the panel. See "Change a key".
+- Change Keys…: shows the Caps keys of AeroSpace, the app in front and Sanketa, and keeps them on the panel. See "Change a key".
 - Use OpenAI: turns OpenAI search on or off. When you turn it on, Sanketa looks for the key in the environment, in your login shell and in your Keychain. The next line tells where it found the key, for example "Key: environment". If Sanketa finds no key, the key box opens. Click Save to keep the key in your Keychain and turn OpenAI on. Click Cancel to keep it off.
 - OpenAI Model: the model for OpenAI search, when Use OpenAI is on. The menu shows each model by its name, such as GPT-5 Nano.
 - OpenAI Key…: save an API key for the server in your Keychain
@@ -222,11 +222,13 @@ The vault never leaves this Mac. The model for natural-language search does not 
 
 Hold two or more modifier keys (for example ⌃⌥⇧⌘, which Caps Lock can send) and press nothing else. After a short wait, the panel shows the keys of that combo. If you press a key before the panel shows, the panel does not show. A mouse click or a scroll also stops the wait. This lets you use a combo for fast key presses with no flicker.
 
-The panel has two columns. The left column shows your AeroSpace keys for the combo. Sanketa reads them from `~/.aerospace.toml`, or from `aerospace/aerospace.toml` in your config folder. If it finds no file, the left column does not show. Sanketa reads the file again when you save it. The right column shows the keys of the app in front.
+Your AeroSpace keys for the combo show in a thin bar at the top of the screen, under the menu bar. Each key has a short word, for example "←↑↓→ Move", "1–9 Workspace" or "tab Last". The bar ends with "· AeroSpace". If the bar is wider than most of the screen, it uses a second line. Clicks go through the bar to the window under it. Sanketa reads the AeroSpace keys from `~/.aerospace.toml`, or from `aerospace/aerospace.toml` in your config folder. If it finds no file, the bar does not show. Sanketa reads the file again when you save it.
 
-If AeroSpace and the app use the same key, the app row has a line through it. The row ends with "· AeroSpace", because AeroSpace gets the key first. The last line lists the free keys: the keys that no AeroSpace key and no app key uses for this combo. Use them when you pick a new key.
+The panel shows the keys of the app in front for the combo. If AeroSpace and the app use the same key, the app row has a line through it. The row ends with "· AeroSpace", because AeroSpace gets the key first. The last line says "Click to keep this open".
 
-The panel does not take keyboard focus. Only the chord field takes it, when you change a key (see "Change a key"). When you release the keys, the panel goes back to how it was. A panel that was hidden hides again. Sanketa does not show the keys while you search.
+When you click the panel, it stays open, and it becomes wide. The bar hides. The left column shows the AeroSpace keys with their full names, and the right column shows the keys of the app in front. Under the app keys, the Sanketa group shows Sanketa's own keys, such as Search. A line under the columns lists the free keys: the keys that no AeroSpace key and no app key uses for this combo. Use them when you pick a new key. The last line says "Esc or a click outside closes this."
+
+The panel and the bar do not take keyboard focus. Only the chord field takes it, when you change a key (see "Change a key"). When you release the keys, the panel goes back to how it was. A panel that was hidden hides again. Sanketa does not show the keys while you search.
 
 To choose which combos show their keys, use Show Keys When Held in the menu, or set `hold` in the config file:
 
@@ -238,13 +240,13 @@ To choose which combos show their keys, use Show Keys When Held in the menu, or 
 
 The keys of an AeroSpace mode, such as `resize`, have no modifier key. So you cannot hold a combo to see them, and AeroSpace does not tell other apps when its mode changes. To fix this, choose Show AeroSpace Mode Keys… in the menu. The item shows only when Sanketa finds an AeroSpace file. Sanketa tells you what it will change, and you click Change or Cancel. Each binding that starts a mode then also opens a link, `sanketa://aerospace/mode/<name>`. Sanketa keeps a copy of the old file as `<file>.sanketa-bak`, and then runs `aerospace reload-config`.
 
-While a mode is on, the panel shows the keys of that mode. It does not take the focus, and a change of modifier keys does not hide it. The panel hides when the `main` mode comes back.
+While a mode is on, the bar shows the keys of that mode. It starts with the mode name, for example "resize mode · ← Narrower → Wider esc Back". The bar does not take the focus, and a change of modifier keys does not hide it. The bar hides when the `main` mode comes back.
 
 #### Change a key
 
-You can change an AeroSpace key or a Leela key from the panel:
+You can change an AeroSpace key, a Leela key or Sanketa's search key from the panel:
 
-1. Hold the combo, and click the panel. The panel then stays when you release the keys. To keep the view without a hold, choose Your Keys… in the menu: it shows the Caps keys of the app in front.
+1. Hold the combo, and click the panel. The panel then stays when you release the keys, and it becomes wide. To keep the view without a hold, choose Change Keys… in the menu: it shows the Caps keys of the app in front.
 2. Click a key row. A row for a group of keys, such as "1 – 9", first lists its keys: click one. A row with a line through it lets you choose "Change Leela's key" (the first choice) or "Change AeroSpace's key".
 3. Sanketa shows up to three free chords, each with its reason, for example "free, next to your Caps T and Caps U, left hand". Click one. Or click "Press a new chord" and press the chord. Only then does the panel take keyboard focus, and only to read that one chord. Press ⎋ (Esc) to stop.
 4. Sanketa shows the change, for example "Change Toggle tools: Caps X → Caps Y in ~/.config/leela/keys.json?". Click Change or Cancel. Then the app in front gets the focus again. If a key in the same file already uses the chord, Sanketa tells you, and Change is off. Sanketa does not take the key that you have now, or a chord with no modifier key (except in an AeroSpace mode).
@@ -255,9 +257,10 @@ Which keys you can change:
 
 - AeroSpace keys, when Sanketa finds an AeroSpace file. Sanketa changes only the key on the left side of the binding line.
 - Leela keys. Sanketa writes them in the `keys` part of `keys.json`, never in `_defaults`.
+- Sanketa's search key, the Search row of the Sanketa group. Sanketa changes only the `hotkey = "…"` line of `~/.config/sanketa/config.toml`. If the file has no such line, Sanketa adds it before the first table. Sanketa uses the new key at once. If macOS or another app already uses the key, the row says "✕ taken · Change".
 - The keys of other apps are only shown. For a row with a line through it, you can change AeroSpace's key.
 
-A suggested chord is free in AeroSpace (the mode now and `main`) and in the app in front. For an AeroSpace key, Sanketa also checks every pack that it has. Sanketa does not check apps that have no pack.
+A suggested chord is free in AeroSpace (the mode now and `main`) and in the app in front. For an AeroSpace key, Sanketa also checks every pack that it has. Sanketa does not check apps that have no pack. For the search key, Sanketa suggests two modifier keys and a key for the left hand, for example ⌥⇧space or ⌃⌥S. It does not suggest a chord that macOS uses, such as ⌘space, ⌃space or ⌘tab, or the key that does not work now.
 
 To close the view, click outside the panel, or hide the panel. Sanketa cannot see Esc while the app in front has the focus.
 
@@ -379,7 +382,7 @@ enabled = true               # on when the app is installed or the server answer
 url = "http://127.0.0.1:5077"   # the server, if the app is not installed; [vault] learning_url, the old name, also works
 ```
 
-The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. If another app uses the same keys, the footer tells you.
+The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. If another app uses the same keys, the Search row of Change Keys… says "✕ taken · Change". Click it to pick a different key (see "Change a key").
 
 Sanketa applies the file when you save it. You do not have to restart Sanketa. Open Config opens the file in the app that you set for `.toml` files. If you set no app, it opens in your default text editor.
 

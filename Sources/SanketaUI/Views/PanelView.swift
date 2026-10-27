@@ -50,7 +50,8 @@ struct PanelView: View {
                             if model.editing != nil || !model.editChoices.isEmpty {
                                 ComboEditSheet(model: model, record: record, apply: applyEdit, cancel: cancelEdit)
                             } else {
-                                ComboPanel(view: c, hyperLabel: model.comboHyperLabel, showsAero: model.comboHasAero,
+                                ComboPanel(view: c, hyperLabel: model.comboHyperLabel, showsAero: model.comboHasAero, pinned: model.comboPinned,
+                                           own: model.sanketaRows(), ownTaken: model.hotkeyConflict != nil,
                                            canEdit: { model.canEdit($0, aero: $1) }, click: { model.clickRow($0, aero: $1) })
                             }
                         } else if showsList { content } else { results }
@@ -70,6 +71,13 @@ struct PanelView: View {
                 .onChange(of: model.selectedLayer) { _, id in
                     if let id { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
                 }
+            }
+            // under the list, so it shows also when the keys are longer than the panel
+            if model.combo != nil, model.editing == nil, model.editChoices.isEmpty {
+                Text(ComboPanel.footer(pinned: model.comboPinned)).font(Theme.small).foregroundStyle(Theme.secondary)
+                    .padding(.horizontal, Theme.pad).padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
             }
             if model.showsFooter { Footer(model: model, grant: grantAccessibility, open: openFile) }
         }
@@ -354,9 +362,6 @@ struct Footer: View {
                     switch l.action { case .open(let f): open(f); case .showAll: model.showAllErrors = true }
                 } label: { Text(l.text).lineLimit(2).multilineTextAlignment(.leading) }
                 .buttonStyle(.plain)
-            }
-            if let h = model.hotkeyConflict {
-                Text("Sanketa cannot use \(Theme.display(hotkey: h)). Set hotkey in ~/.config/sanketa/config.toml.")
             }
         }
         .font(Theme.small).foregroundStyle(Theme.secondary)

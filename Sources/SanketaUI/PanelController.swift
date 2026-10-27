@@ -46,7 +46,7 @@ public final class SanketaPanel: NSPanel {
     var editApp: NSRunningApplication?
     /// sees clicks in other apps while the combo view is pinned
     var outside: Any?
-    /// true while the combo view shows; the panel width follows it. `$combo` sends in willSet, so the panel keeps its own copy.
+    /// true while the combo view is pinned; the panel width follows it. `$combo` sends in willSet, so the panel keeps its own copy.
     var wide = false
     var subs = Set<AnyCancellable>()
 
@@ -101,13 +101,13 @@ public final class SanketaPanel: NSPanel {
         panel.setFrameAutosaveName("SanketaPanel")
         setTranslucency(model.translucency)
         // each change, not only a change between list and combo: a frame from elsewhere must not stay
-        model.$combo.sink { [weak self] in self?.wide = $0 != nil; self?.fit() }.store(in: &subs)
+        model.$combo.combineLatest(model.$comboPinned).sink { [weak self] in self?.wide = $0 != nil && $1; self?.fit() }.store(in: &subs)
         model.$comboPinned.removeDuplicates().sink { [weak self] in self?.watchOutside($0) }.store(in: &subs)
     }
 
     var width: CGFloat { (wide ? Theme.comboSize : Theme.panelSize).width }
 
-    /// Wide while the combo view shows, narrow after. The top-left corner stays, inside the screen's visible frame.
+    /// Wide while the combo view is pinned, narrow else. The top-left corner stays, inside the screen's visible frame.
     func fit() {
         let f = panel.frame, w = width
         guard f.width != w else { return }
