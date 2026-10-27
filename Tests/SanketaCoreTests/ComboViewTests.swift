@@ -17,7 +17,7 @@ import Testing
     }
     @Test func alsoListsOtherCombosWithStayOrFollow() {
         let v = ComboView.build(mods: hyper, mode: "main", aero: aero, appName: "leela", apps: [], hyperLabel: "Caps")
-        #expect(v.also == ["Send to a workspace also: ⌥⌃⇧ 3 (stay), ⌥⌃ 3 (follow)"])
+        #expect(v.also == ["Send to a workspace also: ⌃⌥⇧ 3 (stay), ⌃⌥ 3 (follow)"])
     }
     @Test func appColumnMarksClashes() {
         let leela = AppKeys(layer: "leela", entries: [
@@ -95,5 +95,24 @@ import Testing
         #expect(v.free.joined() == "1234567890QWERTYUIOPASDFGHJKL;'ZXCVBNM,./")
         let t = build("[mode.main.binding]\ncmd-alt-ctrl-shift-q = 'move left'", apps: [AppKeys(layer: "x", entries: [KeyEntry(keys: "Caps\u{a0}W", action: "W")])])
         #expect(t.free.prefix(12).joined() == "1234567890" + "E" + "R")
+    }
+    @Test func groupedRowShowsModsThatDifferInAnotherMode() {
+        let v = ComboView.build(mods: [], mode: "nav", aero: .parse("""
+        [mode.nav.binding]
+        alt-left = 'move left'
+        alt-down = 'move down'
+        alt-up = 'move up'
+        alt-right = 'move right'
+        """), appName: "x", apps: [], hyperLabel: "Caps")
+        #expect(v.aero.map(\.keys) == ["⌥ ← ↑ ↓ →"])
+    }
+    @Test func alsoListsWorkspaceKeysWithGroupedRange() {
+        let toml = "[mode.main.binding]\ncmd-alt-ctrl-shift-1 = 'workspace 1'\n" + (1...9).map { "alt-ctrl-\($0) = 'workspace \($0)'" }.joined(separator: "\n")
+        #expect(build(toml).also == ["Go to a workspace also: ⌃⌥ 1 – 9"])
+    }
+    @Test func alsoMarksGroupedSendRowAsFollow() {
+        let toml = "[mode.main.binding]\ncmd-alt-ctrl-shift-w = 'move-node-to-workspace --wrap-around next'\n"
+            + (1...9).map { "alt-ctrl-\($0) = 'move-node-to-workspace --focus-follows-window \($0)'" }.joined(separator: "\n")
+        #expect(build(toml).also == ["Send to a workspace also: ⌃⌥ 1 – 9 (follow)"])
     }
 }

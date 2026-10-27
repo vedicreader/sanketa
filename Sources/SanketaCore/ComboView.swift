@@ -35,6 +35,11 @@ public struct ComboView: Equatable, Sendable {
 
     static func keyLabel(_ key: String) -> String { String(KeyNotation.compose([Modifier.cmd.rawValue], key).dropFirst()) }
 
+    /// The modifiers of a combo in Mac order, or the hyper label for all four.
+    static func modsLabel(_ m: Set<Modifier>, _ hyperLabel: String) -> String {
+        String(Chord(mods: m, key: "x").display(hyperLabel: hyperLabel).dropLast()).trimmingCharacters(in: .whitespaces)
+    }
+
     public static func build(mods: Set<Modifier>, mode: String, aero: AeroSpaceConfig?, appName: String, apps: [AppKeys], hyperLabel: String) -> ComboView {
         let inMode = aero?.modes[mode] ?? [], main = mode == "main"
         let shown = main ? inMode.filter { $0.chord.mods == mods } : inMode
@@ -53,7 +58,7 @@ public struct ComboView: Equatable, Sendable {
         }
         let appRows = layers.flatMap { l, rs in rs.map { var r = $0; r.layer = layers.count > 1 ? l : nil; return r } }
         let taken = Set(shown.filter { $0.chord.mods == mods }.map(\.chord.key) + appRows.flatMap(\.chords).map(\.key))
-        return ComboView(mods: mods, mode: mode, aero: rows.map(\.1), also: main && aero != nil ? also(rows.map(\.1), aero!, mods) : [], appName: appName,
+        return ComboView(mods: mods, mode: mode, aero: rows.map(\.1), also: main && aero != nil ? also(rows.map(\.1), aero!, mods, hyperLabel) : [], appName: appName,
                          app: appRows.filter { !$0.clash } + appRows.filter(\.clash), free: keyboard.filter { !taken.contains($0) }.map { $0.uppercased() })
     }
 
@@ -82,13 +87,13 @@ public struct ComboView: Equatable, Sendable {
             let ms = members ?? [i]
             used.formUnion(ms)
             let label = b.chord.mods == mods ? keyLabel(b.chord.key) : b.chord.display(hyperLabel: hyperLabel)
-            out.append((b.kind, ComboRow(keys: members == nil ? label : keys, action: action, chords: ms.map { bs[$0].chord }, muted: b.kind == .resize), b))
+            out.append((b.kind, ComboRow(keys: members == nil ? label : (b.chord.mods == mods ? "" : modsLabel(b.chord.mods, hyperLabel) + " ") + keys, action: action, chords: ms.map { bs[$0].chord }, muted: b.kind == .resize), b))
         }
         return out
     }
 
     /// "Send to a workspace also: ..." lines for the other combos of `main` that have such keys.
-    static func also(_ rows: [ComboRow], _ aero: AeroSpaceConfig, _ mods: Set<Modifier>) -> [String] {
+    static func also(_ rows: [ComboRow], _ aero: AeroSpaceConfig, _ mods: Set<Modifier>, _ hyperLabel: String) -> [String] {
         let main = aero.modes["main"] ?? [], here = Set(rows.flatMap(\.chords))
         return [(AeroKind.sendToWorkspace, "Send to a workspace"), (.workspace, "Go to a workspace")].compactMap { kind, title in
             guard main.contains(where: { $0.kind == kind && here.contains($0.chord) }) else { return nil }
@@ -96,8 +101,8 @@ public struct ComboView: Equatable, Sendable {
             var order = [Set<Modifier>]()
             for b in others where !order.contains(b.chord.mods) { order.append(b.chord.mods) }
             let items = order.flatMap { m -> [String] in
-                let label = Chord.aeroOrder.filter { m.contains($0.0) }.map(\.0.rawValue).joined()
-                return aeroRows(others.filter { $0.chord.mods == m }, mods: m, hyperLabel: "").map { _, r, b in
+                let label = modsLabel(m, hyperLabel)
+                return aeroRows(others.filter { $0.chord.mods == m }, mods: m, hyperLabel: hyperLabel).map { _, r, b in
                     let how = kind == .sendToWorkspace ? (b.commands.contains { $0.contains("--focus-follows-window") } ? " (follow)" : " (stay)") : ""
                     return [label, r.keys].filter { !$0.isEmpty }.joined(separator: " ") + how
                 }
