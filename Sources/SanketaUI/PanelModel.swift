@@ -84,6 +84,13 @@ struct StackState {
     public private(set) var comboHyperLabel = "Caps"
     /// false when AeroSpace has no config file: the combo view then has no AeroSpace column
     public private(set) var comboHasAero = true
+    /// the user clicked the combo view: it stays after the let-go, and its keys can change
+    @Published public var comboPinned = false
+    /// the key change that the pinned view shows, and the choices before it (a group row's chords, or which app's key)
+    @Published public var editing: KeyEdit?
+    @Published public internal(set) var editChoices: [EditChoice] = []
+    /// set by the app with each combo view
+    public var editSources = EditSources()
     /// where the list was when the user last left this stack; 0 (the top) for a new stack
     public private(set) var scrollTarget: CGFloat = 0
     /// the list's scroll offset, written by the view as the user scrolls; not published, so it costs no update
@@ -113,6 +120,8 @@ struct StackState {
     @Published public private(set) var expandedRow: String?
     /// a short line at the bottom of the panel, such as "Copied"; it goes after `toastSeconds`
     @Published public private(set) var toast: String?
+    /// a button in the toast, such as Undo
+    @Published public private(set) var toastAction: ToastAction?
     var toastUntil: Date?
     /// true while the pointer is on the toast: it stays
     var toastHeld = false
@@ -132,8 +141,9 @@ struct StackState {
     public func showCombo(_ v: ComboView, hyperLabel: String = "Caps", hasAero: Bool = true) {
         comboHyperLabel = hyperLabel; comboHasAero = hasAero; combo = v
     }
-    /// Clears the combo view and `shownForCombo`; true when the panel was shown only for the combo.
+    /// Clears the combo view and `shownForCombo`; true when the panel was shown only for the combo. A pinned view stays.
     @discardableResult public func hideCombo() -> Bool {
+        guard !comboPinned else { return false }
         combo = nil
         defer { shownForCombo = false }
         return shownForCombo
@@ -156,15 +166,16 @@ struct StackState {
     }
 
     /// Shows `text` at the bottom of the panel for `seconds`, such as "Copied".
-    public func showToast(_ text: String, seconds: TimeInterval = toastSeconds) {
+    public func showToast(_ text: String, seconds: TimeInterval = toastSeconds, action: ToastAction? = nil) {
         toast = text
+        toastAction = action
         toastHeld = false
         toastUntil = now().addingTimeInterval(seconds)
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.expireToast() }
     }
 
     /// The toast of a save: what was saved, or why it was not. It stays for `saveToastSeconds`.
-    public func showSaveToast(_ text: String) { showToast(text, seconds: Self.saveToastSeconds) }
+    public func showSaveToast(_ text: String, action: ToastAction? = nil) { showToast(text, seconds: Self.saveToastSeconds, action: action) }
 
     /// The pointer is on the toast (true) or left it (false). The toast stays while the pointer is on it, and for
     /// `toastSeconds` after it leaves.
@@ -180,6 +191,7 @@ struct StackState {
     public func expireToast() {
         guard !toastHeld, let u = toastUntil, now() >= u else { return }
         toast = nil
+        toastAction = nil
         toastUntil = nil
     }
 

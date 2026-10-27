@@ -68,6 +68,7 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Translucency: Low, Medium or High
 - Show Keys When Held: All Combos, Caps Only or Off. See "Hold a combo".
 - Show AeroSpace Mode Keys…: shows only when Sanketa finds an AeroSpace file. See "AeroSpace modes".
+- Your Keys…: shows the Caps keys of the app in front, and keeps them on the panel. See "Change a key".
 - Use OpenAI: turns OpenAI search on or off. When you turn it on, Sanketa looks for the key in the environment, in your login shell and in your Keychain. The next line tells where it found the key, for example "Key: environment". If Sanketa finds no key, the key box opens. Click Save to keep the key in your Keychain and turn OpenAI on. Click Cancel to keep it off.
 - OpenAI Model: the model for OpenAI search, when Use OpenAI is on. The menu shows each model by its name, such as GPT-5 Nano.
 - OpenAI Key…: save an API key for the server in your Keychain
@@ -225,7 +226,7 @@ The panel has two columns. The left column shows your AeroSpace keys for the com
 
 If AeroSpace and the app use the same key, the app row has a line through it. The row ends with "· AeroSpace", because AeroSpace gets the key first. The last line lists the free keys: the keys that no AeroSpace key and no app key uses for this combo. Use them when you pick a new key.
 
-The panel never takes keyboard focus. When you release the keys, the panel goes back to how it was. A panel that was hidden hides again. Sanketa does not show the keys while you search.
+The panel does not take keyboard focus. Only the chord field takes it, when you change a key (see "Change a key"). When you release the keys, the panel goes back to how it was. A panel that was hidden hides again. Sanketa does not show the keys while you search.
 
 To choose which combos show their keys, use Show Keys When Held in the menu, or set `hold` in the config file:
 
@@ -238,6 +239,27 @@ To choose which combos show their keys, use Show Keys When Held in the menu, or 
 The keys of an AeroSpace mode, such as `resize`, have no modifier key. So you cannot hold a combo to see them, and AeroSpace does not tell other apps when its mode changes. To fix this, choose Show AeroSpace Mode Keys… in the menu. The item shows only when Sanketa finds an AeroSpace file. Sanketa tells you what it will change, and you click Change or Cancel. Each binding that starts a mode then also opens a link, `sanketa://aerospace/mode/<name>`. Sanketa keeps a copy of the old file as `<file>.sanketa-bak`, and then runs `aerospace reload-config`.
 
 While a mode is on, the panel shows the keys of that mode. It does not take the focus, and a change of modifier keys does not hide it. The panel hides when the `main` mode comes back.
+
+#### Change a key
+
+You can change an AeroSpace key or a Leela key from the panel:
+
+1. Hold the combo, and click the panel. The panel then stays when you release the keys. To keep the view without a hold, choose Your Keys… in the menu: it shows the Caps keys of the app in front.
+2. Click a key row. A row for a group of keys, such as "1 – 9", first lists its keys: click one. A row with a line through it lets you choose "Change Leela's key" (the first choice) or "Change AeroSpace's key".
+3. Sanketa shows up to three free chords, each with its reason, for example "free, next to your Caps T and Caps U, left hand". Click one. Or click "Press a new chord" and press the chord. Only then does the panel take keyboard focus, and only to read that one chord. Press Esc to stop.
+4. Sanketa shows the change, for example "Change Toggle tools: Caps X → Caps Y in ~/.config/leela/keys.json?". Click Change or Cancel. Then the app in front gets the focus again.
+5. Sanketa keeps a copy of the old file as `<file>.sanketa-bak`, for example `keys.json.sanketa-bak`. It writes the new key and changes nothing else in the file. For AeroSpace, it then runs `aerospace reload-config`. Leela reads `keys.json` again by itself.
+6. The toast says "Changed." and has an Undo button. Undo puts the old file back. If you changed the file after the change, Undo does not run, so your edit stays.
+
+Which keys you can change:
+
+- AeroSpace keys, when Sanketa finds an AeroSpace file. Sanketa changes only the key on the left side of the binding line.
+- Leela keys. Sanketa writes them in the `keys` part of `keys.json`, never in `_defaults`.
+- The keys of other apps are only shown. For a row with a line through it, you can change AeroSpace's key.
+
+A suggested chord is free in AeroSpace (the mode now and `main`) and in the app in front. For an AeroSpace key, Sanketa also checks every pack that it has. Sanketa does not check apps that have no pack.
+
+To close the view, click outside the panel, or hide the panel. Sanketa cannot see Esc while the app in front has the focus.
 
 ### Layers and sections
 

@@ -79,6 +79,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         monitor.$context.sink { [weak self] c in
             self?.model.update(c)
             self?.search.setSource(context: c)
+            self?.refreshPinnedCombo(appName: c.appName)   // a saved keys.json shows its new key
         }.store(in: &subs)
         coach.$items.sink { [weak self] items in
             guard let self else { return }
@@ -98,6 +99,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             if layer.kind == .app { if case .app(let app) = makePackTarget() { openPackMaker(app) } } else { makeStarter(layer) }
         }
         panel.setTranslucency(config.translucency)
+        panel.applyEdit = { [weak self] in self?.applyEdit($0) }
         scheduleRotation()
         buildStatusItem()
         model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
@@ -159,7 +161,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
 
     func hotkeyPressed() {
         resetAeroMode()
-        model.hideCombo()   // a search takes the panel: the combo view must not keep it or hide it later
+        model.unpinCombo()   // a search takes the panel: the combo view must not keep it or hide it later
         if panel.searching { return panel.endSearch() }
         panel.beginSearch(previousApp: NSWorkspace.shared.frontmostApplication.flatMap { $0 == .current ? nil : $0 })
     }
@@ -182,6 +184,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         m.addItem(withTitle: "Translucency", action: nil, keyEquivalent: "").submenu = tr
         m.addItem(buildHoldMenu())
         m.addItem(buildAeroModeItem())
+        m.addItem(buildYourKeysItem())
         menus.add(to: m)
         m.addItem(.separator())
         for key in VaultToggles.Key.allCases {

@@ -30,6 +30,11 @@ public struct AppKeys: Sendable {
     public init(layer: String, pack: String? = nil, entries: [KeyEntry]) { self.layer = layer; self.pack = pack ?? layer; self.entries = entries }
 }
 
+public extension KeyEntry {
+    /// The chords of `keys` ("Caps\u{a0}Z / ⌥⇧B"), in order.
+    func chords(hyperLabel: String) -> [Chord] { keys.components(separatedBy: " / ").compactMap { Chord.sanketa($0, hyperLabel: hyperLabel) } }
+}
+
 /// What the panel shows while a modifier combo is held: AeroSpace keys, front-app keys, and the free keys.
 public struct ComboView: Equatable, Sendable {
     public var mods: Set<Modifier>
@@ -60,7 +65,7 @@ public struct ComboView: Equatable, Sendable {
         var layers = [(String, [ComboRow])]()
         for a in apps {
             let rs: [ComboRow] = a.entries.compactMap { e in
-                let cs = e.keys.components(separatedBy: " / ").compactMap { Chord.sanketa($0, hyperLabel: hyperLabel) }.filter { $0.mods == mods }
+                let cs = e.chords(hyperLabel: hyperLabel).filter { $0.mods == mods }
                 return cs.isEmpty ? nil : ComboRow(keys: cs.map { keyLabel($0.key) }.joined(separator: " / "), action: e.action, chords: cs,
                                                    clash: cs.contains { aeroChords.contains($0) }, command: e.command, group: e.group, pack: a.pack)
             }

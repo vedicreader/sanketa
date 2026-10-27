@@ -49,13 +49,21 @@ extension AppDelegate {
         guard let u = aeroURL else { return }
         do { aero = AeroSpaceConfig.parse(try String(contentsOf: u, encoding: .utf8)) }
         catch { model.aeroError = PackLoadError(file: u.path, message: "Could not read this file. \(error.localizedDescription)") }
+        refreshPinnedCombo()
     }
 
+    /// A pinned view stays: a hold does not change it.
     func showCombo(_ mods: Set<Modifier>) {
-        guard !panel.searching, !panel.panel.isKeyWindow else { return }
-        let apps = model.sections.map { AppKeys(layer: $0.pack.name, pack: $0.pack.id, entries: $0.groups.flatMap(\.keys)) }
-        let v = ComboView.build(mods: mods, mode: aeroMode, aero: aero, appName: monitor.context.appName, apps: apps, hyperLabel: config.hyperLabel)
+        guard !panel.searching, !panel.panel.isKeyWindow, !model.comboPinned else { return }
         if !panel.isVisible { model.shownForCombo = true; panel.show() }
+        setCombo(mods)
+    }
+
+    /// Builds the view of `mods` from the sections now, with what a key change needs.
+    func setCombo(_ mods: Set<Modifier>, appName: String? = nil) {
+        let apps = model.sections.map { AppKeys(layer: $0.pack.name, pack: $0.pack.id, entries: $0.groups.flatMap(\.keys)) }
+        let v = ComboView.build(mods: mods, mode: aeroMode, aero: aero, appName: appName ?? monitor.context.appName, apps: apps, hyperLabel: config.hyperLabel)
+        model.editSources = editSources(apps)
         model.showCombo(v, hyperLabel: config.hyperLabel, hasAero: aero != nil)
     }
 

@@ -7,6 +7,9 @@ struct ComboPanel: View {
     let hyperLabel: String
     /// false when there is no AeroSpace config file: the left column then does not show
     var showsAero = true
+    /// a row (and true for the AeroSpace column) that can change; a click on it starts the change
+    var canEdit: (ComboRow, Bool) -> Bool = { _, _ in false }
+    var click: (ComboRow, Bool) -> Void = { _, _ in }
 
     var combo: String { ComboView.modsLabel(view.mods, hyperLabel) }
 
@@ -17,9 +20,9 @@ struct ComboPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 14) {
                 if showsAero {
-                    column("AeroSpace · \(combo)", rows: view.aero, notes: view.also, empty: Self.emptyAppLine(appName: "AeroSpace", combo: combo))
+                    column("AeroSpace · \(combo)", rows: view.aero, aero: true, notes: view.also, empty: Self.emptyAppLine(appName: "AeroSpace", combo: combo))
                 }
-                column("\(view.appName) · \(combo)", rows: view.app, empty: Self.emptyAppLine(appName: view.appName, combo: combo))
+                column("\(view.appName) · \(combo)", rows: view.app, aero: false, empty: Self.emptyAppLine(appName: view.appName, combo: combo))
             }
             if !view.free.isEmpty {
                 Text(Self.freeLine(view.free, combo: combo)).font(Theme.small).foregroundStyle(Theme.secondary)
@@ -28,7 +31,7 @@ struct ComboPanel: View {
         .padding(.vertical, 4).padding(.horizontal, 6)
     }
 
-    func column(_ title: String, rows: [ComboRow], notes: [String] = [], empty: String? = nil) -> some View {
+    func column(_ title: String, rows: [ComboRow], aero: Bool, notes: [String] = [], empty: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: Theme.rowGap) {
             Text(title).font(Theme.header).foregroundStyle(Theme.secondary)
             if rows.isEmpty, let empty { Text(empty).font(Theme.small).foregroundStyle(Theme.secondary) }
@@ -36,7 +39,9 @@ struct ComboPanel: View {
                 if let l = r.layer, i == 0 || rows[i - 1].layer != l {
                     Text(l).font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, i == 0 ? 0 : 2)
                 }
-                row(r)
+                if canEdit(r, aero) {
+                    Button { click(r, aero) } label: { row(r).contentShape(Rectangle()) }.buttonStyle(.plain)
+                } else { row(r) }
             }
             ForEach(notes, id: \.self) { Text($0).font(Theme.small).foregroundStyle(Theme.secondary).padding(.top, 2) }
         }

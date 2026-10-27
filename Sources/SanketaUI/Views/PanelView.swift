@@ -14,6 +14,10 @@ struct PanelView: View {
     var makePack: (Layer) -> Void = { _ in }
     /// the open button of a vault result: opens it and ends search
     var openResult: (Int) -> Void = { _ in }
+    /// the key change of the pinned combo view: the chord field takes the focus, the change is written, or it stops
+    var record: () -> Void = {}
+    var applyEdit: () -> Void = {}
+    var cancelEdit: () -> Void = {}
     @Environment(\.colorScheme) var scheme
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @State var position = ScrollPosition(edge: .top)
@@ -42,7 +46,14 @@ struct PanelView: View {
             ScrollViewReader { proxy in
                 PanelScroll(position: $position, offset: { model.scrollOffset = $0 }) {
                     VStack(alignment: .leading, spacing: Theme.sectionGap) {
-                        if let c = model.combo { ComboPanel(view: c, hyperLabel: model.comboHyperLabel, showsAero: model.comboHasAero) } else if showsList { content } else { results }
+                        if let c = model.combo {
+                            if model.editing != nil || !model.editChoices.isEmpty {
+                                ComboEditSheet(model: model, record: record, apply: applyEdit, cancel: cancelEdit)
+                            } else {
+                                ComboPanel(view: c, hyperLabel: model.comboHyperLabel, showsAero: model.comboHasAero,
+                                           canEdit: { model.canEdit($0, aero: $1) }, click: { model.clickRow($0, aero: $1) })
+                            }
+                        } else if showsList { content } else { results }
                     }
                     .padding(.horizontal, Theme.pad - 6).padding(.bottom, Theme.pad)
                 }
@@ -63,7 +74,7 @@ struct PanelView: View {
             if model.showsFooter { Footer(model: model, grant: grantAccessibility, open: openFile) }
         }
         .overlay(alignment: .bottom) {
-            if let t = model.toast { Toast(text: t, hold: { model.holdToast($0) }).transition(.opacity) }
+            if let t = model.toast { Toast(text: t, action: model.toastAction, hold: { model.holdToast($0) }).transition(.opacity) }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: model.toast)
         // the top row sits in the title bar, so the safe area there would only add dead space
@@ -138,6 +149,10 @@ struct ResultsList: View {
     var expanded: String?
     var copy: (String) -> Void = { _ in }
     var openResult: (Int) -> Void = { _ in }
+    /// the key change of the pinned combo view: the chord field takes the focus, the change is written, or it stops
+    var record: () -> Void = {}
+    var applyEdit: () -> Void = {}
+    var cancelEdit: () -> Void = {}
     /// the keys that save to the vault: one muted line at the end
     var saveHint: String?
     var scope = SearchScope.all
@@ -303,12 +318,17 @@ struct Breadcrumb: View {
 /// panel's own tint. It fades out; it stays while the pointer is on it.
 struct Toast: View {
     let text: String
+    /// a button after the text, such as Undo
+    var action: ToastAction?
     var hold: (Bool) -> Void = { _ in }
     @Environment(\.colorScheme) var scheme
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             RoundedRectangle(cornerRadius: 1).fill(Theme.accent).frame(width: 2.5, height: 13)
             Text(text).font(Theme.small).foregroundStyle(Theme.secondary).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            if let action {
+                Button(action: action.run) { Text(action.title).underline() }.buttonStyle(.plain).font(Theme.small).foregroundStyle(.primary)
+            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, Theme.pad).padding(.vertical, 7)

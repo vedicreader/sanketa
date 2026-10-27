@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import SanketaCore
 import SanketaSystem
@@ -39,6 +40,13 @@ public final class SanketaPanel: NSPanel {
     public var makePack: (Layer) -> Void = { _ in }
     /// called when search starts, so the model can load before the first request; the app throttles it
     public var prewarm: () -> Void = {}
+    /// writes a key change that the user confirmed in the pinned combo view; set by the app
+    public var applyEdit: (KeyEdit) -> Void = { _ in }
+    /// the app that had the focus when the chord field took it
+    var editApp: NSRunningApplication?
+    /// sees clicks in other apps while the combo view is pinned
+    var outside: Any?
+    var subs = Set<AnyCancellable>()
 
     public init(model: PanelModel, search: SearchModel, hotkeyLabel: String? = nil) {
         self.model = model; self.search = search
@@ -76,7 +84,10 @@ public final class SanketaPanel: NSPanel {
             clickLayer: { [weak self] in self?.clickLayer($0) },
             openFile: { [weak self] in self?.openFile($0) },
             makePack: { [weak self] in self?.makePack($0) },
-            openResult: { [weak self] in self?.openResult($0) }))
+            openResult: { [weak self] in self?.openResult($0) },
+            record: { [weak self] in self?.startRecording() },
+            applyEdit: { [weak self] in self?.confirmEdit() },
+            cancelEdit: { [weak self] in self?.cancelEdit() }))
         host.sizingOptions = []
         glass.contentView = host
         panel.contentView = glass
@@ -87,6 +98,7 @@ public final class SanketaPanel: NSPanel {
         }
         panel.setFrameAutosaveName("SanketaPanel")
         setTranslucency(model.translucency)
+        model.$comboPinned.removeDuplicates().sink { [weak self] in self?.watchOutside($0) }.store(in: &subs)
     }
 
     /// Low and Medium use regular glass under a strong adaptive tint; High is clear glass with a light tint.
@@ -104,7 +116,7 @@ public final class SanketaPanel: NSPanel {
     }
 
     public func toggle() {
-        if panel.isVisible { if searching { endSearch() }; panel.orderOut(nil); onDismiss() } else { show() }
+        if panel.isVisible { if searching { endSearch() }; panel.orderOut(nil); model.unpinCombo(); onDismiss() } else { show() }
     }
 
     public func beginSearch(previousApp: NSRunningApplication?) {
@@ -150,7 +162,9 @@ public final class SanketaPanel: NSPanel {
     /// from here too, or the mouse-up would hand focus back. `point` is in window coordinates.
     func mouseUp(at point: NSPoint? = nil) {
         if let point, inField(point) { return clicked() }
-        guard !searching, panel.isKeyWindow else { return }
+        if point != nil { model.pinCombo() }
+        // the chord field took the focus with this click, to read one key press
+        guard model.editing?.recording != true, !searching, panel.isKeyWindow else { return }
         handBack(to: Self.frontmostOther)
     }
 
@@ -174,11 +188,16 @@ public final class SanketaPanel: NSPanel {
     /// Keys while the layer list has focus: Tab/⇧Tab cycle sections (⇧Tab returns to the field in search),
     /// ↑/↓ cycle sections too, Esc ends search. Results are hidden then, so ↩ does nothing.
     func key(_ e: NSEvent) -> Bool {
+        if model.editing?.recording == true { record(e); return true }
         let shift = e.modifierFlags.contains(.shift)
         switch Int(e.keyCode) {
         case kTab:
             if shift && searching { focusField() } else { model.cycleLayer(shift ? -1 : 1) }
-        case kEscape: if searching { endSearch() } else { handBack(to: Self.frontmostOther); onDismiss() }
+        case kEscape:
+            if searching { endSearch() } else {
+                handBack(to: Self.frontmostOther)
+                if model.comboPinned { unpin() } else { onDismiss() }
+            }
         case kUp: model.listFocused ? model.cycleLayer(-1) : search.move(-1)
         case kDown: model.listFocused ? model.cycleLayer(1) : search.move(1)
         case kReturn: if !model.listFocused, let s = search.activate() { endSearch(refocus: s.open == nil) }
@@ -203,6 +222,7 @@ public final class SanketaPanel: NSPanel {
     /// ⌘V, ⌘Z, ⇧⌘Z) and the field editor.
     func keyEquivalent(_ e: NSEvent) -> Bool {
         guard e.type == .keyDown else { return false }
+        if model.editing?.recording == true { record(e); return true }
         if let by = Self.scopeKey(keyCode: Int(e.keyCode), flags: e.modifierFlags, searching: searching) {
             search.cycleScope(by)
             return true
@@ -241,6 +261,7 @@ public final class SanketaPanel: NSPanel {
     func clicked() {
         model.listFocused = false
         guard !searching else { return }
+        model.unpinCombo()   // search takes the panel
         searching = true
         previousApp = Self.frontmostOther
         prewarm()
@@ -275,6 +296,7 @@ public final class SanketaPanel: NSPanel {
     /// Clicking elsewhere ends search quietly. The field gives up its field editor, so the next click on it goes to the
     /// field itself and starts search again.
     public func windowDidResignKey(_ n: Notification) {
+        if model.editing?.recording == true { model.editing?.recording = false; editApp = nil }
         guard searching else { return }
         panel.makeFirstResponder(nil)
         searching = false
@@ -282,6 +304,61 @@ public final class SanketaPanel: NSPanel {
         search.clear()
         field.stringValue = ""
         model.listFocused = false
+    }
+}
+
+// MARK: the pinned combo view
+
+extension PanelController {
+    /// The one time Sanketa reads a key press: the panel takes the focus for its chord field, until one chord or Esc.
+    func startRecording() {
+        guard model.editing != nil, !searching else { return }
+        editApp = Self.frontmostOther
+        model.editing?.new = nil
+        model.editing?.recording = true
+        panel.makeKey()
+        panel.makeFirstResponder(nil)
+    }
+
+    /// Esc with no modifier stops the edit; a modifier key alone waits for the key. Focus goes back after one chord.
+    func record(_ e: NSEvent) {
+        if Int(e.keyCode) == kEscape, Self.mods(e.modifierFlags).isEmpty { return cancelEdit() }
+        guard let c = PanelModel.chord(keyCode: Int(e.keyCode), flags: e.modifierFlags) else { return }
+        model.pick(c)
+        endRecording()
+    }
+
+    /// Gives the focus back to the app that had it, when the chord field took it.
+    func endRecording() {
+        model.editing?.recording = false
+        if panel.isKeyWindow { handBack(to: editApp) }
+        editApp = nil
+    }
+
+    func cancelEdit() {
+        model.cancelEdit()
+        endRecording()
+    }
+
+    /// "Change" in the confirm step: the app writes the change; the view stays pinned.
+    func confirmEdit() {
+        guard let e = model.editing, e.new != nil else { return }
+        model.cancelEdit()
+        endRecording()
+        applyEdit(e)
+    }
+
+    /// Back to the layer view; the panel hides when it showed only for the combo.
+    func unpin() {
+        if model.unpinCombo(), !searching { panel.orderOut(nil) }
+    }
+
+    func watchOutside(_ on: Bool) {
+        if let o = outside { NSEvent.removeMonitor(o); outside = nil }
+        guard on else { return }
+        outside = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
+            MainActor.assumeIsolated { self?.unpin() }
+        }
     }
 }
 
