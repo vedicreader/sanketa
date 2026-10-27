@@ -41,7 +41,11 @@ release: bundle
 
 # makes the GitHub release v$(VERSION) on main with the notarized zip, and the same zip as Sanketa.zip for the
 # download link. The check runs first, so the notes say "notarized" only for an app that has the ticket.
-publish: release
+# stops before the build and the notarization when the release of this version is on GitHub already
+unpublished:
+	if $(GH) release view v$(VERSION) >/dev/null 2>&1; then echo "v$(VERSION) is published already. For a new release, change CFBundleShortVersionString in Resources/Info.plist." >&2; exit 1; fi
+
+publish: unpublished release
 	$(CHECK_NOTARIZED)
 	printf '%s\n\n%s\n\n%s\n\n%s\n' "Sanketa $(VERSION) for macOS 26 on Apple Silicon. The app has a Developer ID signature, and Apple notarized it." \
 		"To install it, unzip the file and move Sanketa.app to Applications. Then open it and allow Accessibility." \

@@ -7,7 +7,7 @@ XCODE_DATA := build/xcode
 # the same zip with a name that does not change, so releases/latest/download/Sanketa.zip always works
 STABLE_ZIP := dist/Sanketa.zip
 
-.PHONY: test test-focus test-mlx build lint shots bundle app release zip publish run relaunch dev dev-relaunch install cask verify gatekeeper remote-setup
+.PHONY: test test-focus test-mlx build lint shots bundle app release unpublished zip publish run relaunch dev dev-relaunch install cask verify gatekeeper remote-setup
 
 # Values from the command line go to recipes only through the environment ("$$FILTER"), so the shell never parses
 # them. Each value must also pass this check, which reads the raw text with $(value) and so never expands it.
@@ -133,10 +133,12 @@ install:
 	if [ -e "$$INSTALL_DIR/Sanketa.app" ]; then mv "$$INSTALL_DIR/Sanketa.app" /tmp/sanketa-trash/Sanketa.app-$$$$; fi
 	ditto $(APP) "$$INSTALL_DIR/Sanketa.app"
 
-# writes this version and the hash of its release zip into the Homebrew cask in $TAP; it does not commit or push
+# writes this version and the hash of its release zip into the Homebrew cask in $TAP; it does not commit or push.
+# The hash comes from the zip on GitHub, not from dist/: a second make release makes a new zip with another hash.
 cask:
-	test -f "dist/Sanketa-$(VERSION).zip"
-	sum=$$(shasum -a 256 "dist/Sanketa-$(VERSION).zip" | cut -d ' ' -f 1) && \
+	mkdir -p /tmp/sanketa-trash
+	curl -fsSL -o /tmp/sanketa-trash/cask-$$$$.zip "https://github.com/vedicreader/sanketa/releases/download/v$(VERSION)/Sanketa-$(VERSION).zip" && \
+	sum=$$(shasum -a 256 /tmp/sanketa-trash/cask-$$$$.zip | cut -d ' ' -f 1) && \
 	sed -i '' -e 's/^  version ".*"/  version "$(VERSION)"/' -e "s/^  sha256 \".*\"/  sha256 \"$$sum\"/" "$$TAP/Casks/sanketa.rb"
 	grep -E '^  (version|sha256) ' "$$TAP/Casks/sanketa.rb"
 
