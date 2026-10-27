@@ -66,7 +66,7 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Show or Hide Panel
 - Search (with the hotkey)
 - Translucency: Low, Medium or High
-- Show Keys When Held: All Combos, Caps Only or Off. See "Hold a combo".
+- Show Keys When Held: Combos and Single Keys, Combos Only, Caps Only or Off. See "Hold a combo".
 - Show AeroSpace Mode Keys…: shows only when Sanketa finds an AeroSpace file. See "AeroSpace modes".
 - Change Keys…: shows the Caps keys of AeroSpace, the app in front and Sanketa, and keeps them on the panel. See "Change a key".
 - Use OpenAI: turns OpenAI search on or off. When you turn it on, Sanketa looks for the key in the environment, in your login shell and in your Keychain. The next line tells where it found the key, for example "Key: environment". If Sanketa finds no key, the key box opens. Click Save to keep the key in your Keychain and turn OpenAI on. Click Cancel to keep it off.
@@ -221,7 +221,9 @@ The vault never leaves this Mac. The model for natural-language search does not 
 
 ### Hold a combo
 
-Hold two or more modifier keys (for example ⌃⌥⇧⌘, which Caps Lock can send) and press nothing else. After a short wait, the panel shows the keys of that combo. If you press a key before the panel shows, the panel does not show. A mouse click or a scroll also stops the wait. This lets you use a combo for fast key presses with no flicker.
+Hold two or more modifier keys (for example ⌃⌥⇧⌘, which Caps Lock can send) and press nothing else. After a short wait, the panel shows the keys of that combo. You can also hold one modifier key alone: ⌃, ⌥ or ⌘. For example, hold ⌥ in ramabana, and the panel shows ⌥↑. ⇧ alone never shows keys. If you press a key before the panel shows, the panel does not show. A mouse click or a scroll also stops the wait. This lets you use a combo for fast key presses with no flicker.
+
+For one modifier key alone, the wait is longer, so a fast ⌃C or ⌘V does not show the panel. The panel shows only if the app in front or AeroSpace has keys for that modifier key. If they have no keys for it, the panel does not show.
 
 Your AeroSpace keys for the combo show in a thin bar at the top of the screen, under the menu bar. Each key has a short word, for example "←↑↓→ Move", "1–9 Workspace" or "tab Last". The bar ends with "· AeroSpace". If the bar is wider than most of the screen, it uses a second line. Clicks go through the bar to the window under it. Sanketa reads the AeroSpace keys from `~/.aerospace.toml`, or from `aerospace/aerospace.toml` in your config folder. If it finds no file, the bar does not show. Sanketa reads the file again when you save it.
 
@@ -231,13 +233,16 @@ When you click the panel, it stays open, and it becomes wide. The bar hides. The
 
 The panel and the bar do not take keyboard focus. Only the chord field takes it, when you change a key (see "Change a key"). When you release the keys, the panel goes back to how it was. A panel that was hidden hides again. Sanketa does not show the keys while you search.
 
-To choose which combos show their keys, use Show Keys When Held in the menu, or set `hold` in the config file:
+To choose which keys show, use Show Keys When Held in the menu, or set `hold` in the config file:
 
-- `all`: any combo of two or more modifier keys (the default)
+- `any`: any combo of two or more modifier keys, and also ⌃, ⌥ or ⌘ alone (the default). The menu name is Combos and Single Keys.
+- `all`: any combo of two or more modifier keys. The menu name is Combos Only.
 - `caps`: only the combo of all four modifier keys, which Caps Lock sends in a Hyper setup
 - `off`: never
 
 To change how long you hold the combo before the keys show, set `hold_delay` in seconds, from 0.1 to 2. The default is 0.25. If you press a key, click or scroll in that time, the keys do not show. Thus a fast Caps+arrow does not open the panel.
+
+To change how long you hold one modifier key alone, set `single_delay` in seconds, from 0.2 to 3. The default is 0.6.
 
 #### AeroSpace modes
 
@@ -352,7 +357,9 @@ pollInterval = 1.0           # seconds between checks while a terminal is in fro
 tipRotateSeconds = 120       # how often the tip cards change
 translucency = "medium"      # low, medium or high
 hyper_label = "Caps"         # how Leela's Hyper key (⌃⌥⇧⌘) shows
-hold = "all"                 # show the keys of a combo that you hold: "all", "caps" or "off"
+hold = "any"                 # show the keys that you hold: "any", "all" (combos only), "caps" or "off"
+hold_delay = 0.25            # seconds to hold a combo before its keys show (0.1 to 2)
+single_delay = 0.6           # seconds to hold ⌃, ⌥ or ⌘ alone before its keys show (0.2 to 3)
 
 [coach]                      # better ways from your shell history, on this Mac only
 enabled = true
