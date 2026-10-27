@@ -52,22 +52,36 @@ extension AppDelegate {
         refreshPinnedCombo()
     }
 
-    /// A pinned view stays: a hold does not change it. `force`: an explicit command works also when the panel has the focus.
-    func showCombo(_ mods: Set<Modifier>, force: Bool = false) {
+    /// The AeroSpace keys show in the bar under the menu bar, and the app's keys in the panel. An AeroSpace mode shows
+    /// only in the bar. A pinned view stays: a hold does not change it. `force`: an explicit command works also when the
+    /// panel has the focus. `bar`: false when the view is pinned at once, so the bar does not flash.
+    func showCombo(_ mods: Set<Modifier>, force: Bool = false, bar showsBar: Bool = true) {
         guard !panel.searching, force || !panel.panel.isKeyWindow, !model.comboPinned else { return }
+        let v = comboView(mods)
+        bar.show(showsBar ? AeroBar(view: v) : nil)
+        if mods.isEmpty, aeroMode != "main" { return hidePanelCombo() }
         if !panel.isVisible { model.shownForCombo = true; panel.show() }
-        setCombo(mods)
+        setCombo(mods, view: v)
     }
 
+    func comboView(_ mods: Set<Modifier>, appName: String? = nil) -> ComboView {
+        ComboView.build(mods: mods, mode: aeroMode, aero: aero, appName: appName ?? monitor.context.appName, apps: comboApps, hyperLabel: config.hyperLabel)
+    }
+
+    var comboApps: [AppKeys] { model.sections.map { AppKeys(layer: $0.pack.name, pack: $0.pack.id, entries: $0.groups.flatMap(\.keys)) } }
+
     /// Builds the view of `mods` from the sections now, with what a key change needs.
-    func setCombo(_ mods: Set<Modifier>, appName: String? = nil) {
-        let apps = model.sections.map { AppKeys(layer: $0.pack.name, pack: $0.pack.id, entries: $0.groups.flatMap(\.keys)) }
-        let v = ComboView.build(mods: mods, mode: aeroMode, aero: aero, appName: appName ?? monitor.context.appName, apps: apps, hyperLabel: config.hyperLabel)
-        model.editSources = editSources(apps)
-        model.showCombo(v, hyperLabel: config.hyperLabel, hasAero: aero != nil)
+    func setCombo(_ mods: Set<Modifier>, appName: String? = nil, view: ComboView? = nil) {
+        model.editSources = editSources(comboApps)
+        model.showCombo(view ?? comboView(mods, appName: appName), hyperLabel: config.hyperLabel, hasAero: aero != nil)
     }
 
     func hideCombo() {
+        bar.hide()
+        hidePanelCombo()
+    }
+
+    func hidePanelCombo() {
         if model.hideCombo(), !panel.searching, !panel.panel.isKeyWindow { panel.panel.orderOut(nil) }
     }
 

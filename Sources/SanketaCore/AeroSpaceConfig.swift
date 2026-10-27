@@ -14,6 +14,8 @@ public struct AeroBinding: Hashable, Sendable {
     public var action: String
     public var kind: AeroKind
     public var target: String?
+    /// one or two words for the AeroSpace bar, such as "Move"
+    public var short: String { AeroSpaceConfig.short(commands) }
 }
 
 /// The `[mode.NAME.binding]` tables of an AeroSpace config, read line by line so each binding keeps its line number.
@@ -103,6 +105,36 @@ public struct AeroSpaceConfig: Sendable {
         default: break
         }
         return (cmd, .other, nil)
+    }
+
+    /// One or two words for the first command, for the AeroSpace bar: "Move", "Workspace", "Side by side", the mode name.
+    public static func short(_ commands: [String]) -> String {
+        let cmd = commands.first { !$0.hasPrefix(AeroSpaceWriter.hookPrefix) } ?? commands.first ?? ""
+        let w = cmd.split(whereSeparator: \.isWhitespace).map(String.init), args = Array(w.dropFirst())
+        let prev = args.last == "prev", wrap = args.contains("--wrap-around")
+        switch w.first {
+        case "move": return "Move"
+        case "focus": return args.last == "dfs-next" ? "Next" : args.last == "dfs-prev" ? "Previous" : "Focus"
+        case "workspace": return wrap ? (prev ? "Previous" : "Next") : "Workspace"
+        case "workspace-back-and-forth": return "Last"
+        case "move-node-to-workspace": return wrap ? (prev ? "Send previous" : "Send next") : "Send"
+        case "fullscreen": return "Full"
+        case "layout":
+            let names = ["floating tiling": "Float", "accordion tiles": "Accordion", "horizontal vertical": "Side by side"]
+            return names[args.joined(separator: " ")] ?? "Layout"
+        case "focus-monitor": return "Monitor"
+        case "mode": return args.last.map { $0 == "main" ? "Back" : $0 } ?? "Mode"
+        case "exec-and-forget": return "Script"
+        case "resize":
+            let less = args.last?.hasPrefix("-") == true
+            switch args.first {
+            case "width": return less ? "Narrower" : "Wider"
+            case "height": return less ? "Shorter" : "Taller"
+            default: return less ? "Smaller" : "Bigger"
+            }
+        case "balance-sizes": return "Balance"
+        default: return w.first ?? ""
+        }
     }
 
     /// The mode name of `sanketa://aerospace/mode/<name>` (letters, digits, `-` and `_`); nil for any other URL.

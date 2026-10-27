@@ -46,6 +46,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     }
     lazy var panel = PanelController(model: model, search: search, hotkeyLabel: Theme.display(hotkey: config.hotkey))
     let hotkeys = HotkeyCenter()
+    /// the AeroSpace keys of a held combo, in a thin bar under the menu bar
+    lazy var bar = AeroBarController(model: model)
     var status: NSStatusItem?
     var subs = Set<AnyCancellable>()
     var rotation: Timer?
@@ -118,6 +120,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     func registerHotkey() {
         hotkeys.unregisterAll()
         let ok = Hotkey.parse(config.hotkey).map { hotkeys.register($0) { [weak self] in self?.hotkeyPressed() } } ?? false
+        model.hotkey = config.hotkey
         model.hotkeyConflict = ok ? nil : config.hotkey
         panel.field.placeholderString = "Search  \(Theme.display(hotkey: config.hotkey))"
         searchItem?.title = "Search  \(Theme.display(hotkey: config.hotkey))"

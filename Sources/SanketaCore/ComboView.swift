@@ -14,10 +14,12 @@ public struct ComboRow: Hashable, Sendable {
     public var group: String?
     /// the pack id of an app row; nil for AeroSpace rows
     public var pack: String?
+    /// one or two words for the AeroSpace bar; nil for app rows
+    public var short: String?
     public init(keys: String, action: String, chords: [Chord], muted: Bool = false, clash: Bool = false, layer: String? = nil,
-                command: String? = nil, group: String? = nil, pack: String? = nil) {
+                command: String? = nil, group: String? = nil, pack: String? = nil, short: String? = nil) {
         self.keys = keys; self.action = action; self.chords = chords; self.muted = muted; self.clash = clash; self.layer = layer
-        self.command = command; self.group = group; self.pack = pack
+        self.command = command; self.group = group; self.pack = pack; self.short = short
     }
 }
 
@@ -103,7 +105,7 @@ public struct ComboView: Equatable, Sendable {
             used.formUnion(ms)
             let label = b.chord.mods == mods ? keyLabel(b.chord.key) : b.chord.display(hyperLabel: hyperLabel)
             out.append((b.kind, ComboRow(keys: members == nil ? label : (b.chord.mods == mods ? "" : modsLabel(b.chord.mods, hyperLabel) + " ") + keys, action: action, chords: ms.map { bs[$0].chord }, muted: b.kind == .resize,
-                                         group: String(describing: b.kind)), b))
+                                         group: String(describing: b.kind), short: b.short), b))
         }
         return out
     }
@@ -125,5 +127,38 @@ public struct ComboView: Equatable, Sendable {
             }
             return items.isEmpty ? nil : "\(title) also: " + items.joined(separator: ", ")
         }
+    }
+}
+
+/// The AeroSpace keys of a combo view as one line for the bar under the menu bar: "key word" pairs, a mode name first.
+public struct AeroBar: Equatable, Sendable {
+    public struct Item: Equatable, Sendable {
+        public var keys: String
+        public var word: String
+    }
+    /// "resize mode ·" while an AeroSpace mode is on
+    public var lead: String?
+    public var items: [Item]
+
+    public static let tail = "· AeroSpace"
+    /// the bar wraps to a new line when it is wider than this part of the screen
+    public static let maxShare = 0.8
+
+    /// The AeroSpace rows of `view`, grouped as in the panel, with compact keys ("←↑↓→", "1–9"); nil when it has none.
+    public init?(view: ComboView) {
+        guard !view.aero.isEmpty else { return nil }
+        lead = view.mode == "main" ? nil : "\(view.mode) mode ·"
+        items = view.aero.map { Item(keys: $0.keys.replacingOccurrences(of: " ", with: ""), word: $0.short ?? $0.action) }
+    }
+
+    /// The items of each line, in order: a line takes items while their widths and gaps fit in `max`. An item wider than
+    /// `max` takes a line of its own.
+    public static func wrap(_ widths: [Double], gap: Double, max: Double) -> [[Int]] {
+        var lines = [[Int]](), width = 0.0
+        for (i, w) in widths.enumerated() {
+            if let last = lines.last, !last.isEmpty, width + gap + w <= max { lines[lines.count - 1].append(i); width += gap + w }
+            else { lines.append([i]); width = w }
+        }
+        return lines
     }
 }
