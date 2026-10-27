@@ -1,6 +1,6 @@
 import Foundation
 
-public struct KeyEntry: Codable, Hashable {
+public struct KeyEntry: Codable, Hashable, Sendable {
     public var keys: String
     public var action: String
     public var group: String?
