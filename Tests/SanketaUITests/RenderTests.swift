@@ -20,6 +20,7 @@ struct RenderTests {
         var level = Translucency.medium
         var errors: [PackLoadError] = []
         var tab = false
+        var setup: (@MainActor (PanelModel) -> Void)?
         var size = Theme.panelSize
     }
 
@@ -89,7 +90,7 @@ struct RenderTests {
             Scenario(name: "htop-tmux-high", context: htop, level: .high),
             Scenario(name: "tall-htop-tmux", context: htop, size: CGSize(width: 340, height: 2900)),
             Scenario(name: "htop-tmux-low", context: htop, level: .low),
-        ]
+        ] + comboScenarios(leela)
     }
 
     /// A real load error: a pack in a temp folder with a key that has no `action`.
@@ -132,6 +133,7 @@ struct RenderTests {
         let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 7)
         m.update(s.context)
         m.packErrors = s.errors
+        s.setup?(m)
         let search = SearchModel(pasteboard: NSPasteboard(name: .init("sanketa-shots-\(UUID().uuidString)")))
         search.setSource(library: lib, context: s.context)
         let pc = PanelController(model: m, search: search, hotkeyLabel: "⌃⌥K")
