@@ -180,6 +180,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         }
         m.addItem(withTitle: "Translucency", action: nil, keyEquivalent: "").submenu = tr
         m.addItem(buildHoldMenu())
+        m.addItem(buildAeroModeItem())
         menus.add(to: m)
         m.addItem(.separator())
         for key in VaultToggles.Key.allCases {
@@ -332,6 +333,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     func menuWillOpen(_ menu: NSMenu) {
         guard menu === status?.menu, let item = makePackItem else { return }
         refreshVaultMenu(menu)
+        refreshAeroModeItem(menu)
         switch makePackTarget() {
         case .app(let a): item.title = "Make a Pack for \(appName(a))…"; item.isEnabled = true; item.toolTip = nil
         case .program(let l): item.title = "Make a Pack for \(l.name)…"; item.isEnabled = true; item.toolTip = nil

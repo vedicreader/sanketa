@@ -77,7 +77,7 @@ public struct AeroSpaceConfig: Sendable {
 
     /// Plain words for the first command, with its kind and its workspace or direction.
     public static func describe(_ commands: [String]) -> (action: String, kind: AeroKind, target: String?) {
-        let cmd = commands.first ?? ""
+        let cmd = commands.first { !$0.hasPrefix(AeroSpaceWriter.hookPrefix) } ?? commands.first ?? ""
         let w = cmd.split(whereSeparator: \.isWhitespace).map(String.init), args = Array(w.dropFirst())
         let last = args.last, prev = last == "prev"
         switch w.first {
@@ -103,6 +103,14 @@ public struct AeroSpaceConfig: Sendable {
         default: break
         }
         return (cmd, .other, nil)
+    }
+
+    /// The mode name of `sanketa://aerospace/mode/<name>` (letters, digits, `-` and `_`); nil for any other URL.
+    public static func modeName(_ url: URL) -> String? {
+        guard url.scheme?.lowercased() == "sanketa", url.host?.lowercased() == "aerospace", url.query == nil, url.fragment == nil,
+              url.user == nil, url.port == nil, url.path.hasPrefix("/mode/") else { return nil }
+        let name = String(url.path.dropFirst(6))
+        return AeroSpaceWriter.isSafeName(name) ? name : nil
     }
 
     /// The config file: `~/.aerospace.toml`, else `$XDG_CONFIG_HOME/aerospace/aerospace.toml` (or `~/.config/...`); nil when none exists.

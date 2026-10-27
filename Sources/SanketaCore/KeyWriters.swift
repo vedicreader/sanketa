@@ -139,6 +139,74 @@ public enum AeroSpaceWriter {
         return out
     }
 
+    static let hookPrefix = "exec-and-forget open -g 'sanketa://aerospace/mode/"
+
+    static func isSafeName(_ n: String) -> Bool {
+        !n.isEmpty && n.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+    }
+
+    /// Makes each binding that runs `mode X` also run `exec-and-forget open -g 'sanketa://aerospace/mode/X'`, once; every other byte stays.
+    public static func addModeHook(_ text: String) -> String {
+        var chars = Array(text)
+        var starts = [0]
+        for (i, c) in chars.enumerated() where c.isNewline { starts.append(i + 1) }
+        var edits = [(at: Int, text: String)]()
+        for b in AeroSpaceConfig.parse(text).modes.values.joined() {
+            guard b.line <= starts.count,
+                  let name = b.commands.reversed().lazy.compactMap({ c -> String? in
+                      let w = c.split(whereSeparator: \.isWhitespace)
+                      return w.count == 2 && w[0] == "mode" && isSafeName(String(w[1])) ? String(w[1]) : nil
+                  }).first else { continue }
+            let hook = hookPrefix + name + "'"
+            guard !b.commands.contains(hook), var p = valueStart(chars, from: starts[b.line - 1]) else { continue }
+            let q = "\"\(hook)\""
+            if chars[p] == "[" {
+                var last: Int?
+                p += 1
+                scan: while p < chars.count {
+                    switch chars[p] {
+                    case "]": break scan
+                    case "#": while p < chars.count, !chars[p].isNewline { p += 1 }
+                    case "'", "\"": p = stringEnd(chars, p); last = p
+                    default: p += 1
+                    }
+                }
+                guard p < chars.count, let last else { continue }
+                edits.append((last, ", " + q))
+            } else if chars[p] == "'" || chars[p] == "\"" {
+                edits.append((p, "["))
+                edits.append((stringEnd(chars, p), ", " + q + "]"))
+            }
+        }
+        for e in edits.sorted(by: { $0.at > $1.at }) { chars.insert(contentsOf: e.text, at: e.at) }
+        return String(chars)
+    }
+
+    /// Where the value of the binding on the line that starts at `i` begins.
+    static func valueStart(_ a: [Character], from i: Int) -> Int? {
+        var p = i
+        while p < a.count, a[p] == " " || a[p] == "\t" { p += 1 }
+        if p < a.count, a[p] == "'" || a[p] == "\"" { p = stringEnd(a, p) }
+        while p < a.count, !a[p].isNewline, a[p] != "=" { p += 1 }
+        guard p < a.count, a[p] == "=" else { return nil }
+        p += 1
+        while p < a.count, a[p] == " " || a[p] == "\t" { p += 1 }
+        return p < a.count ? p : nil
+    }
+
+    /// The end (exclusive) of the TOML string that starts at `i`.
+    static func stringEnd(_ a: [Character], _ i: Int) -> Int {
+        let c = a[i], triple = i + 2 < a.count && a[i + 1] == c && a[i + 2] == c
+        var p = i + (triple ? 3 : 1)
+        while p < a.count {
+            if c == "\"", a[p] == "\\" { p += 2; continue }
+            if a[p] == c, !triple || (p + 2 < a.count && a[p + 1] == c && a[p + 2] == c) { return min(p + (triple ? 3 : 1), a.count) }
+            if !triple, a[p].isNewline { return p }
+            p += 1
+        }
+        return a.count
+    }
+
     public static let reloadCandidates = ["/opt/homebrew/bin/aerospace", "/usr/local/bin/aerospace", "~/.local/bin/aerospace"]
 
     /// The reload command line with the first aerospace that `exists`; nil: none.

@@ -23,7 +23,7 @@ extension AppDelegate {
                 .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? .infinity
         }, schedule: { delay, block in DispatchQueue.main.asyncAfter(deadline: .now() + delay) { MainActor.assumeIsolated(block) } })
         d.onShow = { [weak self] in self?.showCombo($0) }
-        d.onHide = { [weak self] in self?.hideCombo() }
+        d.onHide = { [weak self] in if self?.aeroMode == "main" { self?.hideCombo() } }   // a mode view stays until the main link
         hold = d
         let feed: (NSEvent) -> Void = { e in
             let mods = Self.mods(e.modifierFlags), t = e.timestamp

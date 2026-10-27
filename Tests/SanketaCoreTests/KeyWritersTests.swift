@@ -68,6 +68,47 @@ import Testing
     @Test func aerospaceFindsOnlyTheNamedMode() {
         #expect(throws: KeyWriteError.notFound("minus")) { try AeroSpaceWriter.change(aeroSample, mode: "main", from: .aerospace("minus")!, to: .aerospace("equal")!) }
     }
+    @Test func modeHookIsAddedOnce() {
+        let once = AeroSpaceWriter.addModeHook(aeroSample)
+        #expect(once.contains("cmd-alt-ctrl-shift-r = ['mode resize', \"exec-and-forget open -g 'sanketa://aerospace/mode/resize'\"]"))
+        #expect(once.contains("esc = ['mode main', \"exec-and-forget open -g 'sanketa://aerospace/mode/main'\"]"))
+        #expect(AeroSpaceWriter.addModeHook(once) == once)
+        #expect(AeroSpaceConfig.parse(once).modes["main"]!.first { $0.chord.key == "r" }?.kind == .mode)
+    }
+    @Test func modeHookKeepsEveryOtherByte() {
+        let t = "[mode.main.binding]\r\na = 'mode resize' # go\r\nb = 'workspace 1'\r\n[mode.resize.binding]\r\nesc = 'mode main'"
+        let h = { (n: String) in ", \"exec-and-forget open -g 'sanketa://aerospace/mode/\(n)'\"]" }
+        #expect(AeroSpaceWriter.addModeHook(t) == "[mode.main.binding]\r\na = ['mode resize'\(h("resize")) # go\r\nb = 'workspace 1'\r\n[mode.resize.binding]\r\nesc = ['mode main'\(h("main"))")
+    }
+    @Test func modeHookHandlesListsMultiLineValuesAndQuotedKeys() {
+        let t = "[mode.main.binding]\n\"alt-a\" = ['balance-sizes', 'mode apps',]\nalt-b = [\n  'mode service',  # c\n]\nalt-c = '''mode\nresize'''\nalt-d = 'mode a b'\n"
+        let out = AeroSpaceWriter.addModeHook(t)
+        #expect(out.contains("\"alt-a\" = ['balance-sizes', 'mode apps', \"exec-and-forget open -g 'sanketa://aerospace/mode/apps'\",]"))
+        #expect(out.contains("  'mode service', \"exec-and-forget open -g 'sanketa://aerospace/mode/service'\",  # c\n]"))
+        #expect(out.contains("alt-c = ['''mode\nresize''', \"exec-and-forget open -g 'sanketa://aerospace/mode/resize'\"]\n"))
+        #expect(out.hasSuffix("alt-d = 'mode a b'\n"))
+        #expect(AeroSpaceWriter.addModeHook(out) == out)
+        let b = AeroSpaceConfig.parse(out).modes["main"]!
+        #expect(b.map(\.kind) == [.resize, .mode, .mode, .mode] && b.map(\.line) == [2, 3, 6, 8])
+    }
+    @Test func modeHookNeedsASafeName() {
+        let t = "[mode.main.binding]\na = 'mode we!rd'\n"
+        #expect(AeroSpaceWriter.addModeHook(t) == t)
+    }
+    @Test func describeSkipsTheModeHook() {
+        let d = AeroSpaceConfig.describe(["exec-and-forget open -g 'sanketa://aerospace/mode/x'", "mode resize"])
+        #expect(d.kind == .mode && d.target == "resize")
+        #expect(AeroSpaceConfig.describe(["balance-sizes", "exec-and-forget open -g 'sanketa://aerospace/mode/x'"]).kind == .resize)
+    }
+    @Test func modeURLNeedsTheExactForm() {
+        func name(_ s: String) -> String? { URL(string: s).flatMap(AeroSpaceConfig.modeName) }
+        #expect(name("sanketa://aerospace/mode/resize") == "resize")
+        #expect(name("sanketa://aerospace/mode/my-mode_2") == "my-mode_2")
+        for bad in ["sanketa://other/mode/resize", "sanketa://aerospace/modes/resize", "sanketa://aerospace/mode/", "sanketa://aerospace/mode/a%20b",
+                    "sanketa://aerospace/mode/a/b", "sanketa://aerospace/mode/a?x=1", "http://aerospace/mode/resize", "sanketa://aerospace/mode/a;b", "sanketa://aerospace"] {
+            #expect(name(bad) == nil, "\(bad)")
+        }
+    }
     @Test func reloadCommandUsesTheFirstFoundBinary() {
         #expect(AeroSpaceWriter.reloadCommand(exists: { $0 == "/usr/local/bin/aerospace" }) == ["/usr/local/bin/aerospace", "reload-config"])
         #expect(AeroSpaceWriter.reloadCommand(exists: { _ in false }) == nil)

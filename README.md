@@ -67,6 +67,7 @@ The menu-bar icon is a command-key symbol. Its menu has these items:
 - Search (with the hotkey)
 - Translucency: Low, Medium or High
 - Show Keys When Held: All Combos, Caps Only or Off. See "Hold a combo".
+- Show AeroSpace Mode Keys…: shows only when Sanketa finds an AeroSpace file. See "AeroSpace modes".
 - Use OpenAI: turns OpenAI search on or off. When you turn it on, Sanketa looks for the key in the environment, in your login shell and in your Keychain. The next line tells where it found the key, for example "Key: environment". If Sanketa finds no key, the key box opens. Click Save to keep the key in your Keychain and turn OpenAI on. Click Cancel to keep it off.
 - OpenAI Model: the model for OpenAI search, when Use OpenAI is on. The menu shows each model by its name, such as GPT-5 Nano.
 - OpenAI Key…: save an API key for the server in your Keychain
@@ -231,6 +232,12 @@ To choose which combos show their keys, use Show Keys When Held in the menu, or 
 - `all`: any combo of two or more modifier keys (the default)
 - `caps`: only the combo of all four modifier keys, which Caps Lock sends in a Hyper setup
 - `off`: never
+
+#### AeroSpace modes
+
+The keys of an AeroSpace mode, such as `resize`, have no modifier key. So you cannot hold a combo to see them, and AeroSpace does not tell other apps when its mode changes. To fix this, choose Show AeroSpace Mode Keys… in the menu. The item shows only when Sanketa finds an AeroSpace file. Sanketa tells you what it will change, and you click Change or Cancel. Each binding that starts a mode then also opens a link, `sanketa://aerospace/mode/<name>`. Sanketa keeps a copy of the old file as `<file>.sanketa-bak`, and then runs `aerospace reload-config`.
+
+While a mode is on, the panel shows the keys of that mode. It does not take the focus, and a change of modifier keys does not hide it. The panel hides when the `main` mode comes back.
 
 ### Layers and sections
 
