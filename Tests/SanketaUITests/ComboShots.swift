@@ -1,4 +1,5 @@
-import Foundation
+import AppKit
+import Testing
 @testable import SanketaCore
 @testable import SanketaSystem
 @testable import SanketaUI
@@ -107,5 +108,50 @@ extension RenderTests {
                 BarScenario(name: "bar-grouped-wrap", view: view(groupedAeroText), screen: 760),
                 BarScenario(name: "bar-caps", view: view(aeroText)),
                 BarScenario(name: "bar-resize", view: view(aeroText, mods: [], mode: "resize"))]
+    }
+}
+
+/// The panel's own hosting view, as a click pins the held view: the same model calls as the click, and a layout at each
+/// resize, as a visible panel does in `setFrame`. The PNG shows what the user sees after one click.
+extension RenderTests {
+    @Test func drawHeldThenPin() throws {
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.accessory)
+        try FileManager.default.createDirectory(at: Self.out, withIntermediateDirectories: true)
+        var lib = PackLibrary.load(bundled: bundledPacks, user: nil)
+        LeelaKeymap.apply(to: &lib, keysJSON: nil, hyperLabel: "Caps")
+        let leela = Self.scenarios(lib).first { $0.name == "combo-held" }!.context
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        let m = PanelModel(tips: TipStore(url: try tempURL("tips.json")), seed: 7)
+        m.update(leela)
+        let search = SearchModel(pasteboard: NSPasteboard(name: .init("sanketa-shots-\(UUID().uuidString)")))
+        let pc = PanelController(model: m, search: search, hotkeyLabel: "⌃⌥K")
+        defer { pc.panel.orderOut(nil) }
+        pc.panel.appearance = NSAppearance(named: .darkAqua)
+        pc.panel.setFrame(NSRect(origin: .zero, size: CGSize(width: Theme.panelSize.width, height: 560)), display: false)
+        let host = try #require(pc.glass.contentView)
+        func settle() { for _ in 0..<3 { host.layoutSubtreeIfNeeded(); RunLoop.main.run(until: Date().addingTimeInterval(0.05)) } }
+        let o = NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: pc.panel, queue: nil) { _ in
+            MainActor.assumeIsolated { host.layoutSubtreeIfNeeded() }
+        }
+        defer { NotificationCenter.default.removeObserver(o) }
+        Self.comboModel(m, clash: false)   // the held view
+        settle()
+        try write(host, name: "held-then-pin-0-held")
+        m.pinCombo()   // one click in the panel
+        settle()
+        try write(host, name: "held-then-pin-1-pinned")
+        m.hideCombo()   // the let-go of Caps
+        settle()
+        try write(host, name: "held-then-pin-2-let-go")
+    }
+
+    func write(_ v: NSView, name: String) throws {
+        let rep = try #require(v.bitmapImageRepForCachingDisplay(in: v.bounds))
+        NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance { v.cacheDisplay(in: v.bounds, to: rep) }
+        let img = try Self.compose(try #require(rep.cgImage), level: .medium, scale: rep.size.width > 0 ? CGFloat(rep.pixelsWide) / rep.size.width : 1, size: v.bounds.size)
+        let f = Self.out.appendingPathComponent("\(name).png")
+        try NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:])!.write(to: f)
+        print("render output: \(f.path)")
     }
 }

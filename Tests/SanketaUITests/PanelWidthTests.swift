@@ -50,6 +50,31 @@ import Testing
         #expect(pc.panel.frame.width == Theme.panelSize.width)
     }
 
+    /// A visible panel draws in `setFrame`. The frame must change only after the model has the new state, or the
+    /// wide panel draws the held view (one column, "Click to keep this open") and keeps it until the next change.
+    @Test func thePinWidensThePanelAfterTheModelIsPinned() throws {
+        let pc = try controller()
+        let seen = Seen()
+        let o = NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: pc.panel, queue: nil) { _ in
+            MainActor.assumeIsolated { seen.states.append((pc.model.combo != nil, pc.model.comboPinned)) }
+        }
+        defer { NotificationCenter.default.removeObserver(o) }
+        pc.model.showCombo(hyper)
+        pc.model.pinCombo()   // what a click in the panel calls
+        #expect(seen.states.map { "\($0)" } == ["(true, true)"])
+        pc.model.hideCombo()   // the let-go of Caps after the click
+        #expect(pc.model.combo != nil && pc.model.comboPinned && pc.panel.frame.width == Theme.comboSize.width)
+        #expect(ComboPanel.footer(pinned: pc.model.comboPinned) == "Esc or a click outside closes this.")
+        pc.model.unpinCombo()
+        #expect(seen.states.last?.1 == false)   // narrow again only once the pin is off
+        // Change Keys…: the same calls as showYourKeys, from a narrow panel
+        seen.states = []
+        pc.model.comboPinned = false
+        pc.model.showCombo(hyper)
+        pc.model.pinCombo()
+        #expect(seen.states.map { "\($0)" } == ["(true, true)"] && pc.panel.frame.width == Theme.comboSize.width)
+    }
+
     /// The height stays as the user sets it.
     @Test func aResizeKeepsTheHeight() throws {
         let pc = try controller()
@@ -213,3 +238,6 @@ import Testing
         #expect(s.width > 100 && s.height > 10)
     }
 }
+
+/// The model state at each resize of the panel.
+@MainActor final class Seen { var states: [(Bool, Bool)] = [] }

@@ -80,14 +80,16 @@ struct StackState {
     /// Changes when the layer stack changes; the view then scrolls to `scrollTarget` and fades the list in.
     @Published public private(set) var scrollToken = 0
     /// the keys of the combo that the user holds; the panel shows them in place of the list
-    @Published public private(set) var combo: ComboView?
+    @Published public private(set) var combo: ComboView? { didSet { comboSet.send() } }
+    /// Sends after `combo` or `comboPinned` is set. `$combo` sends in willSet: a frame change there draws the old state.
+    public let comboSet = PassthroughSubject<Void, Never>()
     /// the panel was hidden before the hold, so the app hides it again when the hold ends
     public var shownForCombo = false
     public private(set) var comboHyperLabel = "Caps"
     /// false when AeroSpace has no config file: the combo view then has no AeroSpace column
     public private(set) var comboHasAero = true
     /// the user clicked the combo view: it stays after the let-go, and its keys can change
-    @Published public var comboPinned = false
+    @Published public var comboPinned = false { didSet { comboSet.send() } }
     /// the key change that the pinned view shows, and the choices before it (a group row's chords, or which app's key)
     @Published public var editing: KeyEdit?
     @Published public internal(set) var editChoices: [EditChoice] = []
