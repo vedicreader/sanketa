@@ -170,3 +170,46 @@ import Testing
         #expect(!m.canEdit(try #require(m.sanketaRows().first), aero: false))
     }
 }
+
+/// The bar of a real Caps config has items, and it measures more than zero (a zero size kept the bar from showing).
+@MainActor @Suite struct AeroBarShowTests {
+    let hyper = Set(Modifier.allCases)
+    static let toml = """
+    [mode.main.binding]
+    cmd-alt-ctrl-shift-left = 'move left'
+    cmd-alt-ctrl-shift-down = 'move down'
+    cmd-alt-ctrl-shift-up = 'move up'
+    cmd-alt-ctrl-shift-right = 'move right'
+    cmd-alt-ctrl-shift-h = 'focus left'
+    cmd-alt-ctrl-shift-j = 'focus down'
+    cmd-alt-ctrl-shift-k = 'focus up'
+    cmd-alt-ctrl-shift-l = 'focus right'
+    cmd-alt-ctrl-shift-1 = 'workspace 1'
+    cmd-alt-ctrl-shift-2 = 'workspace 2'
+    cmd-alt-ctrl-shift-tab = 'workspace-back-and-forth'
+    cmd-alt-ctrl-shift-s = 'workspace next'
+    cmd-alt-ctrl-shift-f = 'fullscreen'
+    cmd-alt-ctrl-shift-t = 'layout floating tiling'
+    cmd-alt-ctrl-shift-r = 'mode resize'
+    [mode.resize.binding]
+    esc = 'mode main'
+    """
+
+    func view() -> ComboView {
+        ComboView.build(mods: hyper, mode: "main", aero: .parse(Self.toml), appName: "Kaku", apps: [], hyperLabel: "Caps")
+    }
+
+    @Test func aHyperConfigGivesABar() throws {
+        let bar = try #require(AeroBar(view: view()))
+        #expect(bar.items.count > 3)
+    }
+
+    @Test func theBarMeasuresMoreThanZero() throws {
+        _ = NSApplication.shared
+        let b = AeroBarController(model: PanelModel(tips: TipStore(url: try tempURL("tips.json"))))
+        let bar = try #require(AeroBar(view: view()))
+        b.host.rootView = AeroBarView(bar: bar, maxWidth: 1100, translucency: .medium)
+        let s = AeroBarController.fitting(b.host)
+        #expect(s.width > 100 && s.height > 10)
+    }
+}

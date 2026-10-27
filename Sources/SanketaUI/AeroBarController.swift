@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import os
 import SwiftUI
 import SanketaCore
 
@@ -21,6 +22,8 @@ final class AeroBarPanel: NSPanel {
     var subs = Set<AnyCancellable>()
     /// the space between the menu bar and the bar
     public static let gap: CGFloat = 6
+    /// read with: log stream --predicate 'subsystem == "dev.sanketa"'
+    public static let log = Logger(subsystem: "dev.sanketa", category: "bar")
 
     public init(model: PanelModel) {
         self.model = model
@@ -54,16 +57,20 @@ final class AeroBarPanel: NSPanel {
 
     /// Shows `bar`, or hides for nil, without the focus. A pinned combo view keeps the bar hidden.
     public func show(_ bar: AeroBar?) {
-        guard let bar, !model.comboPinned else { return hide() }
-        self.bar = bar
+        guard let bar else { Self.log.debug("bar skip: no AeroSpace keys for this combo"); return hide() }
+        guard !model.comboPinned else { Self.log.debug("bar skip: the combo view is pinned"); return hide() }
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
         let vf = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 875)
         let maxWidth = (vf.width * AeroBar.maxShare).rounded(.down)
         host.rootView = AeroBarView(bar: bar, maxWidth: maxWidth, translucency: model.translucency)
         let size = Self.fitting(host)
+        guard size.width > 0, size.height > 0 else { Self.log.error("bar skip: the bar measures \(size.width)x\(size.height)"); return hide() }
+        self.bar = bar
         glass.cornerRadius = min(size.height / 2, 16)
-        panel.setFrame(Self.frame(size: size, visible: vf), display: false)
+        let f = Self.frame(size: size, visible: vf)
+        panel.setFrame(f, display: false)
         panel.orderFrontRegardless()
+        Self.log.debug("bar show: \(bar.items.count) items at \(f.debugDescription)")
     }
 
     public func hide() {
@@ -76,8 +83,9 @@ final class AeroBarPanel: NSPanel {
         NSRect(x: (vf.midX - size.width / 2).rounded(), y: vf.maxY - gap - size.height, width: size.width, height: size.height)
     }
 
+    /// The size the view asks for. Not `fittingSize`: with no `sizingOptions` the host has no constraints, so that is zero.
     static func fitting(_ host: NSHostingView<AeroBarView>) -> CGSize {
-        let s = host.fittingSize
+        let s = NSHostingController(rootView: host.rootView).sizeThatFits(in: CGSize(width: CGFloat.infinity, height: .infinity))
         return CGSize(width: ceil(s.width), height: ceil(s.height))
     }
 }

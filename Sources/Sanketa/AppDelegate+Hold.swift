@@ -56,8 +56,11 @@ extension AppDelegate {
     /// only in the bar. A pinned view stays: a hold does not change it. `force`: an explicit command works also when the
     /// panel has the focus. `bar`: false when the view is pinned at once, so the bar does not flash.
     func showCombo(_ mods: Set<Modifier>, force: Bool = false, bar showsBar: Bool = true) {
-        guard !panel.searching, force || !panel.panel.isKeyWindow, !model.comboPinned else { return }
+        guard !panel.searching, force || !panel.panel.isKeyWindow, !model.comboPinned else {
+            return AeroBarController.log.debug("bar skip: searching \(self.panel.searching), panel key \(self.panel.panel.isKeyWindow), pinned \(self.model.comboPinned)")
+        }
         let v = comboView(mods)
+        if showsBar, v.aero.isEmpty { AeroBarController.log.debug("bar skip: AeroSpace config \(self.aero == nil ? "not read" : "has no keys for this combo"), mode \(self.aeroMode)") }
         bar.show(showsBar ? AeroBar(view: v) : nil)
         if mods.isEmpty, aeroMode != "main" { return hidePanelCombo() }
         if !panel.isVisible { model.shownForCombo = true; panel.show() }
