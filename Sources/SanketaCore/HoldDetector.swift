@@ -16,13 +16,14 @@ public final class HoldDetector {
     public var onShow: ((Set<Modifier>) -> Void)?
     public var onHide: (() -> Void)?
     public private(set) var showing: Set<Modifier>?
-    private let delay: TimeInterval
+    /// How long the combo must stay held, with no key, click or scroll, before the keys show.
+    public var delay: TimeInterval
     private let sinceInput: () -> TimeInterval
     private let schedule: (TimeInterval, @escaping () -> Void) -> Void
     private var mods: Set<Modifier> = []
     private var wait = 0
 
-    public init(delay: TimeInterval = 0.4, setting: HoldSetting, sinceInput: @escaping () -> TimeInterval,
+    public init(delay: TimeInterval = Config.dfltHoldDelay, setting: HoldSetting, sinceInput: @escaping () -> TimeInterval,
                 schedule: @escaping (TimeInterval, @escaping () -> Void) -> Void) {
         self.delay = delay; self.setting = setting; self.sinceInput = sinceInput; self.schedule = schedule
     }

@@ -236,6 +236,8 @@ To choose which combos show their keys, use Show Keys When Held in the menu, or 
 - `caps`: only the combo of all four modifier keys, which Caps Lock sends in a Hyper setup
 - `off`: never
 
+To change how long you hold the combo before the keys show, set `hold_delay` in seconds, from 0.1 to 2. The default is 0.25. If you press a key, click or scroll in that time, the keys do not show. Thus a fast Caps+arrow does not open the panel.
+
 #### AeroSpace modes
 
 The keys of an AeroSpace mode, such as `resize`, have no modifier key. So you cannot hold a combo to see them, and AeroSpace does not tell other apps when its mode changes. To fix this, choose Show AeroSpace Mode Keys… in the menu. The item shows only when Sanketa finds an AeroSpace file. Sanketa tells you what it will change, and you click Change or Cancel. Each binding that starts a mode then also opens a link, `sanketa://aerospace/mode/<name>`. Sanketa keeps a copy of the old file as `<file>.sanketa-bak`, and then runs `aerospace reload-config`.

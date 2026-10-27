@@ -148,6 +148,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
                 $0.state = $0.representedObject as? String == config.translucency.rawValue ? .on : .off
             }
         }
+        hold?.delay = config.holdDelay
         if config.hold != old.hold {
             hold?.setting = config.hold
             status?.menu?.item(withTitle: "Show Keys When Held")?.submenu?.items.forEach {

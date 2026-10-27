@@ -24,6 +24,14 @@ struct ConfigTests {
         #expect(c.terminals == Config().terminals && c.pollInterval == 1.0)
     }
 
+    @Test func holdDelayDefaultsShortAndStaysInRange() throws {
+        #expect(Config().holdDelay == 0.25)
+        #expect(Config.load(try writeConfig("hold_delay = 0.5\n")).0.holdDelay == 0.5)
+        #expect(Config.load(try writeConfig("hold_delay = 1\n")).0.holdDelay == 1)
+        #expect(Config.load(try writeConfig("hold_delay = 0\n")).0.holdDelay == 0.1)
+        #expect(Config.load(try writeConfig("hold_delay = 9\n")).0.holdDelay == 2)
+    }
+
     @Test func hyperLabelDefaultsToCapsAndIsConfigurable() throws {
         #expect(Config().hyperLabel == "Caps")
         let (c, err, _) = Config.load(try writeConfig("hyper_label = \"Hyper\"\n"))

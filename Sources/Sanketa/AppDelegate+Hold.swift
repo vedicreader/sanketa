@@ -18,7 +18,7 @@ extension AppDelegate {
     }
 
     func startHold() {
-        let d = HoldDetector(setting: config.hold, sinceInput: {
+        let d = HoldDetector(delay: config.holdDelay, setting: config.hold, sinceInput: {
             [CGEventType.keyDown, .leftMouseDown, .rightMouseDown, .scrollWheel]
                 .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? .infinity
         }, schedule: { delay, block in DispatchQueue.main.asyncAfter(deadline: .now() + delay) { MainActor.assumeIsolated(block) } })

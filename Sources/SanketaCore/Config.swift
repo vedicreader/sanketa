@@ -271,6 +271,9 @@ public struct Config: Codable, Equatable {
     public var hyperLabel = "Caps"
     /// Which held modifier combos show their keys.
     public var hold = HoldSetting.all
+    /// Seconds a combo stays held before its keys show, from 0.1 to 2; a key, click or scroll in that time stops the show.
+    public var holdDelay = Config.dfltHoldDelay
+    public static let dfltHoldDelay = 0.25
     public var coach = CoachConfig()
     public var llm = LLMConfig()
     public var vault = VaultConfig()
@@ -280,7 +283,7 @@ public struct Config: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm, vault, abhyasa
-        case hyperLabel = "hyper_label", hold
+        case hyperLabel = "hyper_label", hold, holdDelay = "hold_delay"
     }
 
     public init(from decoder: Decoder) throws {
@@ -295,6 +298,7 @@ public struct Config: Codable, Equatable {
         tipRotateSeconds = try num(.tipRotateSeconds, tipRotateSeconds)
         hyperLabel = try c.decodeIfPresent(String.self, forKey: .hyperLabel) ?? hyperLabel
         hold = (try? c.decodeIfPresent(HoldSetting.self, forKey: .hold)).flatMap { $0 } ?? hold
+        holdDelay = min(2, max(0.1, (try? num(.holdDelay, holdDelay)) ?? holdDelay))
         coach = try c.decodeIfPresent(CoachConfig.self, forKey: .coach) ?? coach
         llm = try c.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? llm
         vault = try c.decodeIfPresent(VaultConfig.self, forKey: .vault) ?? vault
