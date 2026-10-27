@@ -21,7 +21,7 @@ public struct AeroSpaceConfig: Sendable {
     public var modes: [String: [AeroBinding]]
 
     public static func parse(_ text: String) -> AeroSpaceConfig {
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
         var modes = [String: [AeroBinding]](), mode: String?, i = 0
         while i < lines.count {
             let first = i, line = lines[i].trimmingCharacters(in: .whitespaces)
