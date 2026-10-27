@@ -152,7 +152,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         let old = config
         let r = readConfig()
         (config, configError, configNote) = (ConfigRead.next(current: old, loaded: r.config, error: r.error), r.error, r.note)
-        defer { if announce { savedToast(ConfigRead.text(changes: config.changes(from: old), error: configError, note: configNote)) } }
+        defer { if announce { savedToast(ConfigRead.text(changes: config.changes(from: old), error: configError, note: (try? Data(contentsOf: configURL)).flatMap(Config.unknownNote))) } }
         model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
         model.configNote = configNote
         guard config != old else { return }

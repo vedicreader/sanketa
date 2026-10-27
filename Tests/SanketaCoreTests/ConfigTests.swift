@@ -265,6 +265,13 @@ struct ConfigUnknownKeyTests {
         #expect(try note("[x]\nhold_delay = 1\nhotkey = \"a\"\n[x.y]\nz = 1\n").map { $0.contains("x.hold_delay, x.hotkey, x.y.z: hold_delay, hotkey are under [x]. Move them") } == true)
     }
 
+    @Test func theUnknownNoteIsSeparateFromTheMemoryNote() throws {
+        let u = try writeConfig("[llm]\non_device = true\nmlx_model = \"gemma-4-e4b\"\nmodel = \"x\"\n")
+        let footer = try #require(Config.load(u, memory: 8 << 30).note)
+        #expect(footer.contains("needs 16 GB") && footer.hasSuffix("Sanketa does not know llm.model."))
+        #expect(Config.unknownNote(in: try Data(contentsOf: u)) == "Sanketa does not know llm.model.")
+    }
+
     @Test func toastHasTheWarning() {
         let n = "Sanketa does not know keypress.hold_delay: hold_delay is under [keypress]. Move it above the first [table] line."
         #expect(ConfigRead.text(changes: ["hotkey"], error: nil, note: n) == "Sanketa read config.toml: hotkey. " + n)
