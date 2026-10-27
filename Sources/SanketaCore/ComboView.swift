@@ -50,7 +50,12 @@ public struct ComboView: Equatable, Sendable {
     static let keyboard = ["1234567890", "qwertyuiop", "asdfghjkl;'", "zxcvbnm,./"].flatMap { $0.map(String.init) }
     static let arrows = ["left", "up", "down", "right"], vim = ["h", "j", "k", "l"]
 
-    static func keyLabel(_ key: String) -> String { String(KeyNotation.compose([Modifier.cmd.rawValue], key).dropFirst()) }
+    /// The key without its modifiers; a pack range such as "1…⌥9" (from "⌥1…⌥9") shows as "1…9".
+    static func keyLabel(_ key: String) -> String {
+        let one = { (k: String) in String(KeyNotation.compose([Modifier.cmd.rawValue], k).dropFirst()) }
+        let ends = key.components(separatedBy: "…").map { String($0.drop { Modifier(rawValue: String($0)) != nil }) }
+        return ends.count == 2 && !ends.contains("") ? ends.map(one).joined(separator: "…") : one(key)
+    }
 
     /// The modifiers of a combo in Mac order, or the hyper label for all four.
     public static func modsLabel(_ m: Set<Modifier>, _ hyperLabel: String) -> String {

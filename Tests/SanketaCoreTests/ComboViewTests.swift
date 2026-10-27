@@ -37,6 +37,22 @@ import Testing
         #expect(v.aero.first?.command == nil && v.aero.first?.group == "moveTile" && v.aero.first?.pack == nil)
         #expect(AppKeys(layer: "tmux", entries: []).pack == "tmux")
     }
+    @Test func aSingleModifierShowsOnlyItsOwnRows() {
+        let rama = AppKeys(layer: "ramabana", entries: [
+            KeyEntry(keys: "⌥↑", action: "Edit the last message"), KeyEntry(keys: "⌥O", action: "Open"),
+            KeyEntry(keys: "⇧⌥↑", action: "Not this"), KeyEntry(keys: "Caps\u{a0}↑", action: "Not this either"),
+            KeyEntry(keys: "⌃C", action: "Stop"), KeyEntry(keys: "↩", action: "Send")])
+        let v = build("", mods: [.opt], apps: [rama])
+        #expect(v.app.map(\.action) == ["Edit the last message", "Open"])
+        #expect(v.app.map(\.keys) == ["↑", "O"])
+        #expect(v.app.first?.chords == [Chord(mods: [.opt], key: "up")])
+        #expect(ComboView.modsLabel([.opt], "Caps") == "⌥")
+        #expect(build("", mods: [.cmd], apps: [rama]).app.isEmpty)
+        #expect(build("", mods: [.ctrl], apps: [rama]).app.map(\.action) == ["Stop"])
+        let range = AppKeys(layer: "ramabana", entries: [KeyEntry(keys: "⌥1…⌥9", action: "Drill into entry N")])
+        #expect(build("", mods: [.opt], apps: [range]).app.map(\.keys) == ["1…9"])
+        #expect(ComboView.keyLabel("…") == "…" && ComboView.keyLabel("up") == "↑")
+    }
     @Test func otherModeShowsAllItsKeys() {
         let v = ComboView.build(mods: [], mode: "resize", aero: aero, appName: "Kaku", apps: [], hyperLabel: "Caps")
         #expect(v.aero.map(\.keys) == ["-", "esc"])
