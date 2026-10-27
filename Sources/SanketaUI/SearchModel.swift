@@ -57,10 +57,10 @@ public enum SearchScope: Int, CaseIterable, Sendable {
     var extra: [SearchItem] = []
 
     public init(provider: SearchProviding = LocalSearch(), pasteboard: NSPasteboard = .general, smart: SmartSearch? = nil,
-                debounce: TimeInterval = 0.6, vaultDebounce: TimeInterval = 0.2,
+                debounce: TimeInterval = 0.6, vaultDebounce: TimeInterval = 0.2, vaultWait: TimeInterval = SearchModel.paintWait,
                 open: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) }) {
         self.provider = provider; self.pasteboard = pasteboard; self.smart = smart; self.debounce = debounce
-        self.vaultDebounce = vaultDebounce; self.open = open
+        self.vaultDebounce = vaultDebounce; self.vaultWait = vaultWait; self.open = open
     }
 
     /// A new router (config change); the next query uses it.
@@ -124,6 +124,8 @@ public enum SearchScope: Int, CaseIterable, Sendable {
 
     /// The longest time that the first list of a query waits for the vault, after `vaultDebounce`.
     public static let paintWait: TimeInterval = 0.3
+    /// how long a new list waits for the vault; `paintWait` in the app, longer in a test that must see the vault in the first list
+    let vaultWait: TimeInterval
 
     /// ⌘E (1) or ⇧⌘E (-1): the next or the previous scope, All → Shortcuts → Vault → All.
     public func cycleScope(_ by: Int) {
@@ -169,7 +171,7 @@ public enum SearchScope: Int, CaseIterable, Sendable {
         note = nil
         pending = searchVault()
         if pending {
-            let wait = vaultDebounce + Self.paintWait
+            let wait = vaultDebounce + vaultWait
             paintTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(wait))
                 guard !Task.isCancelled else { return }

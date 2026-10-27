@@ -43,7 +43,7 @@ release: bundle
 # download link. The check runs first, so the notes say "notarized" only for an app that has the ticket.
 # stops before the build and the notarization when the release of this version is on GitHub already
 unpublished:
-	if $(GH) release view v$(VERSION) >/dev/null 2>&1; then echo "v$(VERSION) is published already. For a new release, change CFBundleShortVersionString in Resources/Info.plist." >&2; exit 1; fi
+	@if $(GH) release view v$(VERSION) >/dev/null 2>&1; then echo "v$(VERSION) is published already. For a new release, change CFBundleShortVersionString in Resources/Info.plist." >&2; exit 1; fi
 
 publish: unpublished release
 	$(CHECK_NOTARIZED)

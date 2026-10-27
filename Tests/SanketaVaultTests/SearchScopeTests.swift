@@ -25,7 +25,7 @@ private let packs = [SearchItem(packID: "coach", packName: "Better ways", kind: 
                      SearchItem(packID: "tmux", packName: "tmux", kind: .key, title: "Vowel sandhi pane", detail: "prefix v")]
 
 @MainActor private func model(_ v: VaultSearching) -> SearchModel {
-    let s = SearchModel(pasteboard: NSPasteboard(name: .init("sanketa-test-\(UUID().uuidString)")), debounce: 60, vaultDebounce: 0.05)
+    let s = SearchModel(pasteboard: NSPasteboard(name: .init("sanketa-test-\(UUID().uuidString)")), debounce: 60, vaultDebounce: 0.05, vaultWait: 5)   // a busy Mac: the fake vault always joins the first list
     s.setSource(extra: packs)
     s.setVault(v)
     return s

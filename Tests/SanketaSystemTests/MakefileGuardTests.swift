@@ -135,11 +135,12 @@ import Testing
     /// Runs /usr/bin/make on a temp makefile that includes mk/release.mk with harmless stand-ins for codesign,
     /// notarize.sh, stapler and gh (`echo GH-UPLOAD`), on a folder that stands in for the app. `check` replaces the
     /// notarization check; nil keeps the real one (`xcrun stapler validate`, which fails on a folder with no ticket).
-    func releaseMake(_ args: [String], notarize: Int, check: String? = "true",
+    /// `published`: `gh release view` finds the release of this version (it is on GitHub already).
+    func releaseMake(_ args: [String], notarize: Int, check: String? = "true", published: Bool = false,
                      env extra: [String: String] = [:]) async throws -> (status: Int32, out: String, err: String, dir: URL) {
-        try await offPool { try self.releaseMakeNow(args, notarize: notarize, check: check, env: extra) }
+        try await offPool { try self.releaseMakeNow(args, notarize: notarize, check: check, published: published, env: extra) }
     }
-    func releaseMakeNow(_ args: [String], notarize: Int, check: String? = "true",
+    func releaseMakeNow(_ args: [String], notarize: Int, check: String? = "true", published: Bool = false,
                         env extra: [String: String] = [:]) throws -> (status: Int32, out: String, err: String, dir: URL) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sanketa-rel-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -158,7 +159,7 @@ import Testing
         override NOTARIZE := sh -c 'exit \(notarize)' sh
         override STAPLE := :
         \(check.map { "override CHECK_NOTARIZED = \($0)" } ?? "")
-        override GH := echo GH-UPLOAD
+        override GH := sh -c 'if [ "$$1 $$2" = "release view" ]; then exit \(published ? 0 : 1); fi; echo GH-UPLOAD "$$@"' sh
         bundle:
         \tmkdir -p $(APP)/Contents && echo app > $(APP)/Contents/Info.plist
 
@@ -189,6 +190,11 @@ import Testing
         }
         let none = try await releaseMake(["release"], notarize: 3)
         #expect(none.status != 0 && none.err.contains("found no notary credentials"), "\(none.out) \(none.err)")
+
+        let again = try await releaseMake(["publish"], notarize: 0, published: true)
+        #expect(again.status != 0 && again.err.contains("v0.0.0 is published already"), "\(again.out) \(again.err)")
+        #expect(!again.out.contains("GH-UPLOAD") && !again.out.contains("mkdir"), "publish stops before the build: \(again.out)")
+        #expect(!fm.fileExists(atPath: again.dir.appendingPathComponent("dist/notes-0.0.0.md").path))
 
         let ok = try await releaseMake(["publish"], notarize: 0)
         #expect(ok.status == 0, "\(ok.out) \(ok.err)")
