@@ -46,7 +46,7 @@ publish: release
 	printf '%s\n\n%s\n\n%s\n\n%s\n' "Sanketa $(VERSION) for macOS 26 on Apple Silicon. The app has a Developer ID signature, and Apple notarized it." \
 		"To install it, unzip the file and move Sanketa.app to Applications. Then open it and allow Accessibility." \
 		"Sanketa-$(VERSION).zip and Sanketa.zip are the same file. Sanketa.zip has a name that does not change, so the download link in the README always gets the latest release." \
-		"Sanketa needs only the Accessibility permission. It does not monitor input. It uses the network only if you turn on OpenAI search or download the on-device model." > $(NOTES)
+		"Sanketa needs only the Accessibility permission. It does not monitor input. It uses the network only if you turn on OpenAI search, download the on-device model or set up the vault." > $(NOTES)
 	mkdir -p /tmp/sanketa-trash
 	if [ -e $(STABLE_ZIP) ]; then mv $(STABLE_ZIP) /tmp/sanketa-trash/Sanketa.zip-$$$$; fi
 	cp "$$ZIP" $(STABLE_ZIP)
