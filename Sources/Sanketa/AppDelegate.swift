@@ -158,6 +158,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     }
 
     func hotkeyPressed() {
+        resetAeroMode()
         model.hideCombo()   // a search takes the panel: the combo view must not keep it or hide it later
         if panel.searching { return panel.endSearch() }
         panel.beginSearch(previousApp: NSWorkspace.shared.frontmostApplication.flatMap { $0 == .current ? nil : $0 })

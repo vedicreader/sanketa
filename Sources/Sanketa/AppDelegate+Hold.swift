@@ -23,7 +23,11 @@ extension AppDelegate {
                 .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? .infinity
         }, schedule: { delay, block in DispatchQueue.main.asyncAfter(deadline: .now() + delay) { MainActor.assumeIsolated(block) } })
         d.onShow = { [weak self] in self?.showCombo($0) }
-        d.onHide = { [weak self] in if self?.aeroMode == "main" { self?.hideCombo() } }   // a mode view stays until the main link
+        d.onHide = { [weak self] in   // a mode view stays until the main link, and comes back after a hold
+            guard let self else { return }
+            if aeroMode == "main" { hideCombo() } else { showCombo([]) }
+        }
+        panel.onDismiss = { [weak self] in self?.resetAeroMode() }
         hold = d
         let feed: (NSEvent) -> Void = { e in
             let mods = Self.mods(e.modifierFlags), t = e.timestamp
@@ -41,6 +45,7 @@ extension AppDelegate {
     func readAeroSpace() {
         aeroURL = AeroSpaceConfig.url(env: ProcessInfo.processInfo.environment, home: homeDir) { FileManager.default.fileExists(atPath: $0) }
         aero = nil; model.aeroError = nil
+        resetAeroMode()
         guard let u = aeroURL else { return }
         do { aero = AeroSpaceConfig.parse(try String(contentsOf: u, encoding: .utf8)) }
         catch { model.aeroError = PackLoadError(file: u.path, message: "Could not read this file. \(error.localizedDescription)") }

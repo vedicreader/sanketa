@@ -150,7 +150,7 @@ public enum AeroSpaceWriter {
         var chars = Array(text)
         var starts = [0]
         for (i, c) in chars.enumerated() where c.isNewline { starts.append(i + 1) }
-        var edits = [(at: Int, text: String)]()
+        var edits = [(range: Range<Int>, text: String)]()
         for b in AeroSpaceConfig.parse(text).modes.values.joined() {
             guard b.line <= starts.count,
                   let name = b.commands.reversed().lazy.compactMap({ c -> String? in
@@ -161,24 +161,27 @@ public enum AeroSpaceWriter {
             guard !b.commands.contains(hook), var p = valueStart(chars, from: starts[b.line - 1]) else { continue }
             let q = "\"\(hook)\""
             if chars[p] == "[" {
-                var last: Int?
+                var last: Int?, old: Range<Int>?
                 p += 1
                 scan: while p < chars.count {
                     switch chars[p] {
                     case "]": break scan
                     case "#": while p < chars.count, !chars[p].isNewline { p += 1 }
-                    case "'", "\"": p = stringEnd(chars, p); last = p
+                    case "'", "\"":
+                        let s = p
+                        p = stringEnd(chars, p); last = p
+                        if String(chars[s + 1..<max(s + 1, p - 1)]).hasPrefix(hookPrefix) { old = s..<p }
                     default: p += 1
                     }
                 }
                 guard p < chars.count, let last else { continue }
-                edits.append((last, ", " + q))
+                if let old { edits.append((old, q)) } else { edits.append((last..<last, ", " + q)) }
             } else if chars[p] == "'" || chars[p] == "\"" {
-                edits.append((p, "["))
-                edits.append((stringEnd(chars, p), ", " + q + "]"))
+                edits.append((p..<p, "["))
+                edits.append((stringEnd(chars, p)..<stringEnd(chars, p), ", " + q + "]"))
             }
         }
-        for e in edits.sorted(by: { $0.at > $1.at }) { chars.insert(contentsOf: e.text, at: e.at) }
+        for e in edits.sorted(by: { $0.range.lowerBound > $1.range.lowerBound }) { chars.replaceSubrange(e.range, with: e.text) }
         return String(chars)
     }
 

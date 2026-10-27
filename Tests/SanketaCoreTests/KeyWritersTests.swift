@@ -91,6 +91,18 @@ import Testing
         let b = AeroSpaceConfig.parse(out).modes["main"]!
         #expect(b.map(\.kind) == [.resize, .mode, .mode, .mode] && b.map(\.line) == [2, 3, 6, 8])
     }
+    @Test func modeHookReplacesAHookForAnotherName() {
+        let h = { (n: String) in "\"exec-and-forget open -g 'sanketa://aerospace/mode/\(n)'\"" }
+        let t = "[mode.main.binding]\na = ['mode resize', \(h("old"))]\n"
+        let out = AeroSpaceWriter.addModeHook(t)
+        #expect(out == "[mode.main.binding]\na = ['mode resize', \(h("resize"))]\n")
+        #expect(AeroSpaceWriter.addModeHook(out) == out)
+    }
+    @Test func nextModeKnowsOnlyMainAndConfigModes() {
+        #expect(AeroSpaceConfig.nextMode("main", known: [String]()) == "main")
+        #expect(AeroSpaceConfig.nextMode("resize", known: ["main", "resize"]) == "resize")
+        #expect(AeroSpaceConfig.nextMode("zzz", known: ["main", "resize"]) == nil)
+    }
     @Test func modeHookNeedsASafeName() {
         let t = "[mode.main.binding]\na = 'mode we!rd'\n"
         #expect(AeroSpaceWriter.addModeHook(t) == t)

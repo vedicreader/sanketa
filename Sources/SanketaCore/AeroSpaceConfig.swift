@@ -113,6 +113,11 @@ public struct AeroSpaceConfig: Sendable {
         return AeroSpaceWriter.isSafeName(name) ? name : nil
     }
 
+    /// The mode to switch to for a link `name`: `main`, or a mode in `known`; nil for any other name.
+    public static func nextMode(_ name: String, known: some Collection<String>) -> String? {
+        name == "main" || known.contains(name) ? name : nil
+    }
+
     /// The config file: `~/.aerospace.toml`, else `$XDG_CONFIG_HOME/aerospace/aerospace.toml` (or `~/.config/...`); nil when none exists.
     public static func url(env: [String: String], home: URL, fileExists: (String) -> Bool) -> URL? {
         urls(env: env, home: home).first { fileExists($0.path) }

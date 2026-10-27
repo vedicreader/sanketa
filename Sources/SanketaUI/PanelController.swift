@@ -29,6 +29,8 @@ public final class SanketaPanel: NSPanel {
     public let model: PanelModel
     public let search: SearchModel
     public private(set) var searching = false
+    /// The user hid the panel by hand, or pressed Esc in it.
+    public var onDismiss: () -> Void = {}
     var previousApp: NSRunningApplication?
     public var grantAccessibility: () -> Void = {}
     /// opens a pack or config file for editing (a footer line)
@@ -102,7 +104,7 @@ public final class SanketaPanel: NSPanel {
     }
 
     public func toggle() {
-        if panel.isVisible { if searching { endSearch() }; panel.orderOut(nil) } else { show() }
+        if panel.isVisible { if searching { endSearch() }; panel.orderOut(nil); onDismiss() } else { show() }
     }
 
     public func beginSearch(previousApp: NSRunningApplication?) {
@@ -176,7 +178,7 @@ public final class SanketaPanel: NSPanel {
         switch Int(e.keyCode) {
         case kTab:
             if shift && searching { focusField() } else { model.cycleLayer(shift ? -1 : 1) }
-        case kEscape: searching ? endSearch() : handBack(to: Self.frontmostOther)
+        case kEscape: if searching { endSearch() } else { handBack(to: Self.frontmostOther); onDismiss() }
         case kUp: model.listFocused ? model.cycleLayer(-1) : search.move(-1)
         case kDown: model.listFocused ? model.cycleLayer(1) : search.move(1)
         case kReturn: if !model.listFocused, let s = search.activate() { endSearch(refocus: s.open == nil) }
