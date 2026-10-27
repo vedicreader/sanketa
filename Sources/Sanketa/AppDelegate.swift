@@ -56,6 +56,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     var watchers: [FileWatcher] = []
     /// the hold-a-combo detector, the AeroSpace config (nil: no file) and the mode whose keys show (Task 6 sets it)
     var hold: HoldDetector?
+    /// When the last modifier change arrived, in system uptime, for the hold timing log.
+    var lastFlags: TimeInterval = 0
     var aero: AeroSpaceConfig?
     var aeroURL: URL?
     var aeroMode = "main"

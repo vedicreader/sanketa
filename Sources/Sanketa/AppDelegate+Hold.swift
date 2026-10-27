@@ -22,7 +22,13 @@ extension AppDelegate {
             [CGEventType.keyDown, .leftMouseDown, .rightMouseDown, .scrollWheel]
                 .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? .infinity
         }, schedule: { delay, block in DispatchQueue.main.asyncAfter(deadline: .now() + delay) { MainActor.assumeIsolated(block) } })
-        d.onShow = { [weak self] in self?.showCombo($0) }
+        d.onShow = { [weak self] in
+            guard let self else { return }
+            let t0 = ProcessInfo.processInfo.systemUptime
+            showCombo($0)
+            let now = ProcessInfo.processInfo.systemUptime
+            AeroBarController.log.debug("hold show: \(String(format: "%.3f", t0 - self.lastFlags)) s after the last modifier change, the show took \(String(format: "%.3f", now - t0)) s")
+        }
         d.onHide = { [weak self] in   // a mode view stays until the main link, and comes back after a hold
             guard let self else { return }
             if aeroMode == "main" { hideCombo() } else { showCombo([]) }
@@ -30,8 +36,9 @@ extension AppDelegate {
         panel.onDismiss = { [weak self] in self?.resetAeroMode() }
         hold = d
         let feed: (NSEvent) -> Void = { e in
-            let mods = Self.mods(e.modifierFlags), t = e.timestamp
-            MainActor.assumeIsolated { d.flags(mods, at: t) }
+            let mods = Self.mods(e.modifierFlags), t = e.timestamp, now = ProcessInfo.processInfo.systemUptime
+            AeroBarController.log.debug("flags \(mods.map(\.rawValue).sorted().joined()): delivered \(String(format: "%.3f", now - t)) s after the event")
+            MainActor.assumeIsolated { self.lastFlags = now; d.flags(mods, at: t) }
         }
         NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: feed)
         NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { feed($0); return $0 }
