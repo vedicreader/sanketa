@@ -3,10 +3,10 @@ import SanketaCore
 import SanketaSystem
 import SanketaUI
 
-/// Hold a modifier combo and the panel shows its keys: AeroSpace at the left, the front app at the right.
+/// Hold a modifier combo, or ⌃, ⌥ or ⌘ alone, and the panel shows its keys: AeroSpace at the left, the front app at the right.
 /// Sanketa sees only which modifier keys are down, and how long since the last other input.
 extension AppDelegate {
-    static let holdTitles: [(HoldSetting, String)] = [(.all, "All Combos"), (.caps, "Caps Only"), (.off, "Off")]
+    static let holdTitles: [(HoldSetting, String)] = [(.any, "Combos and Single Keys"), (.all, "Combos Only"), (.caps, "Caps Only"), (.off, "Off")]
 
     static func mods(_ f: NSEvent.ModifierFlags) -> Set<Modifier> {
         var m = Set<Modifier>()
@@ -18,10 +18,11 @@ extension AppDelegate {
     }
 
     func startHold() {
-        let d = HoldDetector(delay: config.holdDelay, setting: config.hold, sinceInput: {
+        let d = HoldDetector(delay: config.holdDelay, singleDelay: config.singleDelay, setting: config.hold, sinceInput: {
             [CGEventType.keyDown, .leftMouseDown, .rightMouseDown, .scrollWheel]
                 .map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min() ?? .infinity
         }, schedule: { delay, block in DispatchQueue.main.asyncAfter(deadline: .now() + delay) { MainActor.assumeIsolated(block) } })
+        d.hasKeys = { [weak self] in self?.hasKeys($0) ?? false }
         d.onShow = { [weak self] in
             guard let self else { return }
             let t0 = ProcessInfo.processInfo.systemUptime
@@ -72,6 +73,16 @@ extension AppDelegate {
         if mods.isEmpty, aeroMode != "main" { return hidePanelCombo() }
         if !panel.isVisible { model.shownForCombo = true; panel.show() }
         setCombo(mods, view: v)
+    }
+
+    /// One modifier alone shows only when the front app or AeroSpace has keys for it, so the panel never flashes empty.
+    func hasKeys(_ mods: Set<Modifier>) -> Bool {
+        let v = comboView(mods)
+        if v.app.isEmpty, v.aero.isEmpty {
+            AeroBarController.log.debug("bar skip: \(self.monitor.context.appName, privacy: .public) and AeroSpace have nothing for \(ComboView.modsLabel(mods, self.config.hyperLabel), privacy: .public)")
+            return false
+        }
+        return true
     }
 
     func comboView(_ mods: Set<Modifier>, appName: String? = nil) -> ComboView {

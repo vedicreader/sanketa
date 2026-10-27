@@ -31,6 +31,16 @@ struct ConfigTests {
         #expect(Config.load(try writeConfig("hold_delay = 0\n")).0.holdDelay == 0.1)
         #expect(Config.load(try writeConfig("hold_delay = 9\n")).0.holdDelay == 2)
     }
+    @Test func singleDelayDefaultsLongerAndStaysInRange() throws {
+        #expect(Config().singleDelay == 0.6)
+        #expect(Config.load(try writeConfig("single_delay = 1.2\n")).0.singleDelay == 1.2)
+        #expect(Config.load(try writeConfig("single_delay = 2\n")).0.singleDelay == 2)
+        #expect(Config.load(try writeConfig("single_delay = 0\n")).0.singleDelay == 0.2)
+        #expect(Config.load(try writeConfig("single_delay = 9\n")).0.singleDelay == 3)
+        #expect(Config.load(try writeConfig("single_delay = \"x\"\nhold_delay = 0.5\n")).0.singleDelay == 0.6)
+        #expect(Config.load(try writeConfig("hold = \"any\"\n")).0.hold == .any)
+        #expect(Config.load(try writeConfig("hotkey = \"cmd+k\"\n")).0.hold == .any)
+    }
 
     @Test func hyperLabelDefaultsToCapsAndIsConfigurable() throws {
         #expect(Config().hyperLabel == "Caps")
@@ -243,7 +253,7 @@ struct ConfigUnknownKeyTests {
 
     @Test func aGoodFileHasNoWarning() throws {
         #expect(try note("") == nil)
-        #expect(try note("hotkey = \"cmd+k\"\npollInterval = 2\nhold_delay = 0.5\n[coach]\nmax_entries = 9\n[llm]\napi_key_env = \"X\"\n[vault]\nlearning_url = \"u\"\n[abhyasa]\nurl = \"u\"\n") == nil)
+        #expect(try note("hotkey = \"cmd+k\"\npollInterval = 2\nhold_delay = 0.5\nsingle_delay = 1\n[coach]\nmax_entries = 9\n[llm]\napi_key_env = \"X\"\n[vault]\nlearning_url = \"u\"\n[abhyasa]\nurl = \"u\"\n") == nil)
     }
 
     @Test func anUnknownTopLevelKey() throws {
@@ -286,9 +296,9 @@ struct ConfigReadTests {
         let old = Config()
         #expect(old.changes(from: old).isEmpty)
         var c = old
-        c.holdDelay = 0.5; c.hotkey = "cmd+k"; c.pollInterval = 2; c.tipRotateSeconds = 5; c.hyperLabel = "X"
+        c.holdDelay = 0.5; c.singleDelay = 1; c.hotkey = "cmd+k"; c.pollInterval = 2; c.tipRotateSeconds = 5; c.hyperLabel = "X"
         c.translucency = .low; c.hold = .off; c.terminals = ["a"]
-        #expect(c.changes(from: old) == ["hotkey", "terminals", "pollInterval", "tipRotateSeconds", "translucency", "hyper_label", "hold", "hold_delay"])
+        #expect(c.changes(from: old) == ["hotkey", "terminals", "pollInterval", "tipRotateSeconds", "translucency", "hyper_label", "hold", "hold_delay", "single_delay"])
     }
 
     @Test func aChangeInATableNamesTheTable() {

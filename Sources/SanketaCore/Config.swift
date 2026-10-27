@@ -270,10 +270,13 @@ public struct Config: Codable, Equatable {
     /// How Leela's Hyper (⌃⌥⇧⌘) shows in the panel; Caps Lock sends Hyper on the author's Mac.
     public var hyperLabel = "Caps"
     /// Which held modifier combos show their keys.
-    public var hold = HoldSetting.all
+    public var hold = HoldSetting.any
     /// Seconds a combo stays held before its keys show, from 0.1 to 2; a key, click or scroll in that time stops the show.
     public var holdDelay = Config.dfltHoldDelay
     public static let dfltHoldDelay = 0.25
+    /// Seconds one modifier alone (⌃, ⌥ or ⌘) stays held before its keys show, from 0.2 to 3.
+    public var singleDelay = Config.dfltSingleDelay
+    public static let dfltSingleDelay = 0.6
     public var coach = CoachConfig()
     public var llm = LLMConfig()
     public var vault = VaultConfig()
@@ -283,7 +286,7 @@ public struct Config: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case hotkey, terminals, pollInterval, tipRotateSeconds, translucency, coach, llm, vault, abhyasa
-        case hyperLabel = "hyper_label", hold, holdDelay = "hold_delay"
+        case hyperLabel = "hyper_label", hold, holdDelay = "hold_delay", singleDelay = "single_delay"
     }
 
     public init(from decoder: Decoder) throws {
@@ -299,6 +302,7 @@ public struct Config: Codable, Equatable {
         hyperLabel = try c.decodeIfPresent(String.self, forKey: .hyperLabel) ?? hyperLabel
         hold = (try? c.decodeIfPresent(HoldSetting.self, forKey: .hold)).flatMap { $0 } ?? hold
         holdDelay = min(2, max(0.1, (try? num(.holdDelay, holdDelay)) ?? holdDelay))
+        singleDelay = min(3, max(0.2, (try? num(.singleDelay, singleDelay)) ?? singleDelay))
         coach = try c.decodeIfPresent(CoachConfig.self, forKey: .coach) ?? coach
         llm = try c.decodeIfPresent(LLMConfig.self, forKey: .llm) ?? llm
         vault = try c.decodeIfPresent(VaultConfig.self, forKey: .vault) ?? vault
@@ -445,6 +449,7 @@ extension Config {
             ("pollInterval", pollInterval != old.pollInterval), ("tipRotateSeconds", tipRotateSeconds != old.tipRotateSeconds),
             ("translucency", translucency != old.translucency), ("hyper_label", hyperLabel != old.hyperLabel),
             ("hold", hold != old.hold), ("hold_delay", holdDelay != old.holdDelay),
+            ("single_delay", singleDelay != old.singleDelay),
             ("[coach]", coach != old.coach), ("[llm]", llm != old.llm),
             ("[vault]", vault != old.vault), ("[abhyasa]", abhyasa != old.abhyasa)]
         return all.filter(\.1).map(\.0)

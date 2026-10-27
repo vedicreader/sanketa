@@ -164,6 +164,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             }
         }
         hold?.delay = config.holdDelay
+        hold?.singleDelay = config.singleDelay
         if config.hold != old.hold {
             hold?.setting = config.hold
             status?.menu?.item(withTitle: "Show Keys When Held")?.submenu?.items.forEach {
@@ -488,7 +489,9 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             # tipRotateSeconds = \(c.tipRotateSeconds)
             # translucency = "\(c.translucency.rawValue)"   # low, medium or high
             # hyper_label = "\(c.hyperLabel)"   # how Leela's Hyper key (⌃⌥⇧⌘) shows
-            # hold = "\(c.hold.rawValue)"   # show the keys of a combo that you hold: "all", "caps" or "off"
+            # hold = "\(c.hold.rawValue)"   # show the keys that you hold: "any" (also ⌃, ⌥ or ⌘ alone), "all" (combos only), "caps" or "off"
+            # hold_delay = \(c.holdDelay)   # seconds to hold a combo before its keys show
+            # single_delay = \(c.singleDelay)   # seconds to hold ⌃, ⌥ or ⌘ alone before its keys show
             # terminals = [\(c.terminals.map { "\"\($0)\"" }.joined(separator: ", "))]
 
             # [coach]   # tips from your shell history; Sanketa reads it on this Mac only
