@@ -261,8 +261,16 @@ struct ConfigReadTests {
         #expect(ConfigRead.text(changes: ["a", "b", "c", "d"], error: nil) == "Sanketa read config.toml: a, b, c, d.")
         #expect(ConfigRead.text(changes: ["a", "b", "c", "d", "e", "f"], error: nil) == "Sanketa read config.toml: a, b, c, d, and 2 more.")
         #expect(ConfigRead.text(changes: ["a"], error: "hotkey must be a string")
-                == "Sanketa cannot read config.toml: hotkey must be a string. It uses the default settings.")
-        #expect(ConfigRead.text(changes: [], error: "bad.") == "Sanketa cannot read config.toml: bad. It uses the default settings.")
+                == "Sanketa cannot read config.toml: hotkey must be a string. It keeps the last good settings.")
+        #expect(ConfigRead.text(changes: [], error: "bad.") == "Sanketa cannot read config.toml: bad. It keeps the last good settings.")
+    }
+
+    @Test func anErrorKeepsTheCurrentConfig() {
+        var cur = Config(), new = Config()
+        cur.hotkey = "cmd+k"
+        #expect(ConfigRead.next(current: cur, loaded: Config(), error: "bad").hotkey == "cmd+k")
+        new.hotkey = "cmd+j"
+        #expect(ConfigRead.next(current: cur, loaded: new, error: nil).hotkey == "cmd+j")
     }
 
     @Test func ownWritesStayQuietInsideTheWindow() {

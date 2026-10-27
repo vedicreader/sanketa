@@ -387,7 +387,7 @@ url = "http://127.0.0.1:5077"   # the server, if the app is not installed; [vaul
 
 The hotkey can be a letter, a digit, F1 to F12, `space`, `/`, `.` or `,` with modifiers. An example is `hotkey = "cmd+shift+space"`. If another app uses the same keys, the Search row of Change Keys… says "✕ taken · Change". Click it to pick a different key (see "Change a key").
 
-Sanketa applies the file when you save it. You do not have to restart Sanketa. Sanketa reads config.toml again about 0.3 seconds after each save and shows a toast. "Read Config Again" in the menu does it at once. If the file has an error, Sanketa uses the default settings until you fix it. Open Config opens the file in the app that you set for `.toml` files. If you set no app, it opens in your default text editor.
+Sanketa applies the file when you save it. You do not have to restart Sanketa. Sanketa reads config.toml again about 0.3 seconds after each save and shows a toast. "Read Config Again" in the menu does it at once. If the file has an error, Sanketa keeps the last good settings, or the default settings at start. Open Config opens the file in the app that you set for `.toml` files. If you set no app, it opens in your default text editor.
 
 If you set `mcp_url`, Sanketa uses that vault server and starts no server. Sanketa accepts only an address on this Mac. To start such a server, run the vault server with its `--http` option. It listens on port 8000.
 

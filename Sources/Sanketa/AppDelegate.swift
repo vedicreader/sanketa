@@ -150,7 +150,8 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     /// With `announce`, a toast tells what Sanketa read.
     func reloadConfig(announce: Bool = false) {
         let old = config
-        (config, configError, configNote) = readConfig()
+        let r = readConfig()
+        (config, configError, configNote) = (ConfigRead.next(current: old, loaded: r.config, error: r.error), r.error, r.note)
         defer { if announce { savedToast(ConfigRead.text(changes: config.changes(from: old), error: configError)) } }
         model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
         model.configNote = configNote

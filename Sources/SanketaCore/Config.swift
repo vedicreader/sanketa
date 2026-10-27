@@ -423,9 +423,12 @@ public enum ConfigRead {
         forced || ownWriteUntil.map { now >= $0 } ?? true
     }
 
-    /// The toast text. `error` is the message of a file that did not load; then Sanketa uses the default settings.
+    /// The config to use after a read: the one that loaded, or, when the file has an error, the current one.
+    public static func next(current: Config, loaded: Config, error: String?) -> Config { error == nil ? loaded : current }
+
+    /// The toast text.`error` is the message of a file that did not load; then Sanketa keeps the current settings.
     public static func text(changes: [String], error: String?) -> String {
-        if let error { return "Sanketa cannot read config.toml: \(error.hasSuffix(".") ? String(error.dropLast()) : error). It uses the default settings." }
+        if let error { return "Sanketa cannot read config.toml: \(error.hasSuffix(".") ? String(error.dropLast()) : error). It keeps the last good settings." }
         guard !changes.isEmpty else { return "Sanketa read config.toml. Nothing changed." }
         let shown = changes.prefix(4).joined(separator: ", "), more = changes.count - 4
         return "Sanketa read config.toml: \(shown)\(more > 0 ? ", and \(more) more" : "")."
