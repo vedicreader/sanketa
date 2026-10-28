@@ -93,6 +93,22 @@ struct RenderTests {
             Scenario(name: "tall-htop-tmux", context: htop, size: CGSize(width: 340, height: 2900)),
             Scenario(name: "htop-tmux-low", context: htop, level: .low),
         ] + comboScenarios(leela) + [Scenario(name: "combo-single-ramabana", context: rama) { singleModel($0, mods: [.opt]) }]
+            + keymapScenarios(menu: kaku)
+    }
+
+    /// ramabana with its keys from a keymap file (the test fixture): no context, two contexts, and ⌥ held while a turn runs.
+    static func keymapScenarios(menu: [MenuShortcut]) -> [Scenario] {
+        guard let klib = try? keymapLibrary() else { return [] }
+        func rama(_ context: String?) -> Context {
+            var c = ctx(klib, [(.program, "ramabana", "ramabana", nil), (.shell, "fish", "fish", nil), (.terminal, "Kaku", nil, nil)],
+                        app: "Kaku", bid: "fun.tw93.kaku", menu: menu)
+            c.layers[0].context = context
+            return c
+        }
+        return [Scenario(name: "keymap-ramabana-all", context: rama(nil)),
+                Scenario(name: "keymap-ramabana-running", context: rama("running")),
+                Scenario(name: "keymap-ramabana-approval", context: rama("approval")),
+                Scenario(name: "keymap-combo-ramabana-running", context: rama("running")) { singleModel($0, mods: [.opt]) }]
     }
 
     /// A real load error: a pack in a temp folder with a key that has no `action`.

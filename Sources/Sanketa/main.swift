@@ -10,6 +10,8 @@ let homeDir = ProcessInfo.processInfo.environment["HOME"].flatMap { $0.hasPrefix
 let configDir = homeDir.appendingPathComponent(".config/sanketa")
 let configURL = configDir.appendingPathComponent("config.toml")
 let packsDir = configDir.appendingPathComponent("packs")
+/// the keymap files that apps such as ramabana write (`$SANKETA_KEYMAPS` moves it)
+let keymapsDir = AppKeymap.folder(home: homeDir)
 
 /// `Bundle.main.resourceURL/Packs` in the app; `<repo>/Resources/Packs` under `swift run`.
 func bundledPacks() -> URL {
@@ -18,10 +20,12 @@ func bundledPacks() -> URL {
         .deletingLastPathComponent().appendingPathComponent("Resources/Packs")
 }
 
-/// Bundled and user packs, with Leela's live keymap (keys.json) applied to the `leela` pack.
+/// Bundled and user packs, with Leela's live keymap (keys.json) applied to the `leela` pack and each app's keymap file
+/// to its pack.
 func loadLibrary(config: Config = loadConfig()) -> PackLibrary {
     var lib = PackLibrary.load(bundled: bundledPacks(), user: packsDir)
     LeelaKeymap.apply(to: &lib, keysJSON: LeelaKeymap.defaultURL(), hyperLabel: config.hyperLabel)
+    AppKeymap.apply(to: &lib, folder: keymapsDir, hyperLabel: config.hyperLabel)
     for e in lib.errors { FileHandle.standardError.write(Data("pack error \(e.file): \(e.message)\n".utf8)) }
     return lib
 }

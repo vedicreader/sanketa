@@ -89,7 +89,7 @@ extension AppDelegate {
         ComboView.build(mods: mods, mode: aeroMode, aero: aero, appName: appName ?? monitor.context.appName, apps: comboApps, hyperLabel: config.hyperLabel)
     }
 
-    var comboApps: [AppKeys] { model.sections.map { AppKeys(layer: $0.pack.name, pack: $0.pack.id, entries: $0.groups.flatMap(\.keys)) } }
+    var comboApps: [AppKeys] { PanelModel.comboApps(model.sections) }
 
     /// Builds the view of `mods` from the sections now, with what a key change needs.
     func setCombo(_ mods: Set<Modifier>, appName: String? = nil, view: ComboView? = nil) {

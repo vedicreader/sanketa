@@ -71,8 +71,8 @@ extension RenderTests {
 
     /// One modifier held alone, as the app builds it: the keys of the front sections for `mods`, and no AeroSpace file.
     static func singleModel(_ m: PanelModel, mods: Set<Modifier>) {
-        let apps = m.sections.map { AppKeys(layer: $0.pack.name, pack: $0.pack.id, entries: $0.groups.flatMap(\.keys)) }
-        m.showCombo(ComboView.build(mods: mods, mode: "main", aero: nil, appName: "Kaku", apps: apps, hyperLabel: "Caps"), hyperLabel: "Caps", hasAero: false)
+        m.showCombo(ComboView.build(mods: mods, mode: "main", aero: nil, appName: "Kaku", apps: PanelModel.comboApps(m.sections), hyperLabel: "Caps"),
+                    hyperLabel: "Caps", hasAero: false)
     }
 
     /// The held view is narrow (the app's keys only); the pinned view is wide.

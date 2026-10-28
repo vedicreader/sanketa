@@ -240,11 +240,27 @@ struct StackState {
     }
 
     /// Keys grouped as `groups(_:)`; with an active context its groups come first and the others are out of context.
+    /// Of the groups in the context, those with keys that name it (`context`) come before those in it by group.
     public static func groups(_ p: Pack, context: String?) -> [RowGroup] {
         let all = groups(p.keys)
         guard let context else { return all }
         let inside = all.filter { g in g.keys.contains { p.key($0, isIn: context) } }
-        return inside + all.filter { !inside.contains($0) }.map { var g = $0; g.inContext = false; return g }
+        let named = inside.filter { g in g.keys.contains { $0.context == context } }
+        return named + inside.filter { !named.contains($0) } + all.filter { !inside.contains($0) }.map { var g = $0; g.inContext = false; return g }
+    }
+
+    /// The keys of each section for the combo view. A section from a keymap file with an active context gives only the keys
+    /// of that context, each once.
+    public static func comboApps(_ sections: [LayerSectionData]) -> [AppKeys] {
+        sections.map { s in
+            var keys = s.groups.flatMap(\.keys)
+            if s.pack.keymap != nil {
+                if let c = s.layer.context { keys = keys.filter { s.pack.key($0, isIn: c) } }
+                var seen = Set<String>()
+                keys = keys.filter { seen.insert($0.keys + "\u{1}" + $0.action).inserted }
+            }
+            return AppKeys(layer: s.pack.name, pack: s.pack.id, entries: keys)
+        }
     }
 
     /// The pack with the active context's keys and tips first, so tip cards and search take them first.

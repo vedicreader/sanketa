@@ -52,7 +52,7 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
     var subs = Set<AnyCancellable>()
     var rotation: Timer?
     var searchItem: NSMenuItem?
-    /// Leela's keys.json, the user packs folder and config.toml: a save applies without a restart
+    /// Leela's keys.json, the user packs folder, the keymaps folder and config.toml: a save applies without a restart
     var watchers: [FileWatcher] = []
     /// the hold-a-combo detector, the AeroSpace config (nil: no file) and the mode whose keys show (Task 6 sets it)
     var hold: HoldDetector?
@@ -111,9 +111,11 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         model.configError = configError.map { PackLoadError(file: configURL.path, message: $0) }
         model.configNote = configNote
         try? FileManager.default.createDirectory(at: packsDir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: keymapsDir, withIntermediateDirectories: true)
         let reload: () -> Void = { [weak self] in MainActor.assumeIsolated { self?.reloadPacks() } }
         watchers = [FileWatcher(url: LeelaKeymap.defaultURL(), onChange: reload),
                     FileWatcher(url: packsDir, children: "toml", delay: 0.3, onChange: reload),
+                    FileWatcher(url: keymapsDir, children: "json", delay: 0.3) { [weak self] in MainActor.assumeIsolated { self?.keymapsChanged() } },
                     FileWatcher(url: configURL, delay: 0.3) { [weak self] in MainActor.assumeIsolated { self?.configFileChanged() } }]
         startHold()
         monitor.start()
@@ -463,6 +465,13 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
         catch { configNotSaved(error) }
     }
     @objc func startSearch() { hotkeyPressed() }
+
+    /// An app wrote its keymap file: read the packs again, and tell what changed while the panel shows.
+    func keymapsChanged() {
+        let old = library
+        reloadPacks()
+        if panel.isVisible, let note = AppKeymap.readNote(old: old, new: library) { model.showSaveToast(note) }
+    }
 
     @objc func reloadPacks() {
         library = loadLibrary(config: config)
