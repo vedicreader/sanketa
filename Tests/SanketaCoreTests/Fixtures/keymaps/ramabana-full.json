@@ -1,0 +1,1148 @@
+{
+ "version": 1,
+ "app": "ramabana",
+ "name": "ramabana",
+ "app_version": "0.2.85",
+ "written_by": "ramabana 0.2.85",
+ "written_at": "2026-10-28T03:29:32Z",
+ "contexts": [
+  {
+   "id": "idle",
+   "label": "Waiting for you"
+  },
+  {
+   "id": "typing",
+   "label": "Typing a message"
+  },
+  {
+   "id": "running",
+   "label": "While a turn runs"
+  },
+  {
+   "id": "waiting",
+   "label": "Messages waiting for the turn"
+  },
+  {
+   "id": "approval",
+   "label": "Asking for approval"
+  },
+  {
+   "id": "python",
+   "label": "Python mode"
+  },
+  {
+   "id": "transcript",
+   "label": "Browsing the transcript"
+  },
+  {
+   "id": "tasks",
+   "label": "The background task list"
+  }
+ ],
+ "keys": [
+  {
+   "action": "keys",
+   "chords": [
+    "?"
+   ],
+   "label": "On an empty prompt, show every key",
+   "group": "Help",
+   "context": "idle"
+  },
+  {
+   "action": "send",
+   "chords": [
+    "enter"
+   ],
+   "label": "Send, or steer mid-turn",
+   "group": "Composer"
+  },
+  {
+   "action": "queue",
+   "chords": [
+    "alt+enter",
+    "shift+enter"
+   ],
+   "label": "Queue for after this turn",
+   "group": "Composer",
+   "context": "running"
+  },
+  {
+   "action": "steer_queued",
+   "chords": [
+    "enter"
+   ],
+   "label": "On an empty line, steer the queued message in",
+   "group": "Composer",
+   "context": "waiting"
+  },
+  {
+   "action": "recall_one",
+   "chords": [
+    "up"
+   ],
+   "label": "Take back the newest waiting message",
+   "group": "Composer",
+   "context": "waiting"
+  },
+  {
+   "action": "recall_all",
+   "chords": [
+    "alt+up"
+   ],
+   "label": "Take every waiting message back into the composer",
+   "group": "Composer",
+   "context": "waiting"
+  },
+  {
+   "action": "complete",
+   "chords": [
+    "tab"
+   ],
+   "label": "Complete /commands and @paths",
+   "group": "Composer",
+   "context": "typing"
+  },
+  {
+   "action": "history",
+   "chords": [
+    "ctrl+p",
+    "ctrl+n"
+   ],
+   "label": "Walk back and forward through sent prompts",
+   "group": "Composer"
+  },
+  {
+   "action": "transcript",
+   "chords": [
+    "ctrl+r"
+   ],
+   "label": "Browse the transcript",
+   "group": "Transcript"
+  },
+  {
+   "action": "browse",
+   "chords": [
+    "up",
+    "down"
+   ],
+   "label": "Browse it from an empty prompt",
+   "group": "Transcript",
+   "context": [
+    "idle",
+    "running"
+   ]
+  },
+  {
+   "action": "tasks",
+   "chords": [
+    "ctrl+l"
+   ],
+   "label": "List background shells, sub-agents and watches",
+   "group": "Turn"
+  },
+  {
+   "action": "plan",
+   "chords": [
+    "ctrl+t"
+   ],
+   "label": "Show or hide the plan",
+   "group": "Turn"
+  },
+  {
+   "action": "stop",
+   "chords": [
+    "ctrl+c"
+   ],
+   "label": "Stop the turn, keeping what is queued and typed",
+   "group": "Turn",
+   "context": "running"
+  },
+  {
+   "action": "clear",
+   "chords": [
+    "ctrl+c"
+   ],
+   "label": "Clear the line",
+   "group": "Composer",
+   "context": "typing"
+  },
+  {
+   "action": "quit",
+   "chords": [
+    "ctrl+d"
+   ],
+   "label": "Quit, on an empty prompt",
+   "group": "Composer",
+   "context": [
+    "idle",
+    "running",
+    "waiting",
+    "python"
+   ]
+  },
+  {
+   "action": "fold",
+   "chords": [
+    "ctrl+o"
+   ],
+   "label": "Fold or open the working rows",
+   "group": "Turn"
+  },
+  {
+   "action": "fold_all",
+   "chords": [
+    "alt+o"
+   ],
+   "label": "Fold or open every turn's working rows",
+   "group": "Turn"
+  },
+  {
+   "action": "open_call",
+   "chords": [
+    "alt+1",
+    "alt+2",
+    "alt+3",
+    "alt+4",
+    "alt+5",
+    "alt+6",
+    "alt+7",
+    "alt+8",
+    "alt+9"
+   ],
+   "label": "Open one tool call in full",
+   "group": "Turn",
+   "range": "1-9"
+  },
+  {
+   "action": "tr_move",
+   "chords": [
+    "up",
+    "down"
+   ],
+   "label": "Move between blocks",
+   "group": "Transcript",
+   "context": "transcript"
+  },
+  {
+   "action": "tr_page",
+   "chords": [
+    "pageup",
+    "pagedown"
+   ],
+   "label": "Page up or down",
+   "group": "Transcript",
+   "context": "transcript"
+  },
+  {
+   "action": "tr_search",
+   "chords": [
+    "/"
+   ],
+   "label": "Search down",
+   "group": "Transcript",
+   "context": "transcript"
+  },
+  {
+   "action": "tr_search_up",
+   "chords": [
+    "?"
+   ],
+   "label": "Search up",
+   "group": "Transcript",
+   "context": "transcript"
+  },
+  {
+   "action": "tr_match",
+   "chords": [
+    "n",
+    "N"
+   ],
+   "label": "Next or previous match",
+   "group": "Transcript",
+   "context": "transcript"
+  },
+  {
+   "action": "tr_ends",
+   "chords": [
+    "g",
+    "G"
+   ],
+   "label": "First or last block",
+   "group": "Transcript",
+   "context": "transcript"
+  },
+  {
+   "action": "copy_block",
+   "chords": [
+    "y"
+   ],
+   "label": "Copy this block",
+   "group": "Transcript",
+   "context": "transcript"
+  },
+  {
+   "action": "tr_compose",
+   "chords": [
+    "i"
+   ],
+   "label": "Write in the composer",
+   "group": "Transcript",
+   "context": "transcript"
+  },
+  {
+   "action": "tr_leave",
+   "chords": [
+    "escape"
+   ],
+   "label": "Leave",
+   "group": "Transcript",
+   "context": "transcript"
+  },
+  {
+   "action": "line_ends",
+   "chords": [
+    "ctrl+a",
+    "ctrl+e"
+   ],
+   "label": "Go to the start or end of the line",
+   "group": "Editing",
+   "context": "typing"
+  },
+  {
+   "action": "cut_line",
+   "chords": [
+    "ctrl+u",
+    "ctrl+k"
+   ],
+   "label": "Cut to the start or end of the line",
+   "group": "Editing",
+   "context": "typing"
+  },
+  {
+   "action": "cut_word",
+   "chords": [
+    "ctrl+w"
+   ],
+   "label": "Cut the word before the cursor",
+   "group": "Editing",
+   "context": "typing"
+  },
+  {
+   "action": "yank",
+   "chords": [
+    "ctrl+y"
+   ],
+   "label": "Paste back what was cut",
+   "group": "Editing",
+   "context": "typing"
+  },
+  {
+   "action": "cmd_at",
+   "chords": [
+    "@path"
+   ],
+   "label": "Attaches a file; tab completes files and folders across the open folders, or from ~/, / or ../ when reading outside them is on",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_at_quoted",
+   "chords": [
+    "@\"a path with spaces\""
+   ],
+   "label": "Attaches a path that has spaces",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_at_folder",
+   "chords": [
+    "@folder/"
+   ],
+   "label": "Attaches its listing",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_attach",
+   "chords": [
+    "/attach PATH"
+   ],
+   "label": "Attaches a file",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_detach",
+   "chords": [
+    "/detach [N]"
+   ],
+   "label": "Drops an attachment",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "attach_image",
+   "chords": [
+    "ctrl+v"
+   ],
+   "label": "Attach the clipboard image",
+   "group": "Composer"
+  },
+  {
+   "action": "cmd_paste",
+   "chords": [
+    "/paste"
+   ],
+   "label": "Attaches the clipboard image",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_note",
+   "chords": [
+    "#note TEXT"
+   ],
+   "label": "Keeps a line for later sessions",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_skill",
+   "chords": [
+    "/SKILL ARGS"
+   ],
+   "label": "Runs a skill or a <cfg>/commands/*.md file ($1..$n, $ARGUMENTS, @path) as a prompt",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_copy",
+   "chords": [
+    "/copy"
+   ],
+   "label": "Copies the last reply",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_copy_turn",
+   "chords": [
+    "/copy turn"
+   ],
+   "label": "Copies all of the turn",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "approve",
+   "chords": [
+    "y",
+    "Y"
+   ],
+   "label": "Approve",
+   "group": "Approval",
+   "context": "approval"
+  },
+  {
+   "action": "refuse",
+   "chords": [
+    "n ⏎"
+   ],
+   "label": "Refuse",
+   "group": "Approval",
+   "command": true,
+   "context": "approval"
+  },
+  {
+   "action": "refuse_why",
+   "chords": [
+    "n: REASON ⏎"
+   ],
+   "label": "Refuse with a reason",
+   "group": "Approval",
+   "command": true,
+   "context": "approval"
+  },
+  {
+   "action": "approve_all",
+   "chords": [
+    "a"
+   ],
+   "label": "Approve all this session",
+   "group": "Approval",
+   "context": "approval"
+  },
+  {
+   "action": "always_allow",
+   "chords": [
+    "A"
+   ],
+   "label": "Always allow this",
+   "group": "Approval",
+   "context": "approval"
+  },
+  {
+   "action": "approve_now",
+   "chords": [
+    "ctrl+y"
+   ],
+   "label": "Approve, whatever is typed",
+   "group": "Approval",
+   "context": "approval"
+  },
+  {
+   "action": "refuse_now",
+   "chords": [
+    "ctrl+c"
+   ],
+   "label": "Refuse",
+   "group": "Approval",
+   "context": "approval"
+  },
+  {
+   "action": "approvals",
+   "chords": [
+    "shift+tab"
+   ],
+   "label": "Cycle approvals: ask, edits, auto, then plan mode",
+   "group": "Turn"
+  },
+  {
+   "action": "stricter",
+   "chords": [
+    "ctrl+g"
+   ],
+   "label": "One step stricter",
+   "group": "Turn"
+  },
+  {
+   "action": "cmd_approve",
+   "chords": [
+    "/approve off|ask|edits|auto"
+   ],
+   "label": "Sets the approval mode",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_shell",
+   "chords": [
+    "!COMMAND"
+   ],
+   "label": "Runs it in the first open folder, in agent mode; the output stays out of the model's context",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_python",
+   "chords": [
+    "/python"
+   ],
+   "label": "Takes the line",
+   "group": "Python",
+   "command": true
+  },
+  {
+   "action": "cmd_agent",
+   "chords": [
+    "/agent"
+   ],
+   "label": "Hands it back",
+   "group": "Python",
+   "command": true
+  },
+  {
+   "action": "cmd_agent_proxy",
+   "chords": [
+    "/agent_proxy"
+   ],
+   "label": "Exposes the owner agent",
+   "group": "Python",
+   "command": true
+  },
+  {
+   "action": "run_code",
+   "chords": [
+    "enter"
+   ],
+   "label": "Run what compiles, else add a line",
+   "group": "Python",
+   "context": "python"
+  },
+  {
+   "action": "complete_name",
+   "chords": [
+    "tab"
+   ],
+   "label": "Complete names",
+   "group": "Python",
+   "context": "python"
+  },
+  {
+   "action": "interrupt",
+   "chords": [
+    "ctrl+c"
+   ],
+   "label": "Interrupt the cell",
+   "group": "Python",
+   "context": "python"
+  },
+  {
+   "action": "cmd_vars",
+   "chords": [
+    "/vars"
+   ],
+   "label": "Lists the names the agent has bound",
+   "group": "Python",
+   "command": true
+  },
+  {
+   "action": "cmd_promote",
+   "chords": [
+    "/promote NAME"
+   ],
+   "label": "Adopts one of the agent's variables into your namespace",
+   "group": "Python",
+   "command": true
+  },
+  {
+   "action": "cmd_planmode",
+   "chords": [
+    "/planmode on|off"
+   ],
+   "label": "Withholds every tool that acts and asks for a plan",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_plan",
+   "chords": [
+    "/plan"
+   ],
+   "label": "Shows the plan",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_todo",
+   "chords": [
+    "/todo TEXT"
+   ],
+   "label": "Adds a step",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_todo_state",
+   "chords": [
+    "/todo ID done|active|pending|cancel"
+   ],
+   "label": "Sets a step's state",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_login",
+   "chords": [
+    "/login"
+   ],
+   "label": "Lists the providers",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_login_name",
+   "chords": [
+    "/login NAME"
+   ],
+   "label": "Signs in, or keeps a key or an endpoint",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_config",
+   "chords": [
+    "/config"
+   ],
+   "label": "Shows each setting and where it came from",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_config_set",
+   "chords": [
+    "/config set KEY VALUE"
+   ],
+   "label": "Sets one",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_config_file",
+   "chords": [
+    "/config edit|reset|reload"
+   ],
+   "label": "Edits, resets or reloads the file",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_model_save",
+   "chords": [
+    "/model NAME --save"
+   ],
+   "label": "Switches model and keeps it",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_root",
+   "chords": [
+    "/root"
+   ],
+   "label": "Lists the open folders",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_root_add",
+   "chords": [
+    "/root add PATH"
+   ],
+   "label": "Opens a folder",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_pane",
+   "chords": [
+    "/pane"
+   ],
+   "label": "Shows the agent and sub-agents in a tmux split",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_pane_off",
+   "chords": [
+    "/pane off"
+   ],
+   "label": "Closes it",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_theme",
+   "chords": [
+    "/theme"
+   ],
+   "label": "Lists the palettes",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_theme_name",
+   "chords": [
+    "/theme NAME [--save]"
+   ],
+   "label": "Switches the palette; --save keeps it",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_mouse",
+   "chords": [
+    "/mouse"
+   ],
+   "label": "Clicks blocks on the main screen",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_calm",
+   "chords": [
+    "/calm [on|off]"
+   ],
+   "label": "Folds each stretch of tool calls into one row",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_tasks",
+   "chords": [
+    "/tasks"
+   ],
+   "label": "Lists background shells, sub-agents and watches",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_tips",
+   "chords": [
+    "/tips [on|off] [--save]"
+   ],
+   "label": "Shows one tip while a turn runs",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_tool_budget",
+   "chords": [
+    "/tool-budget"
+   ],
+   "label": "Shows or sets the tool calls a turn may make",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_steps",
+   "chords": [
+    "/steps"
+   ],
+   "label": "Shows or sets the steps a turn may take",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_models",
+   "chords": [
+    "/models"
+   ],
+   "label": "Lists models, their tool channel and effort",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_model",
+   "chords": [
+    "/model NAME"
+   ],
+   "label": "Switches model",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_model_tools",
+   "chords": [
+    "/model tools native|text|auto [--save]"
+   ],
+   "label": "Sets how the turn's tools travel",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_sessions",
+   "chords": [
+    "/sessions [all]"
+   ],
+   "label": "Lists past sessions",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_resume",
+   "chords": [
+    "/resume [ID|latest]"
+   ],
+   "label": "Resumes a session",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_cost",
+   "chords": [
+    "/cost"
+   ],
+   "label": "Shows what the session has cost",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_compact",
+   "chords": [
+    "/compact"
+   ],
+   "label": "Compacts the conversation",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_reload",
+   "chords": [
+    "/reload"
+   ],
+   "label": "Finds skills, extensions and tools again",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_learned",
+   "chords": [
+    "/learned"
+   ],
+   "label": "Lists what Dhrona proposes",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_learned_review",
+   "chords": [
+    "/learned diff|accept|reject ID"
+   ],
+   "label": "Reviews one proposal",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_learned_compact",
+   "chords": [
+    "/learned compact [ID]"
+   ],
+   "label": "Proposes a shorter AGENTS.md, with candidate ID folded in",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_learned_on",
+   "chords": [
+    "/learned on|off"
+   ],
+   "label": "Turns learning on or off for every session",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_subagents",
+   "chords": [
+    "/subagents"
+   ],
+   "label": "Shows every sub-agent setting",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_subagents_on",
+   "chords": [
+    "/subagents on|off"
+   ],
+   "label": "Sets writes",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_subagents_steps",
+   "chords": [
+    "/subagents steps N|auto"
+   ],
+   "label": "Sets their steps",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_subagents_timeout",
+   "chords": [
+    "/subagents timeout S"
+   ],
+   "label": "Sets their timeout",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_subagents_nest",
+   "chords": [
+    "/subagents nest N"
+   ],
+   "label": "Sets how deep they nest",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_subagents_model",
+   "chords": [
+    "/subagents model NAME|default"
+   ],
+   "label": "Sets their model",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_subagents_effort",
+   "chords": [
+    "/subagents effort low|medium|high|xhigh|max|default"
+   ],
+   "label": "Sets their effort",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_subagents_tools",
+   "chords": [
+    "/subagents tools native|text|auto"
+   ],
+   "label": "Sets how their tools travel",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_talk",
+   "chords": [
+    "/talk RUN"
+   ],
+   "label": "Aims typed lines at a running sub-agent, an id prefix being enough",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_talk_main",
+   "chords": [
+    "/talk",
+    "/talk main"
+   ],
+   "label": "Aims them at the main agent again",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_peers",
+   "chords": [
+    "/peers"
+   ],
+   "label": "Lists the other live sessions, numbered, most recently active first",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_tell",
+   "chords": [
+    "/tell N TEXT"
+   ],
+   "label": "Steers session N",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_tell_prompt",
+   "chords": [
+    "/tell N --prompt TEXT"
+   ],
+   "label": "Starts or queues a turn there",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_tell_ask",
+   "chords": [
+    "/tell N --ask TEXT"
+   ],
+   "label": "Asks it for work, and its user says yes first",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_tell_aim",
+   "chords": [
+    "/tell N"
+   ],
+   "label": "Aims typed lines at it",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_tell_main",
+   "chords": [
+    "/tell",
+    "/tell main"
+   ],
+   "label": "Aims them back here",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_together",
+   "chords": [
+    "/together on [--with A,B] [--until HH:MM]"
+   ],
+   "label": "Runs the asks of partners without asking you",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "cmd_together_off",
+   "chords": [
+    "/together off|status"
+   ],
+   "label": "Ends it or shows it",
+   "group": "Commands",
+   "command": true
+  },
+  {
+   "action": "task_move",
+   "chords": [
+    "up",
+    "down",
+    "left",
+    "right"
+   ],
+   "label": "Move",
+   "group": "Tasks",
+   "context": "tasks"
+  },
+  {
+   "action": "task_row",
+   "chords": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9"
+   ],
+   "label": "Go to that row",
+   "group": "Tasks",
+   "context": "tasks",
+   "range": "1-9"
+  },
+  {
+   "action": "task_open",
+   "chords": [
+    "enter"
+   ],
+   "label": "Open it",
+   "group": "Tasks",
+   "context": "tasks"
+  },
+  {
+   "action": "task_stop",
+   "chords": [
+    "x"
+   ],
+   "label": "Stop it, once y confirms",
+   "group": "Tasks",
+   "context": "tasks"
+  },
+  {
+   "action": "task_confirm",
+   "chords": [
+    "y"
+   ],
+   "label": "Confirm the stop",
+   "group": "Tasks",
+   "context": "tasks"
+  },
+  {
+   "action": "task_close",
+   "chords": [
+    "escape",
+    "ctrl+c"
+   ],
+   "label": "Back",
+   "group": "Tasks",
+   "context": "tasks"
+  }
+ ]
+}

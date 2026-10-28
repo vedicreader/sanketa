@@ -179,4 +179,20 @@ import Testing
         #expect(out.map(\.context) == ["approval", nil])
         #expect(LayerResolver.applyContexts(layers, packs: [p, nil], title: "~/code — fish")[0].context == nil)
     }
+
+    /// The whole file that ramabana writes (0.2.84 and later, with `app_version`), and each state its window title names.
+    @Test func ramabanasFullFileGivesEveryTitleState() throws {
+        let url = Bundle.module.resourceURL!.appendingPathComponent("Fixtures/keymaps/ramabana-full.json")
+        let full = try String(contentsOf: url, encoding: .utf8)
+        let m = try parse(full)
+        let states = ["idle", "typing", "running", "waiting", "approval", "python", "transcript", "tasks"]
+        #expect(m.app == "ramabana" && m.skipped == 0 && m.contexts.map(\.id) == states)
+        let lib = try load(["ramabana.json": full])
+        #expect(lib.errors.isEmpty)
+        let p = try #require(lib.packs["ramabana"])
+        for s in states {
+            #expect(p.activeContext(title: "ramabana · \(s)")?.name == s)
+            #expect(p.activeContext(title: "1: ramabana · \(s)")?.name == s)    // a tmux or tab prefix before the title
+        }
+    }
 }
