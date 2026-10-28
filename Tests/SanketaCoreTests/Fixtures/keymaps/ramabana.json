@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "app": "ramabana",
+  "name": "ramabana",
+  "written_by": "ramabana 0.2.83",
+  "written_at": "2026-10-28T01:23:30Z",
+  "contexts": [
+    {"id": "idle", "label": "Waiting for you"},
+    {"id": "typing", "label": "Typing a message"},
+    {"id": "running", "label": "While a turn runs"},
+    {"id": "approval", "label": "Asking for approval"}
+  ],
+  "keys": [
+    {"action": "keys", "chords": ["?"], "label": "On an empty prompt, show every key", "group": "Help", "context": "idle"},
+    {"action": "send", "chords": ["enter"], "label": "Send, or steer mid-turn", "group": "Composer"},
+    {"action": "queue", "chords": ["alt+enter", "shift+enter"], "label": "Queue for after this turn", "group": "Composer", "context": "running"},
+    {"action": "history", "chords": ["ctrl+p", "ctrl+n"], "label": "Walk back and forward through sent prompts", "group": "Composer"},
+    {"action": "browse", "chords": ["up", "down"], "label": "Browse it from an empty prompt", "group": "Transcript", "context": ["idle", "running"]},
+    {"action": "stop", "chords": ["ctrl+c"], "label": "Stop the turn, keeping what is queued and typed", "group": "Turn", "context": "running"},
+    {"action": "clear", "chords": ["ctrl+c"], "label": "Clear the line", "group": "Composer", "context": "typing"},
+    {"action": "quit", "chords": ["ctrl+d"], "label": "Quit, on an empty prompt", "group": "Composer", "context": ["idle", "running"]},
+    {"action": "fold_all", "chords": ["alt+o"], "label": "Fold or open every turn's working rows", "group": "Turn"},
+    {"action": "open_call", "chords": ["alt+1", "alt+2", "alt+3", "alt+4", "alt+5", "alt+6", "alt+7", "alt+8", "alt+9"], "label": "Open one tool call in full", "group": "Turn", "range": "1-9"},
+    {"action": "tr_match", "chords": ["n", "N"], "label": "Next or previous match", "group": "Transcript", "context": "transcript"},
+    {"action": "tr_leave", "chords": ["escape"], "label": "Leave", "group": "Transcript", "context": "transcript"},
+    {"action": "approve", "chords": ["y", "Y"], "label": "Approve", "group": "Approval", "context": "approval"},
+    {"action": "refuse", "chords": ["n ⏎"], "label": "Refuse", "group": "Approval", "command": true, "context": "approval"},
+    {"action": "refuse_now", "chords": ["ctrl+c"], "label": "Refuse", "group": "Approval", "context": "approval"},
+    {"action": "cmd_peers", "chords": ["/peers"], "label": "Lists the other live sessions, numbered, most recently active first", "group": "Commands", "command": true},
+    {"action": "cmd_talk_main", "chords": ["/talk", "/talk main"], "label": "Aims them at the main agent again", "group": "Commands", "command": true}
+  ]
+}

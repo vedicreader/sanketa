@@ -83,6 +83,8 @@ public struct Pack: Codable, Hashable {
     /// True only for a pack read from TOML (bundled or user), and so for its live tmux merge. Only its entries
     /// may go to a remote model; packs made in code (menu keys) stay false.
     public var fromTOML = false
+    /// the keymap file that gave this pack its keys (see `AppKeymap`); nil when the keys are the pack's own
+    public var keymap: String? = nil
 
     public static let browsers = ["com.google.Chrome", "com.apple.Safari", "company.thebrowser.Browser"]
 
