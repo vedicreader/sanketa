@@ -433,6 +433,12 @@ The Leela pack holds the default keys of Leela. Sanketa reads your Leela keymap,
 
 When Leela changes `keys.json`, the panel reads the file again.
 
+### Keymap files
+
+An app can write its keys to `~/.config/sanketa/keymaps/<app>.json` (format 1). ramabana does this when it starts. If you set `$SANKETA_KEYMAPS`, Sanketa reads that folder. When the `app` in the file is the `id` of a pack, the keys come from the file, and the pack still finds the app. If there is no file, the pack keys show. Sanketa reads the file again when the app changes it, and it never writes the file. If Sanketa cannot read a file, the footer shows one line, and the pack keys show.
+
+The panel groups the keys by the app's contexts, such as "While a turn runs". If the window title shows the context, for example `ramabana · running`, the keys for that context come first, and a held modifier shows only those keys.
+
 ## Remote hosts
 
 When you use ssh, Sanketa sees only the local `ssh` process. To see the layers on the remote host, run this command one time for each host:
