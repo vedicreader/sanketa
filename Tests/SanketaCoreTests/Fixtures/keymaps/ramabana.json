@@ -8,7 +8,8 @@
     {"id": "idle", "label": "Waiting for you"},
     {"id": "typing", "label": "Typing a message"},
     {"id": "running", "label": "While a turn runs"},
-    {"id": "approval", "label": "Asking for approval"}
+    {"id": "approval", "label": "Asking for approval"},
+    {"id": "transcript", "label": "Browsing the transcript"}
   ],
   "keys": [
     {"action": "keys", "chords": ["?"], "label": "On an empty prompt, show every key", "group": "Help", "context": "idle"},

@@ -19,7 +19,7 @@ import Testing
     @Test func readsRowsInMacSymbols() throws {
         let m = try parse(text)
         #expect(m.app == "ramabana" && m.writtenBy == "ramabana 0.2.83" && m.skipped == 0)
-        #expect(m.contexts.map(\.id) == ["idle", "typing", "running", "approval"])
+        #expect(m.contexts.map(\.id) == ["idle", "typing", "running", "approval", "transcript"])
         #expect(m.contexts[2].label == "While a turn runs")
         func keys(_ a: String) -> String? { m.rows.first { $0.action == a }?.keys }
         #expect(keys("send") == "↩")
@@ -72,7 +72,7 @@ import Testing
         let es = try parse(text).entries
         var groups = [String]()
         for g in es.compactMap(\.group) where !groups.contains(g) { groups.append(g) }
-        #expect(groups == ["Any time", "Waiting for you", "Typing a message", "While a turn runs", "Asking for approval", "transcript", "Commands"])
+        #expect(groups == ["Any time", "Waiting for you", "Typing a message", "While a turn runs", "Asking for approval", "Browsing the transcript", "Commands"])
         #expect(es.filter { $0.action == "Quit, on an empty prompt" }.map(\.context) == ["idle", "running"])
         #expect(es.first { $0.group == "Any time" }?.context == nil)
         #expect(es.first { $0.action == "Refuse" }?.group == "Asking for approval")
@@ -113,6 +113,40 @@ import Testing
 
         let stranger = try load(["nopack.json": text.replacingOccurrences(of: "\"app\": \"ramabana\"", with: "\"app\": \"nopack\"")])
         #expect(stranger.errors.map(\.message) == ["No pack has the id nopack. Sanketa does not use this file"])
+    }
+
+    /// A file with no usable rows must not empty the pack.
+    @Test func aFileWithNoKeysKeepsThePackKeys() throws {
+        for doc in [#"{"version": 1, "app": "ramabana", "keys": []}"#, #"{"version": 1, "app": "ramabana", "keys": [{"action": "a"}]}"#] {
+            let lib = try load(["ramabana.json": doc])
+            #expect(lib.packs["ramabana"] == bundled.packs["ramabana"])
+            #expect(lib.errors.map(\.message) == ["This file has no keys Sanketa can use. It uses the keys of the ramabana pack"])
+        }
+    }
+
+    /// Two files for one app: the first by name gives the keys, the second gets a note.
+    @Test func aSecondFileForTheSameAppIsSkipped() throws {
+        let other = text.replacingOccurrences(of: "\"alt+o\"", with: "\"alt+p\"")
+        let lib = try load(["ramabana.json": text, "ramabana-old.json": other])
+        let p = try #require(lib.packs["ramabana"])
+        #expect(p.keymap?.hasSuffix("/ramabana-old.json") == true && p.keys.contains { $0.keys == "⌥P" })
+        #expect(lib.errors.map(\.message) == ["Another file already gave keys to the ramabana pack. Sanketa does not use this file"])
+        #expect(lib.errors.first?.file.hasSuffix("/ramabana.json") == true)
+    }
+
+    /// Search lists a key with two contexts once, active when one of its contexts is the current one.
+    @Test func searchListsEachKeyOnce() throws {
+        let p = try #require(try load(["ramabana.json": text]).packs["ramabana"])
+        let quit = SearchItem.items(from: p, context: "running").filter { $0.kind == .key && $0.title == "Quit, on an empty prompt" }
+        #expect(quit.count == 1 && quit.first?.active == true)
+        #expect(SearchItem.items(from: p, context: "approval").filter { $0.title == "Quit, on an empty prompt" }.map(\.active) == [false])
+        let keys = SearchItem.items(from: p).filter { $0.kind == .key }
+        #expect(Set(keys.map { $0.detail + $0.title }).count == keys.count)
+    }
+
+    @Test func theTitleRuleTakesCapitalsAndHyphens() throws {
+        let p = try #require(try load(["ramabana.json": text.replacingOccurrences(of: "\"id\": \"idle\"", with: "\"id\": \"Idle-Now\"")]).packs["ramabana"])
+        #expect(p.activeContext(title: "ramabana · Idle-Now")?.name == "Idle-Now")
     }
 
     @Test func theNoteTellsWhichKeysAreNew() throws {

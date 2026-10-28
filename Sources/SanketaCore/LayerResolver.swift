@@ -81,12 +81,12 @@ public struct LayerResolver {
         return [Layer(kind: .app, name: p.name, packID: p.id, reason: "titles of \(p.id) match the window title"), app]
     }
 
-    /// Sets each app or terminal layer's `context` from the window title, and a program's when its pack reads the title
-    /// (a keymap file's app, such as "ramabana · running"). `packs[i]` is the pack of `layers[i]`.
+    /// Sets each app or terminal layer's `context` from the window title, and a program's when its pack comes from a keymap
+    /// file and the title names the context, such as "ramabana · running". `packs[i]` is the pack of `layers[i]`.
     public static func applyContexts(_ layers: [Layer], packs: [Pack?], title: String?) -> [Layer] {
         zip(layers, packs).map { l, p in
             var l = l
-            if l.kind == .app || l.kind == .terminal || (l.kind == .program && p?.titleScope != nil) { l.context = p?.activeContext(title: title)?.name }
+            if l.kind == .app || l.kind == .terminal || (l.kind == .program && p?.keymap != nil) { l.context = p?.activeContext(title: title)?.name }
             return l
         }
     }

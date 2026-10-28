@@ -36,7 +36,7 @@ func ramabanaContext(_ lib: PackLibrary, title: String?) -> Context {
     @Test func noContextShowsEveryContextGroup() throws {
         let (_, s) = try section("~/code — ramabana")
         #expect(s.layer.context == nil)
-        #expect(s.groups.map(\.name) == ["Any time", "Waiting for you", "Typing a message", "While a turn runs", "Asking for approval", "transcript", "Commands"])
+        #expect(s.groups.map(\.name) == ["Any time", "Waiting for you", "Typing a message", "While a turn runs", "Asking for approval", "Browsing the transcript", "Commands"])
         #expect(s.groups.allSatisfy { $0.inContext })
     }
 
@@ -44,7 +44,7 @@ func ramabanaContext(_ lib: PackLibrary, title: String?) -> Context {
     @Test func theCurrentContextComesFirst() throws {
         let (m, s) = try section("ramabana · running")
         #expect(s.layer.context == "running")
-        #expect(s.groups.map(\.name) == ["While a turn runs", "Any time", "Waiting for you", "Typing a message", "Asking for approval", "transcript", "Commands"])
+        #expect(s.groups.map(\.name) == ["While a turn runs", "Any time", "Waiting for you", "Typing a message", "Asking for approval", "Browsing the transcript", "Commands"])
         #expect(s.groups.map(\.inContext) == [true, true, false, false, false, false, false])
         #expect(s.groups.filter { !$0.inContext && $0.folds }.allSatisfy { m.isFolded(s, $0) })
         #expect(!m.isFolded(s, s.groups[0]))

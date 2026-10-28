@@ -40,12 +40,17 @@ public struct SearchItem: Hashable, Identifiable, Sendable {
     /// The text the user types: a tip's snippet or a key's command. A key with no command has nothing to copy.
     public var copyText: String? { kind == .key ? command.flatMap { $0.isEmpty ? nil : $0 } : detail }
 
-    /// The pack's keys and tips; with `context`, those in that pack context are `active`.
+    /// The pack's keys and tips; with `context`, those in that pack context are `active`. A key from a keymap file shows
+    /// once, also when it is in two contexts; it is active when one of them is `context`.
     public static func items(from p: Pack, context: String? = nil) -> [SearchItem] {
         func mark(_ i: SearchItem, _ on: Bool) -> SearchItem { var i = i; i.active = on; return i }
-        return p.keys.map { k in mark(SearchItem(packID: p.id, packName: p.name, kind: .key, title: k.action, detail: k.keys,
-                                                 mayLeave: p.fromTOML && k.staysOnMac != true, command: k.command),
-                                      context.map { p.key(k, isIn: $0) } ?? false) }
+        let keys = p.keymap == nil ? p.keys : p.keys.uniqueKeys()
+        func active(_ k: KeyEntry, _ c: String) -> Bool {
+            p.keymap == nil ? p.key(k, isIn: c) : p.keys.contains { $0.keys == k.keys && $0.action == k.action && p.key($0, isIn: c) }
+        }
+        return keys.map { k in mark(SearchItem(packID: p.id, packName: p.name, kind: .key, title: k.action, detail: k.keys,
+                                               mayLeave: p.fromTOML && k.staysOnMac != true, command: k.command),
+                                    context.map { active(k, $0) } ?? false) }
         + p.tips.map { t in mark(SearchItem(packID: p.id, packName: p.name, kind: .tip, title: t.title, detail: t.snippet,
                                             explain: t.explain, tags: t.tags, mayLeave: p.fromTOML), context.map { p.tip(t, isIn: $0) } ?? false) }
     }

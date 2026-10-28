@@ -256,8 +256,7 @@ struct StackState {
             var keys = s.groups.flatMap(\.keys)
             if s.pack.keymap != nil {
                 if let c = s.layer.context { keys = keys.filter { s.pack.key($0, isIn: c) } }
-                var seen = Set<String>()
-                keys = keys.filter { seen.insert($0.keys + "\u{1}" + $0.action).inserted }
+                keys = keys.uniqueKeys()
             }
             return AppKeys(layer: s.pack.name, pack: s.pack.id, entries: keys)
         }

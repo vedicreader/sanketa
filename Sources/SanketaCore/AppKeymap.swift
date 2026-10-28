@@ -142,11 +142,12 @@ public struct AppKeymap: Equatable, Sendable {
 
     /// The window-title rule for an app's context: the app name, " · ", then the context id.
     public static func titleScope(app: String) -> String {
-        "(?:^|[^A-Za-z0-9_-])" + NSRegularExpression.escapedPattern(for: app) + " · ([a-z][a-z0-9_]*)"
+        "(?:^|[^A-Za-z0-9_-])" + NSRegularExpression.escapedPattern(for: app) + " · ([A-Za-z][A-Za-z0-9_-]*)"
     }
 
     /// Reads every `*.json` file in `folder` and gives its keys to the pack whose id is the file's `app`. A file that
-    /// cannot be read, has an unknown format or names no pack is skipped with one note; that pack keeps its own keys.
+    /// cannot be read, has an unknown format, has no usable keys, names no pack or names a pack that an earlier file gave keys
+    /// to is skipped with one note; that pack keeps the keys it has.
     public static func apply(to lib: inout PackLibrary, folder: URL?, hyperLabel: String = "Caps") {
         guard let folder else { return }
         let files = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
@@ -159,6 +160,8 @@ public struct AppKeymap: Equatable, Sendable {
             do {
                 let m = try parse(data, hyperLabel: hyperLabel)
                 guard let pack = lib.packs[m.app] else { note("No pack has the id \(m.app). Sanketa does not use this file"); continue }
+                guard pack.keymap == nil else { note("Another file already gave keys to the \(pack.name) pack. Sanketa does not use this file"); continue }
+                guard !m.rows.isEmpty else { note("This file has no keys Sanketa can use. It uses the keys of the \(pack.name) pack"); continue }
                 lib.packs[m.app] = m.apply(to: pack, file: f)
                 if m.skipped > 0 { note("Sanketa skipped \(m.skipped) \(m.skipped == 1 ? "row" : "rows") with no action, chords or label") }
             } catch let e as ReadError {
@@ -172,5 +175,13 @@ public struct AppKeymap: Equatable, Sendable {
         let changed = new.packs.values.filter { $0.keymap != nil && old.packs[$0.id]?.keys != $0.keys }.map(\.name).sorted()
         guard !changed.isEmpty else { return nil }
         return "Sanketa read the new keys of \(changed.joined(separator: ", "))."
+    }
+}
+
+public extension Array where Element == KeyEntry {
+    /// Each keys and action once, in order: a keymap row with two contexts is in two groups, but is one key.
+    func uniqueKeys() -> [KeyEntry] {
+        var seen = Set<String>()
+        return filter { seen.insert($0.keys + "\u{1}" + $0.action).inserted }
     }
 }
