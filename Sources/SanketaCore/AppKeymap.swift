@@ -26,6 +26,8 @@ public struct AppKeymap: Equatable, Sendable {
     public var app: String
     public var name: String
     public var writtenBy: String?
+    /// `written_at` (ISO 8601); nil when it is missing or not a date
+    public var writtenAt: Date?
     public var contexts: [Context]
     public var rows: [Row]
     /// rows that had no action, chords or label
@@ -65,7 +67,8 @@ public struct AppKeymap: Equatable, Sendable {
             guard let d = c as? [String: Any], let id = d["id"] as? String, !id.isEmpty else { return nil }
             return Context(id: id, label: (d["label"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? id)
         }
-        var m = AppKeymap(app: app, name: obj["name"] as? String ?? app, writtenBy: obj["written_by"] as? String, contexts: contexts, rows: [])
+        var m = AppKeymap(app: app, name: obj["name"] as? String ?? app, writtenBy: obj["written_by"] as? String,
+                          writtenAt: (obj["written_at"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) }, contexts: contexts, rows: [])
         for k in keys {
             guard let d = k as? [String: Any], let action = d["action"] as? String, let label = d["label"] as? String, !label.isEmpty,
                   case let chords = strings(d["chords"]), !chords.isEmpty else { m.skipped += 1; continue }
@@ -146,13 +149,15 @@ public struct AppKeymap: Equatable, Sendable {
     }
 
     /// Reads every `*.json` file in `folder` and gives its keys to the pack whose id is the file's `app`. A file that
-    /// cannot be read, has an unknown format, has no usable keys, names no pack or names a pack that an earlier file gave keys
-    /// to is skipped with one note; that pack keeps the keys it has.
+    /// cannot be read, has an unknown format, has no usable keys or names no pack is skipped with one note; that pack keeps
+    /// its own keys. When several files name one app, `<app>.json` wins, else the newest `written_at` (else the newest
+    /// file); each other file gets a note.
     public static func apply(to lib: inout PackLibrary, folder: URL?, hyperLabel: String = "Caps") {
         guard let folder else { return }
-        let files = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
+        let files = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [])
             .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasPrefix(".") }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        var found = [(file: URL, map: AppKeymap, at: Date)]()
         for f in files {
             let own = f.deletingPathExtension().lastPathComponent
             func note(_ m: String) { lib.errors.append(PackLoadError(file: f.path, message: m)) }
@@ -160,13 +165,25 @@ public struct AppKeymap: Equatable, Sendable {
             do {
                 let m = try parse(data, hyperLabel: hyperLabel)
                 guard let pack = lib.packs[m.app] else { note("No pack has the id \(m.app). Sanketa does not use this file"); continue }
-                guard pack.keymap == nil else { note("Another file already gave keys to the \(pack.name) pack. Sanketa does not use this file"); continue }
                 guard !m.rows.isEmpty else { note("This file has no keys Sanketa can use. It uses the keys of the \(pack.name) pack"); continue }
-                lib.packs[m.app] = m.apply(to: pack, file: f)
-                if m.skipped > 0 { note("Sanketa skipped \(m.skipped) \(m.skipped == 1 ? "row" : "rows") with no action, chords or label") }
+                let modified = (try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                found.append((f, m, m.writtenAt ?? modified))
             } catch let e as ReadError {
                 note(e.message + (lib.packs[own].map { ". It uses the keys of the \($0.name) pack" } ?? ""))
             } catch { continue }
+        }
+        for app in Set(found.map(\.map.app)).sorted() {
+            let all = found.filter { $0.map.app == app }
+            guard let best = all.first(where: { $0.file.lastPathComponent == app + ".json" }) ?? all.max(by: { $0.at < $1.at }),
+                  let pack = lib.packs[app] else { continue }
+            lib.packs[app] = best.map.apply(to: pack, file: best.file)
+            if best.map.skipped > 0 {
+                let n = best.map.skipped
+                lib.errors.append(PackLoadError(file: best.file.path, message: "Sanketa skipped \(n) \(n == 1 ? "row" : "rows") with no action, chords or label"))
+            }
+            for o in all where o.file != best.file {
+                lib.errors.append(PackLoadError(file: o.file.path, message: "Another file gives keys to the \(pack.name) pack: \(best.file.lastPathComponent). Sanketa does not use this file"))
+            }
         }
     }
 

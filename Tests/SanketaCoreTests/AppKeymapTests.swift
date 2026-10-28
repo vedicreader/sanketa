@@ -19,6 +19,7 @@ import Testing
     @Test func readsRowsInMacSymbols() throws {
         let m = try parse(text)
         #expect(m.app == "ramabana" && m.writtenBy == "ramabana 0.2.83" && m.skipped == 0)
+        #expect(m.writtenAt == ISO8601DateFormatter().date(from: "2026-10-28T01:23:30Z") && m.writtenAt != nil)
         #expect(m.contexts.map(\.id) == ["idle", "typing", "running", "approval", "transcript"])
         #expect(m.contexts[2].label == "While a turn runs")
         func keys(_ a: String) -> String? { m.rows.first { $0.action == a }?.keys }
@@ -124,14 +125,21 @@ import Testing
         }
     }
 
-    /// Two files for one app: the first by name gives the keys, the second gets a note.
-    @Test func aSecondFileForTheSameAppIsSkipped() throws {
-        let other = text.replacingOccurrences(of: "\"alt+o\"", with: "\"alt+p\"")
-        let lib = try load(["ramabana.json": text, "ramabana-old.json": other])
+    /// Several files for one app: `<app>.json` wins, else the newest `written_at`; the others get a note.
+    @Test func theAppsOwnFileOrTheNewestWins() throws {
+        func at(_ t: String, _ chord: String) -> String {
+            text.replacingOccurrences(of: "\"alt+o\"", with: "\"\(chord)\"").replacingOccurrences(of: "2026-10-28T01:23:30Z", with: t)
+        }
+        let lib = try load(["ramabana.json": at("2026-10-01T00:00:00Z", "alt+o"), "ramabana-old.json": at("2026-10-28T09:00:00Z", "alt+p")])
         let p = try #require(lib.packs["ramabana"])
-        #expect(p.keymap?.hasSuffix("/ramabana-old.json") == true && p.keys.contains { $0.keys == "⌥P" })
-        #expect(lib.errors.map(\.message) == ["Another file already gave keys to the ramabana pack. Sanketa does not use this file"])
-        #expect(lib.errors.first?.file.hasSuffix("/ramabana.json") == true)
+        #expect(p.keymap?.hasSuffix("/ramabana.json") == true && p.keys.contains { $0.keys == "⌥O" })
+        #expect(lib.errors.map(\.message) == ["Another file gives keys to the ramabana pack: ramabana.json. Sanketa does not use this file"])
+        #expect(lib.errors.first?.file.hasSuffix("/ramabana-old.json") == true)
+
+        let two = try load(["a.json": at("2026-10-28T09:00:00Z", "alt+p"), "b.json": at("2026-10-01T00:00:00Z", "alt+o")])
+        let q = try #require(two.packs["ramabana"])
+        #expect(q.keymap?.hasSuffix("/a.json") == true && q.keys.contains { $0.keys == "⌥P" })
+        #expect(two.errors.map(\.message) == ["Another file gives keys to the ramabana pack: a.json. Sanketa does not use this file"])
     }
 
     /// Search lists a key with two contexts once, active when one of its contexts is the current one.
