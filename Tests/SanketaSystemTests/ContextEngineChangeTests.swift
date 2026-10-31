@@ -182,6 +182,19 @@ import Testing
         #expect(r.count("ramabana-6a36be8b") == 1, "one tmux list-clients for 10 polls")
     }
 
+    /// Copy Debug Info tells which tty the engine chose and what each tmux server answered, so a wrong stack shows
+    /// where it went wrong.
+    @Test func traceNamesTheTTYAndTheTmuxAnswer() {
+        let r = Runner(), w = World(), e = engine(r, w)
+        _ = kakuCompute(e)
+        #expect(e.trace.lines == ["tty: ttys010", "tmux -L ramabana-6a36be8b clients: ttys010 > ttys000 bash"])
+        let report = DebugInfo.report(version: "t", context: kakuCompute(e), library: PackLibrary(packs: [:]), configPath: "c",
+                                      configError: nil, trace: e.trace.lines)
+        #expect(report.contains("trace:\n  tty: ttys010\n  tmux -L ramabana-6a36be8b clients: ttys010 > ttys000 bash\n"))
+        _ = e.compute(pid: 4242, bundleID: "org.example.app", appName: "App")
+        #expect(e.trace.lines.isEmpty, "an app that is not a terminal has no trace")
+    }
+
     @Test func slowMenuReadIsKeptAndReadOnceMore() {
         let r = Runner(), w = World(), e = engine(r, w)
         w.menuDelay = 0.15                            // slower than `slowMenu`: it may have hit the timeout

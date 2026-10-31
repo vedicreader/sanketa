@@ -557,12 +557,13 @@ let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in:
             ("on-device", l.onDevice ? r.onDevice?.status() ?? .unavailable(mlxReady ? "model not downloaded" : "needs the MLX build") : .off),
             ("Apple Intelligence", l.appleFM ? r.appleFM?.status() ?? .unavailable("not set up") : .off),
         ]
-        let (context, lib, path, err, keys) = (monitor.context, library, configURL.path, configError, l.openai ? llm.keys : nil)
+        let (context, trace, lib, path, err, keys) = (monitor.context, monitor.trace, library, configURL.path, configError, l.openai ? llm.keys : nil)
         func copy(_ source: KeySource?, checked: Bool) -> Int {
             let pb = NSPasteboard.general
             pb.clearContents()
             pb.setString(DebugInfo.report(version: version, context: context, library: lib, configPath: path, configError: err,
-                                          llm: DebugInfo.llmLines(config: l, statuses: statuses, keySource: source, keyChecked: checked)),
+                                          llm: DebugInfo.llmLines(config: l, statuses: statuses, keySource: source, keyChecked: checked),
+                                          trace: trace),
                          forType: .string)
             return pb.changeCount
         }

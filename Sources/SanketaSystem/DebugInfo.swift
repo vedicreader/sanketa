@@ -23,14 +23,15 @@ public enum DebugInfo {
     /// One line for the stack, for `--watch`: `htop › tmux › fish › Kaku`.
     public static func stack(_ c: Context) -> String { c.layers.map(\.name).joined(separator: " › ") }
 
-    /// Version, macOS, config and pack state and the context. No file contents and no pack file names (only their count),
-    /// ssh hosts show as `remote host`, and the home folder shows as `~`.
+    /// Version, macOS, config and pack state, the context and the `trace` (`ContextEngine.trace`). No file contents and no
+    /// pack file names (only their count), ssh hosts show as `remote host`, and the home folder shows as `~`.
     public static func report(version: String, context c: Context, library: PackLibrary, configPath: String, configError: String?,
-                              home: String = NSHomeDirectory(), llm: [String] = []) -> String {
+                              home: String = NSHomeDirectory(), llm: [String] = [], trace: [String] = []) -> String {
         let os = ProcessInfo.processInfo.operatingSystemVersion
         let lines = ["Sanketa \(version) on macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
                      "config: \(configPath)" + (configError.map { " (did not load: \($0))" } ?? ""),
-                     "packs loaded: \(library.packs.count), pack files that did not load: \(library.errors.count)"] + context(c, redact: true) + llm
+                     "packs loaded: \(library.packs.count), pack files that did not load: \(library.errors.count)"] + context(c, redact: true)
+            + (trace.isEmpty ? [] : ["trace:"] + trace.map { "  \($0)" }) + llm
         return tilde(lines.joined(separator: "\n"), home: home) + "\n"
     }
 

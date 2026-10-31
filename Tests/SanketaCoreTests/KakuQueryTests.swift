@@ -50,9 +50,9 @@ import Testing
 
     @Test func parsesTheRealOutput() throws {
         #expect(KakuQuery.focusedPane(clients: try Self.fixture("list-clients"), pid: 28331) == 2)
-        #expect(KakuQuery.paneTTYs(list: try Self.fixture("list")) == [2: "ttys010", 4: "ttys002", 1: "ttys009"])
+        #expect(KakuQuery.shownTTY(list: try Self.fixture("list"), focused: 4, title: nil) == "ttys002")
         #expect(KakuQuery.focusedPane(clients: "not json", pid: 28331) == nil)
-        #expect(KakuQuery.paneTTYs(list: "") == [:])
+        #expect(KakuQuery.shownTTY(list: "", focused: 4, title: nil) == nil)
     }
 
     /// `sh -c … ramabana …/bin/ramabana`: the shell runs ramabana, so its layer is the program ramabana.
@@ -66,7 +66,7 @@ import Testing
 
     @Test func twoWindowsPickTheFocusedTTY() throws {
         let fake = try Self.recorded()
-        let focused = KakuQuery(runner: fake, cli: Self.cli).focusedTTY(pid: 28331)
+        let focused = KakuQuery(runner: fake, cli: Self.cli).focusedTTY(pid: 28331, title: Self.title)
         #expect(focused == "ttys010")
         // only the two read-only list commands, never one that changes Kaku
         #expect(fake.calls.map { Array($0.dropFirst(3)) } == [["list-clients", "--format", "json"], ["list", "--format", "json"]])
@@ -85,7 +85,7 @@ import Testing
 
     @Test func failedCLIFallsBackToTheTitle() throws {
         for fake in [FakeKaku([:]), FakeKaku(["cli --no-auto-start list-clients --format json": try Self.fixture("list-clients")])] {
-            #expect(KakuQuery(runner: fake, cli: Self.cli).focusedTTY(pid: 28331) == nil)
+            #expect(KakuQuery(runner: fake, cli: Self.cli).focusedTTY(pid: 28331, title: Self.title) == nil)
         }
         let r = try resolver()
         // one window, 2 tabs: the `[n/m]` heuristics still work when the CLI gives nothing
@@ -94,5 +94,21 @@ import Testing
         #expect(r.chooseTTY(one, terminalPID: 28331, title: "[2/2] project", focused: nil) == "ttys002")
         // a focused tty that is not one of Kaku's (a stale answer) is ignored
         #expect(r.chooseTTY(one, terminalPID: 28331, title: "[2/2] project", focused: "ttys099") == "ttys002")
+    }
+
+    /// Another program's `kaku cli` command can move Kaku's focused pane to a tab that is not shown. The fixtures:
+    /// window 1 shows tab 2 of 4 (ttys001), but Kaku names pane 91 (tab 3, ttys010). The focused pane picks the window
+    /// and the title's `[n/m]` picks the tab.
+    @Test func theTitlePicksTheTabOfTheFocusedWindow() throws {
+        let fake = FakeKaku(["cli --no-auto-start list-clients --format json": try Self.fixture("list-clients-tabs"),
+                             "cli --no-auto-start list --format json": try Self.fixture("list-tabs")])
+        let kaku = KakuQuery(runner: fake, cli: Self.cli)
+        #expect(kaku.focusedTTY(pid: 28331, title: "[2/4] project·tmux") == "ttys001")
+        #expect(kaku.focusedTTY(pid: 28331, title: "[4/4] project") == "ttys005")
+        // the focused window has 4 tabs; the only window with 1 tab is the one shown
+        #expect(kaku.focusedTTY(pid: 28331, title: "[1/1] project") == "ttys021")
+        // no prefix, or one that fits no window: Kaku's own answer
+        #expect(kaku.focusedTTY(pid: 28331, title: nil) == "ttys010")
+        #expect(kaku.focusedTTY(pid: 28331, title: "[2/3] project") == "ttys010")
     }
 }

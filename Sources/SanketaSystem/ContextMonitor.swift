@@ -17,6 +17,28 @@ public struct Context: Equatable {
     }
 }
 
+/// The lines of the last compute that tell how the engine found the stack, for Copy Debug Info. Shared by copies of a
+/// `ContextEngine`.
+public final class Trace: @unchecked Sendable {
+    private var store: [String] = []
+    private let lock = NSLock()
+    public var lines: [String] { lock.withLock { store } }
+    func set(_ l: [String]) { lock.withLock { store = l } }
+    func add(_ l: String) { lock.withLock { store.append(l) } }
+}
+
+/// Passes each call to `base` and adds each `clients` answer to `trace`.
+struct TracedTmux: TmuxQuerying {
+    let base: TmuxQuerying, trace: Trace
+    func clients(tmux: String, server: [String]) -> [TmuxClient] {
+        let c = base.clients(tmux: tmux, server: server)
+        let answer = c.isEmpty ? "none" : c.map { "\($0.clientTTY) > \($0.paneTTY) \($0.paneCommand)" }.joined(separator: ", ")
+        trace.add((["tmux"] + server).joined(separator: " ") + " clients: " + answer)
+        return c
+    }
+    func liveKeys(tmux: String, server: [String]) -> (prefix: String?, keys: [KeyEntry]) { base.liveKeys(tmux: tmux, server: server) }
+}
+
 /// Time-limited cache shared by copies of a `ContextEngine`.
 final class TTLCache<K: Hashable, V>: @unchecked Sendable {
     let ttl: TimeInterval
@@ -107,6 +129,8 @@ public struct ContextEngine: @unchecked Sendable {
     let kakuFocus = LastAnswer<String, String?>(retry: ContextEngine.kakuRetry) { $0 == nil }
     static let kakuRetry: TimeInterval = 10
     let tmuxClients = TmuxClientStore()
+    /// how the last compute found the stack: the chosen tty and each tmux answer; empty for an app that is not a terminal
+    public let trace = Trace()
     // the outside world; tests put stand-ins here
     var runner: CommandRunning = ProcessRunner()
     var isTrusted: () -> Bool = { AXReader.isTrusted }
@@ -135,11 +159,14 @@ public struct ContextEngine: @unchecked Sendable {
             snap = s
             let w = trusted ? focusedWindow(pid) : nil
             title = w?.title
-            let focused = focusedTTY(pid: pid, bundleID: bundleID, window: w, ttys: s.ttys(under: pid))
-            let tmux = CachedTmux(base: self.tmux, store: tmuxClients, state: CachedTmux.state(s, title: title, window: w?.id))
+            let ttys = s.ttys(under: pid), focused = focusedTTY(pid: pid, bundleID: bundleID, window: w, ttys: ttys)
+            trace.set(["tty: " + (focused ?? "not chosen, \(ttys.count) ttys")])
+            let tmux = TracedTmux(base: CachedTmux(base: self.tmux, store: tmuxClients, state: CachedTmux.state(s, title: title, window: w?.id)),
+                                  trace: trace)
             layers = LayerResolver(library: library, tmux: tmux, remote: remote)
                 .resolve(s, terminal: TerminalContext(pid: pid, bundleID: bundleID, appName: appName, windowTitle: title, focusedTTY: focused))
         } else {
+            trace.set([])
             title = trusted && library.readsTitle(bundleID: bundleID) ? focusedWindow(pid)?.title : nil
             layers = LayerResolver(library: library, tmux: tmux, remote: remote).resolveApp(bundleID: bundleID, name: appName, title: title)
         }
@@ -185,7 +212,7 @@ public struct ContextEngine: @unchecked Sendable {
     func focusedTTY(pid: pid_t, bundleID: String, window: (title: String?, id: Int)?, ttys: [String]) -> String? {
         guard bundleID == "fun.tw93.kaku", ttys.count > 1, let cli = kakuCLI(pid) else { return nil }
         let key = "\(pid)|\(window?.id ?? 0)|\(LayerResolver.tabKey(window?.title))|\(ttys.sorted())"
-        return kakuFocus.get(key) { KakuQuery(runner: runner, cli: cli).focusedTTY(pid: pid) }
+        return kakuFocus.get(key) { KakuQuery(runner: runner, cli: cli).focusedTTY(pid: pid, title: window?.title) }
     }
 
     /// Live keys of the server `server` (`TmuxArgs.server` of the client's argv), merged into `p`.
@@ -217,6 +244,8 @@ public struct ContextEngine: @unchecked Sendable {
 @MainActor public final class ContextMonitor: ObservableObject {
     @Published public private(set) var context = Context()
     var engine: ContextEngine
+    /// how the last compute found the stack (`ContextEngine.trace`), for Copy Debug Info
+    public var trace: [String] { engine.trace.lines }
     let queue = DispatchQueue(label: "dev.sanketa.context", qos: .utility)
     var timer: Timer?
     var busy = false
