@@ -7,7 +7,7 @@ XCODE_DATA := build/xcode
 # the same zip with a name that does not change, so releases/latest/download/Sanketa.zip always works
 STABLE_ZIP := dist/Sanketa.zip
 
-.PHONY: test test-focus test-mlx build lint shots bundle app release unpublished zip publish run relaunch dev dev-relaunch install cask verify gatekeeper remote-setup
+.PHONY: test test-focus test-mlx build lint shots bundle app release unpublished zip publish run relaunch dev dev-relaunch install cask verify gatekeeper remote-setup ship
 
 # Values from the command line go to recipes only through the environment ("$$FILTER"), so the shell never parses
 # them. Each value must also pass this check, which reads the raw text with $(value) and so never expands it.
@@ -41,12 +41,12 @@ endif
 NOTES := dist/notes-$(VERSION).md
 PACKS ?= Resources/Packs
 TAP ?= ../homebrew-tap
-$(foreach v,FILTER PACKS SHOTS INSTALL_DIR ZIP APP XCODE_DATA STABLE_ZIP NOTES TAP,$(call check_var,$v,$(SAFE_CHARS))$(call check_dash,$v))
+$(foreach v,FILTER PACKS SHOTS INSTALL_DIR ZIP APP XCODE_DATA STABLE_ZIP NOTES TAP V,$(call check_var,$v,$(SAFE_CHARS))$(call check_dash,$v))
 $(call check_var,HOST,$(SAFE_CHARS) @ :)$(call check_dash,HOST)
 $(foreach v,SIGN_ID RELEASE_ID,$(call check_identity,$v))
-export FILTER PACKS SHOTS HOST INSTALL_DIR ZIP SIGN_ID RELEASE_ID TAP
+export FILTER PACKS SHOTS HOST INSTALL_DIR ZIP SIGN_ID RELEASE_ID TAP V
 
-# release and publish notarize and upload, so they refuse make -n, make -i and their other forms
+# release, publish and ship notarize and upload, so they refuse make -n, make -i and their other forms
 include $(MK_DIR)no-dry-run.mk
 
 # FILTER=<name> runs only the tests whose names match (letters, digits and _ . / - only)
@@ -157,3 +157,10 @@ gatekeeper:
 remote-setup:
 	@if [ -z "$$HOST" ]; then echo "usage: make remote-setup HOST=<ssh destination, e.g. me@gpubox>"; exit 2; fi
 	scripts/remote-setup.sh "$$HOST"
+
+# V=<version> runs each step of a release with scripts/ship.sh: make test, then the app version goes to V, then one commit
+# and a push of main, then publish (release, notarize, staple, check, GitHub release) and cask, then one commit in the tap
+# and a push. A step that fails before the commit puts Info.plist back as it was, and a second run skips what is done
+# already, so make ship V=<version> can always run again.
+ship:
+	MAKE="$(MAKE)" scripts/ship.sh

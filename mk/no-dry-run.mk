@@ -1,4 +1,4 @@
-# make -n still runs recipe lines that hold $(MAKE), and release and publish notarize and upload, so they refuse a
+# make -n still runs recipe lines that hold $(MAKE), and release, publish and ship notarize and upload, so they refuse a
 # dry run. GNU make 3.81 can put the flags in any word (" --no-print-directory -n"), and make 4 adds "-- VAR=value".
 # A dry run is --dry-run, --just-print or --recon, or a short-flag word (only letters after one -) with an n in it.
 # make -i (--ignore-errors) goes on after a failed line, so a failed notarization or check could still upload: an i
@@ -10,11 +10,11 @@ override ndr_flags = $(if $1,$(if $(filter --,$(firstword $1)),,$(firstword $1) 
 # a short-flag word without its one leading -, or nothing for long options and words with digits or other signs
 override ndr_short = $(foreach w,$(filter-out --%,$1),$(foreach s,$(patsubst -%,%,$w),$(if $(call ndr_strip,$s,$(ndr_letters)),,$s)))
 override ndr_words := $(call ndr_flags,$(MAKEFLAGS))
-ifneq (,$(filter release publish,$(MAKECMDGOALS)))
+ifneq (,$(filter release publish ship,$(MAKECMDGOALS)))
 ifneq (,$(filter --dry-run --just-print --recon,$(ndr_words))$(findstring n,$(call ndr_short,$(ndr_words))))
-$(error release and publish do not run with -n)
+$(error release, publish and ship do not run with -n)
 endif
 ifneq (,$(filter --ignore-errors,$(ndr_words))$(findstring i,$(call ndr_short,$(ndr_words))))
-$(error release and publish do not run with -i)
+$(error release, publish and ship do not run with -i)
 endif
 endif

@@ -488,6 +488,7 @@ make app         # build and sign build/Sanketa.app
 make verify      # check the bundle and its signature
 make release     # sign with Developer ID and make dist/Sanketa-<version>.zip
 make gatekeeper  # ask Gatekeeper if it accepts the bundle
+make ship V=<version>  # test, set the version, publish the release and update the cask
 ```
 
 The app also has command-line modes:
@@ -527,6 +528,8 @@ Without credentials, `make release` stops, because Gatekeeper rejects a zip that
 Releases are signed and notarized only on the maintainer's Mac. GitHub has no signing keys or notary keys. To publish a release, push main first, then run `make publish`. If the release of this version is on GitHub already, it stops before it builds anything. Else it runs `make release`, and then it checks the ticket again. If the check fails, it stops before it uploads. Then it uses `gh release create --target main` to make the release `v<version>`. This also pushes the tag. The release has two zips with the same contents: `Sanketa-<version>.zip` and `Sanketa.zip`. The name `Sanketa.zip` does not change, so the download button always gets the latest release.
 
 After a release, run `make cask`. It gets `Sanketa-<version>.zip` from the GitHub release, and it writes the version and the SHA-256 hash of that zip into the cask in the [tap](https://github.com/vedicreader/homebrew-tap). It does not use the zip in `dist/`, because a second `make release` makes a zip with a different hash. The tap is at `../homebrew-tap` by default; set `TAP=<folder>` for another folder. Then commit and push the tap.
+
+`make ship V=<version>` does all of a release in one step. It runs on main only. Both this repo and the tap must have no uncommitted changes. First it runs `make test`. Then it sets `CFBundleShortVersionString` in `Resources/Info.plist` to V and adds 1 to `CFBundleVersion`. It commits this as `Version <version>` and pushes main. Then it runs `make publish` and `make cask`. Last, it commits the cask as `Sanketa <version>` in the tap and pushes the tap. The script is `scripts/ship.sh`. When a step fails before the commit, the script puts `Info.plist` back as it was. A second run skips each step that is done already. It does not publish again when `v<version>` is on GitHub already. So you can always run `make ship V=<version>` again. `make -n` and `make -i` do not run `ship`.
 
 The GitHub Actions job builds and tests each push to main and each pull request. It uploads a bundle with an ad-hoc signature as `Sanketa-<sha>.zip`. The job does not make or change a release.
 

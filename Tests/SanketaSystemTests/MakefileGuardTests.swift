@@ -35,6 +35,8 @@ import Testing
                      ["bundle", "XCODE_DATA=x;touch \(marker.path)"], ["test-mlx", "XCODE_DATA=$(shell touch \(marker.path))"],
                      ["bundle", "XCODE_DATA=`id`"], ["verify", "APP=x;id"], ["bundle", "XCODE_DATA=-x"], ["zip", "STABLE_ZIP=x;touch \(marker.path)"],
                      ["zip", "NOTES=x;touch \(marker.path)"], ["zip", "NOTES=-x"],
+                     // ship gives V to scripts/ship.sh through the environment
+                     ["ship", "V=0.1;touch \(marker.path)"], ["ship", "V=$(shell touch \(marker.path))"], ["ship", "V=-1"],
                      // the check's own variables are override, so the command line cannot turn the check off
                      ["test", "FILTER=x;id", "check_var="], ["test", "FILTER=x;id", "SAFE_CHARS=x ; i d"], ["test", "FILTER=x;id", "strip_chars="]] {
             let r = try await make(args)
@@ -81,12 +83,12 @@ import Testing
                                  ["-n", "ndr_words="], ["-n", "ndr_short=", "ndr_flags="], ["-n", "ndr_letters=x"]]
         for args in cases {
             let r = try await guardMake(args)
-            #expect(r.status == 2 && r.err.contains("release and publish do not run with -n"), "\(args): \(r.out) \(r.err)")
+            #expect(r.status == 2 && r.err.contains("release, publish and ship do not run with -n"), "\(args): \(r.out) \(r.err)")
             #expect(!r.out.contains("ran"), "\(args): \(r.out)")
         }
         for flags in ["n", "-n", "--dry-run", "--dry-run --no-print-directory"] {
             let r = try await guardMake([], makeflags: flags)
-            #expect(r.status == 2 && r.err.contains("release and publish do not run with -n"), "MAKEFLAGS=\(flags): \(r.out) \(r.err)")
+            #expect(r.status == 2 && r.err.contains("release, publish and ship do not run with -n"), "MAKEFLAGS=\(flags): \(r.out) \(r.err)")
             #expect(!r.out.contains("ran"), "MAKEFLAGS=\(flags): \(r.out)")
         }
     }
@@ -100,17 +102,24 @@ import Testing
                                  ["-i", "ndr_words="], ["-i", "ndr_short=", "ndr_flags="], ["-i", "ndr_letters=x"]]
         for args in cases {
             let r = try await guardMake(args)
-            #expect(r.status == 2 && r.err.contains("release and publish do not run with -i"), "\(args): \(r.out) \(r.err)")
+            #expect(r.status == 2 && r.err.contains("release, publish and ship do not run with -i"), "\(args): \(r.out) \(r.err)")
             #expect(!r.out.contains("ran"), "\(args): \(r.out)")
         }
         for flags in ["i", "-i", "ki", "--ignore-errors", "--ignore-errors --no-print-directory", "-k -i"] {
             let r = try await guardMake([], makeflags: flags)
-            #expect(r.status == 2 && r.err.contains("release and publish do not run with -i"), "MAKEFLAGS=\(flags): \(r.out) \(r.err)")
+            #expect(r.status == 2 && r.err.contains("release, publish and ship do not run with -i"), "MAKEFLAGS=\(flags): \(r.out) \(r.err)")
             #expect(!r.out.contains("ran"), "MAKEFLAGS=\(flags): \(r.out)")
         }
         // -n with -i: refused, by the first check
         let both = try await guardMake(["-n", "-i"])
         #expect(both.status == 2 && !both.out.contains("ran"), "\(both.out) \(both.err)")
+    }
+
+    /// ship commits, pushes and publishes, so make -n ship must not run scripts/ship.sh.
+    @Test func shipRefusesDryRun() async throws {
+        let r = try await make(["ship", "V=0.0.1"])
+        #expect(r.status == 2 && r.err.contains("release, publish and ship do not run with -n"), "\(r.out) \(r.err)")
+        #expect(!r.out.contains("ship.sh"), "\(r.out)")
     }
 
     @Test func dryRunGuardLetsRealRunsThrough() async throws {
