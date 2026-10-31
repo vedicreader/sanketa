@@ -8,7 +8,7 @@ import Testing
 
     @Test func tmuxQueryLiveKeysFromRealServer() throws {
         let s = sock("k"), r = ProcessRunner()
-        defer { _ = r.run(tmuxBin, ["-L", s, "kill-server"], timeout: 10.0) }
+        defer { stopTmux(s, timeout: 10.0) }
         _ = try #require(r.run(tmuxBin, ["-L", s, "-f", "/dev/null", "new", "-d", "-s", "t"], timeout: 3.0))
         let q = TmuxQuery(runner: r, socket: s)
         let live = q.liveKeys(tmux: tmuxBin)
@@ -22,7 +22,7 @@ import Testing
     /// Every key of the bundled tmux pack merged with a live server's bindings renders without tmux notation.
     @Test func keyNotationCoversLiveTmuxKeys() throws {
         let s = sock("n"), r = ProcessRunner()
-        defer { _ = r.run(tmuxBin, ["-L", s, "kill-server"], timeout: 10.0) }
+        defer { stopTmux(s, timeout: 10.0) }
         _ = try #require(r.run(tmuxBin, ["-L", s, "-f", "/dev/null", "new", "-d", "-s", "t"], timeout: 3.0))
         let packs = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("Resources/Packs")
@@ -38,7 +38,7 @@ import Testing
 
     @Test func tmuxQueryClientsEmptyWhenNoneAttached() throws {
         let s = sock("c"), r = ProcessRunner()
-        defer { _ = r.run(tmuxBin, ["-L", s, "kill-server"], timeout: 10.0) }
+        defer { stopTmux(s, timeout: 10.0) }
         _ = try #require(r.run(tmuxBin, ["-L", s, "-f", "/dev/null", "new", "-d", "-s", "t"], timeout: 3.0))
         #expect(TmuxQuery(runner: r, socket: s).clients(tmux: tmuxBin).isEmpty)
     }

@@ -40,10 +40,7 @@ import Testing
     }
 
     @Test func resolveRealNestedTmuxHtop() async throws {
-        defer {
-            _ = tmux(inner, ["kill-server"])
-            _ = tmux(outer, ["kill-server"])
-        }
+        defer { stopTmux(inner, outer) }
         let server = try startOuter(["/opt/homebrew/bin/fish", "--no-config"])
         // SHELL makes the inner server's default shell fish regardless of the user's login shell.
         _ = try #require(tmux(outer, ["send-keys", "-t", "outer",
@@ -63,7 +60,7 @@ import Testing
     }
 
     @Test func resolveRealSingleTTY() async throws {
-        defer { _ = tmux(outer, ["kill-server"]) }
+        defer { stopTmux(outer) }
         let server = try startOuter(["/bin/sleep", "30"])
         let s = await snapshot { $0.children(of: server).contains { $0.name == "sleep" } }
         let res = LayerResolver(library: try library(), tmux: TmuxQuery(runner: r, socket: inner), remote: nil)
@@ -74,10 +71,7 @@ import Testing
 
     /// Two tabs (outer panes): one runs an inner tmux client, the other plain fish; no title, so no guessed tmux layer.
     @Test func resolveRealTwoTabsDoesNotGuessTmux() async throws {
-        defer {
-            _ = tmux(inner, ["kill-server"])
-            _ = tmux(outer, ["kill-server"])
-        }
+        defer { stopTmux(inner, outer) }
         // the tmux tab is the newer one, so the old newest-process fallback would have picked it
         let server = try startOuter(["/opt/homebrew/bin/fish", "--no-config"])
         _ = try #require(tmux(outer, ["new-window", "-d", "-t", "outer:1", "/opt/homebrew/bin/fish", "--no-config"]))

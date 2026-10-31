@@ -134,7 +134,7 @@ import Testing
         let pc = try #require(run(["HOME=\(home.path)"], ["/bin/bash", "--noprofile", "-i", "-c", "echo \"pc=$PROMPT_COMMAND\""]))
         #expect(pc == "pc=eval \"$__sanketa_on_prompt\"\n")
         let sock = "sanketa-test-\(ProcessInfo.processInfo.processIdentifier)-setup"
-        defer { _ = r.run(tmuxBin, ["-L", sock, "kill-server"], timeout: 3) }
+        defer { stopTmux(sock, timeout: 3) }
         _ = try #require(run(["HOME=\(home.path)"], [tmuxBin, "-L", sock, "-f", tmuxConf.path, "new", "-d", "-s", "s"]))
         let opt = { (o: String) in self.r.run(tmuxBin, ["-L", sock, "show", "-gv", o], timeout: 3)?
             .trimmingCharacters(in: .whitespacesAndNewlines) }

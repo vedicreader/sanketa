@@ -15,10 +15,7 @@ import Testing
     func tmux(_ sock: String, _ args: [String]) -> String? { r.run(tmuxBin, ["-L", sock] + args, timeout: 15.0) }   // 15 s: room for a busy Mac
 
     @Test func contextEngineRealTerminalStandIn() async throws {
-        defer {
-            _ = tmux(inner, ["kill-server"])
-            _ = tmux(outer, ["kill-server"])
-        }
+        defer { stopTmux(inner, outer) }
         let lib = PackLibrary.load(bundled: Self.packs, user: nil)
         try #require(lib.errors.isEmpty && lib.packs["tmux"] != nil)
         _ = try #require(tmux(outer, ["-f", "/dev/null", "new", "-d", "-s", "outer", "-x", "200", "-y", "50",
@@ -52,7 +49,7 @@ import Testing
     /// A read before the server is up gives no live keys; it must not hide the live keys for the cache's 30 s.
     @Test func emptyLiveKeysAreNotCached() throws {
         let sock = "sanketa-test-\(ProcessInfo.processInfo.processIdentifier)-ce-late"
-        defer { _ = tmux(sock, ["kill-server"]) }
+        defer { stopTmux(sock) }
         let lib = PackLibrary.load(bundled: Self.packs, user: nil)
         let base = try #require(lib.packs["tmux"])
         let e = ContextEngine(config: Config(), library: lib, tmuxSocket: sock)

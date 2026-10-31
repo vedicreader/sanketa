@@ -44,7 +44,7 @@ import Testing
 
     /// Every bundled tmux key is a default binding of a real tmux 3.x server with no config, so live merge keeps its label.
     @Test func bundledTmuxKeysAreRealDefaults() async throws {
-        defer { _ = tmux(plain, ["kill-server"]) }
+        defer { stopTmux(plain) }
         _ = try #require(tmux(plain, ["-f", "/dev/null", "new", "-d", "-s", "p"]))
         let live = Tmux.parseKeys(try #require(tmux(plain, ["list-keys"])))
         let pack = try #require(try library().packs["tmux"])
@@ -57,11 +57,7 @@ import Testing
 
     /// fish → inner tmux → htop, as a real nested pane, resolves to the bundled pack ids; nvim in a pane maps to vim.
     @Test func bundledPacksActivateForRealProcesses() async throws {
-        defer {
-            _ = tmux(inner, ["kill-server"])
-            _ = tmux(outer, ["kill-server"])
-            _ = tmux(plain, ["kill-server"])
-        }
+        defer { stopTmux(inner, outer, plain) }
         let lib = try library()
         _ = try #require(tmux(outer, ["-f", "/dev/null", "new", "-d", "-s", "outer", "-x", "200", "-y", "50",
                                       "/opt/homebrew/bin/fish", "--no-config"]))
@@ -112,7 +108,7 @@ import Testing
 
     /// ramabana runs its own tmux server whose argv names the script, so that client resolves to ramabana, not tmux.
     @Test func ramabanaPrivateTmuxResolvesToRamabana() async throws {
-        defer { _ = tmux(plain, ["kill-server"]) }
+        defer { stopTmux(plain) }
         let lib = try library()
         let script = try tempDir().appendingPathComponent("bin/ramabana").path
         _ = try #require(tmux(plain, ["-f", "/dev/null", "new", "-d", "-s", "r", "sh", "-c", "sleep 30", "ramabana", script]))

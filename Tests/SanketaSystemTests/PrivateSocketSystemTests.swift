@@ -52,7 +52,7 @@ import Testing
 
     /// htop in a pane of a private server: the resolver finds the pane through the client's `-L` argument.
     @Test func resolverFindsPaneThroughClientArgv() async throws {
-        defer { _ = tmux(inner, ["kill-server"]); _ = tmux(outer, ["kill-server"]) }
+        defer { stopTmux(inner, outer) }
         let server = try await start(innerCommand: "/opt/homebrew/bin/htop -d 50", conf: try conf(), fg: "htop")
         let lib = PackLibrary.load(bundled: Self.packs, user: nil)
         let res = LayerResolver(library: lib, tmux: TmuxQuery(runner: r), remote: nil)
@@ -64,7 +64,7 @@ import Testing
 
     /// The engine, with no socket set, shows the pane and takes the live keys from the private server's config.
     @Test func engineLiveKeysComeFromThePrivateServer() async throws {
-        defer { _ = tmux(inner, ["kill-server"]); _ = tmux(outer, ["kill-server"]) }
+        defer { stopTmux(inner, outer) }
         let server = try await start(innerCommand: "/opt/homebrew/bin/htop -d 50", conf: try conf(), fg: "htop")
         var config = Config()
         config.terminals = ["test.terminal"]
@@ -79,7 +79,7 @@ import Testing
     /// ramabana's shape: a private server whose argv names bin/ramabana. The pane's layer is ramabana; the client's
     /// tmux layer has the same pack, so it shows once.
     @Test func ramabanaPaneShowsAboveItsTmux() async throws {
-        defer { _ = tmux(inner, ["kill-server"]); _ = tmux(outer, ["kill-server"]) }
+        defer { stopTmux(inner, outer) }
         let script = try conf().deletingLastPathComponent().appendingPathComponent("bin/ramabana").path
         // `; :` keeps sh alive (no exec of sleep), as ramabana's script keeps its interpreter alive
         let server = try await start(innerCommand: "sh -c 'sleep 30; :' ramabana \(script)", conf: try conf(), fg: "bash")
