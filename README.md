@@ -6,8 +6,7 @@ Sanketa is a Mac menu-bar app. It shows the keys of the program that you use now
 
 [![Download for macOS](https://img.shields.io/badge/Download_for_macOS-Sanketa.zip-0A84FF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/vedicreader/sanketa/releases/latest/download/Sanketa.zip) [![build](https://github.com/vedicreader/sanketa/actions/workflows/build.yml/badge.svg)](https://github.com/vedicreader/sanketa/actions/workflows/build.yml)
 
-<!-- hero.gif shows drawn panels. To use a real screen recording, follow docs/media/SHOTLIST.md and replace docs/media/hero.gif. -->
-<img src="docs/media/hero.gif" width="420" alt="The Sanketa panel for yazi, htop in tmux, a search, a held Caps combo and Finder">
+<img src="docs/media/hero.gif" width="760" alt="Kaku with fish, then htop, then tmux: the Sanketa panel shows the keys of each, and a search for split pane finds the tmux keys">
 
 The name is Sanskrit for "hint" or "signal".
 
