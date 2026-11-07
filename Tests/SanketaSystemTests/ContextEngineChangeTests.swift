@@ -182,15 +182,17 @@ import Testing
         #expect(r.count("ramabana-6a36be8b") == 1, "one tmux list-clients for 10 polls")
     }
 
-    /// Copy Debug Info tells which tty the engine chose and what each tmux server answered, so a wrong stack shows
-    /// where it went wrong.
+    /// Copy Debug Info tells which tty the engine chose, how each tmux command ran and what each tmux server answered,
+    /// so a wrong stack shows where it went wrong.
     @Test func traceNamesTheTTYAndTheTmuxAnswer() {
         let r = Runner(), w = World(), e = engine(r, w)
-        _ = kakuCompute(e)
-        #expect(e.trace.lines == ["tty: ttys010", "tmux -L ramabana-6a36be8b clients: ttys010 > ttys000 bash"])
-        let report = DebugInfo.report(version: "t", context: kakuCompute(e), library: PackLibrary(packs: [:]), configPath: "c",
+        let context = kakuCompute(e)
+        let lines = ["tty: ttys010", "run tmux -L ramabana-6a36be8b list-clients: ok",
+                     "tmux -L ramabana-6a36be8b clients: ttys010 > ttys000 bash"]
+        #expect(e.trace.lines == lines)
+        let report = DebugInfo.report(version: "t", context: context, library: PackLibrary(packs: [:]), configPath: "c",
                                       configError: nil, trace: e.trace.lines)
-        #expect(report.contains("trace:\n  tty: ttys010\n  tmux -L ramabana-6a36be8b clients: ttys010 > ttys000 bash\n"))
+        #expect(report.contains("trace:\n" + lines.map { "  \($0)\n" }.joined()))
         _ = e.compute(pid: 4242, bundleID: "org.example.app", appName: "App")
         #expect(e.trace.lines.isEmpty, "an app that is not a terminal has no trace")
     }

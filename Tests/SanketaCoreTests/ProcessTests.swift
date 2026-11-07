@@ -56,6 +56,22 @@ func loadSnapshot(_ name: String) throws -> ProcessSnapshot {
         #expect(ProcessRunner().run("/usr/bin/false", [], timeout: 1.0) == nil)
     }
 
+    /// `report` tells why a run gave no output: the exit status with the first line of stderr, no exit, output that
+    /// stays open, or a start that failed.
+    @Test func runnerReportSaysWhy() {
+        let r = ProcessRunner()
+        let bad = r.report("/bin/sh", ["-c", "echo first >&2; echo second >&2; exit 3"], timeout: 5.0)
+        #expect(bad.out == nil && bad.how.hasPrefix("exit 3 in ") && bad.how.hasSuffix(" ms: first"), "\(bad.how)")
+        let ok = r.report("/bin/echo", ["hi"], timeout: 5.0)
+        #expect(ok.out == "hi\n" && ok.how.hasPrefix("exit 0 in ") && ok.how.hasSuffix(" ms"), "\(ok.how)")
+        let slow = r.report("/bin/sleep", ["5"], timeout: 0.2)
+        #expect(slow.out == nil && slow.how == "no exit after 0.2 s", "\(slow.how)")
+        let held = r.report("/bin/sh", ["-c", "/bin/sleep 3 & echo hi"], timeout: 5.0)
+        #expect(held.out == nil && held.how == "exit 0, output still open after 1 s", "\(held.how)")
+        let none = r.report("/nonexistent/tmux", [], timeout: 5.0)
+        #expect(none.out == nil && none.how.hasPrefix("did not start: "), "\(none.how)")
+    }
+
     @Test func runnerLargeOutput() {
         let out = ProcessRunner().run("/bin/sh", ["-c", "head -c 200000 /dev/zero | tr '\\0' a"], timeout: 5.0)
         #expect(out?.count == 200000)

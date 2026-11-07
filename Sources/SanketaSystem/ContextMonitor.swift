@@ -39,6 +39,17 @@ struct TracedTmux: TmuxQuerying {
     func liveKeys(tmux: String, server: [String]) -> (prefix: String?, keys: [KeyEntry]) { base.liveKeys(tmux: tmux, server: server) }
 }
 
+/// Passes each run to `base` and adds how it went (`CommandRunning.report`) to `trace`, without the `-F` format.
+struct TracedRunner: CommandRunning {
+    let base: CommandRunning, trace: Trace
+    func run(_ path: String, _ args: [String], timeout: TimeInterval) -> String? {
+        let r = base.report(path, args, timeout: timeout)
+        let shown = args.indices.filter { args[$0] != "-F" && ($0 == 0 || args[$0 - 1] != "-F") }.map { args[$0] }
+        trace.add((["run", (path as NSString).lastPathComponent] + shown).joined(separator: " ") + ": " + r.how)
+        return r.out
+    }
+}
+
 /// Time-limited cache shared by copies of a `ContextEngine`.
 final class TTLCache<K: Hashable, V>: @unchecked Sendable {
     let ttl: TimeInterval
@@ -129,7 +140,8 @@ public struct ContextEngine: @unchecked Sendable {
     let kakuFocus = LastAnswer<String, String?>(retry: ContextEngine.kakuRetry) { $0 == nil }
     static let kakuRetry: TimeInterval = 10
     let tmuxClients = TmuxClientStore()
-    /// how the last compute found the stack: the chosen tty and each tmux answer; empty for an app that is not a terminal
+    /// how the last compute found the stack: the chosen tty, how each tmux command ran and each tmux answer; empty for
+    /// an app that is not a terminal
     public let trace = Trace()
     // the outside world; tests put stand-ins here
     var runner: CommandRunning = ProcessRunner()
@@ -161,7 +173,8 @@ public struct ContextEngine: @unchecked Sendable {
             title = w?.title
             let ttys = s.ttys(under: pid), focused = focusedTTY(pid: pid, bundleID: bundleID, window: w, ttys: ttys)
             trace.set(["tty: " + (focused ?? "not chosen, \(ttys.count) ttys")])
-            let tmux = TracedTmux(base: CachedTmux(base: self.tmux, store: tmuxClients, state: CachedTmux.state(s, title: title, window: w?.id)),
+            let traced = TmuxQuery(runner: TracedRunner(base: runner, trace: trace), socket: tmuxSocket)
+            let tmux = TracedTmux(base: CachedTmux(base: traced, store: tmuxClients, state: CachedTmux.state(s, title: title, window: w?.id)),
                                   trace: trace)
             layers = LayerResolver(library: library, tmux: tmux, remote: remote)
                 .resolve(s, terminal: TerminalContext(pid: pid, bundleID: bundleID, appName: appName, windowTitle: title, focusedTTY: focused))
