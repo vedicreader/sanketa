@@ -148,7 +148,7 @@ When a context is active:
 
 If the title has no token, or no context has the token, the panel shows the pack as it does without contexts.
 
-Leela puts the focused pane at the end of its title, as in `2⚙ (!) · leela — sanketa · notebook`. The bundled Leela pack has this regex, and contexts such as this one:
+Leela puts the focused pane at the end of its title, as in `2⚙ (!) · Leela · sanketa · notebook`. Leela 0.1.26 and older use titles such as `2⚙ (!) · leela — sanketa · notebook`, and the pack reads both. The bundled Leela pack has this regex, and contexts such as this one:
 
 ```toml
 id = "leela"
@@ -165,7 +165,7 @@ The last part of the regex lets a browser add its name after the title, as Chrom
 
 ### An app in a browser
 
-An app can also run in a browser tab. Use `titles` to find it there. The browser in front must be in `title_apps`, and its window title must match one of the `titles` regexes. Then Sanketa shows the pack above the menu keys of the browser. The contexts of the pack also work there. A pack whose `apps` has the browser bundle id has priority. Make the `titles` regex match the full title of the app, from `^` to `$`. A short regex such as `leela` also matches a web page about Leela. The bundled Leela pack accepts only the shape of a Leela title, with or without the ` - Google Chrome – <profile>` part that Chrome adds.
+An app can also run in a browser tab. Use `titles` to find it there. The browser in front must be in `title_apps`, and its window title must match one of the `titles` regexes. Then Sanketa shows the pack above the menu keys of the browser. The contexts of the pack also work there. A pack whose `apps` has the browser bundle id has priority. Make the `titles` regex match the full title of the app, from `^` to `$`. A short regex such as `leela` also matches a web page about Leela. The bundled Leela pack accepts only the shape of a Leela title, with or without the ` - Google Chrome – <profile>` part that Chrome adds. A bare `Leela` or `leela` does not match.
 
 In a normal Chrome tab, Chrome keeps some keys for itself, such as ⌘T, ⌘W and ⌘1 to ⌘9. Leela also uses some of these keys, but in a tab they go to Chrome. The panel shows the Leela key all the same. Use Leela.app or `leela --app` to get all the Leela keys.
 

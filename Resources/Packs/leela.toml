@@ -4,14 +4,16 @@ name = "Leela"
 apps = ["org.vedicreader.leela"]
 processes = []
 match = []
-# Leela titles its window `[<agent marks> · ]leela — <folder> · <scope>`. In a browser the title can end in
-# ` - Google Chrome – <profile>`, so the scope regex allows that tail (no ` · ` in it).
+# Leela titles its window `[<agent marks> · ]Leela · <folder> · <scope>`. Leela 0.1.26 and older use
+# `[<agent marks> · ]leela — <folder> · <scope>`. The scope is the last ` · ` token in both. In a browser the title can
+# end in ` - Google Chrome – <profile>`, so the scope regex allows that tail (no ` · ` in it).
 title_scope = ' · ([a-z]+(?::[a-z0-9]+)?)(?: [-–] [^·]*)?$'
 # Leela in a browser tab (plain `leela`, or `leela --app` in Chrome); title_apps keeps the default browser list.
-# The whole title must have Leela's shape: optional agent marks, `leela`, an optional folder (with a space only
-# when a scope follows), an optional scope, and Chrome's optional ` - Google Chrome – <profile>`.
-# A tab such as `leela — a review` or `leela - Google Search` does not match.
-titles = ['^(?:(?:\d+⚙)?(?: ?\(!\))? · )?leela(?: — [^\s·]+| — [^·]+(?= · [a-z]))?(?: · [a-z]+(?::[a-z0-9]+)?)?(?: - Google Chrome(?: – [^·]*)?)?$']
+# The whole title must have Leela's shape: optional agent marks, `Leela` or `leela`, then a scope after one of
+# ` · <folder>` (any text but ` · `), the old ` — <folder>` (a space in it only when a scope follows), or nothing.
+# Chrome's ` - Google Chrome – <profile>` can follow.
+# A tab such as `leela — a review`, `leela - Google Search` or a bare `Leela` does not match.
+titles = ['^(?:(?:\d+⚙)?(?: ?\(!\))? · )?[Ll]eela(?: — [^\s·]+(?: · [a-z]+(?::[a-z0-9]+)?)?| — [^·]+ · [a-z]+(?::[a-z0-9]+)?| · (?:(?:(?! · ).)+ · )?[a-z]+(?::[a-z0-9]+)?)(?: - Google Chrome(?: – [^·]*)?)?$']
 
 # Leela's shipped defaults (leela/core/keys.py), in Leela's chord syntax, with the action id in `command`.
 # At load Sanketa overlays ~/.config/leela/keys.json (or $LEELA_KEYMAP): `keys` overrides win, "" hides the entry,

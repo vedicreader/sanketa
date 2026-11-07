@@ -89,6 +89,13 @@ import Testing
         ("leela — orgs · py", "py"),
         ("leela · terminal", "terminal"),
         ("leela — orgs · vars - Google Chrome – Work", "vars"),
+        ("Leela · karma · notebook", "notebook"),
+        ("2⚙ (!) · Leela · karma · notebook", "notebook"),
+        ("Leela · karma · files", "files"),
+        ("Leela · loose · editor", "editor"),
+        ("Leela · my - project · editor:md", "editor:md"),
+        ("Leela · 10.03.12\u{202F}PM shots · editor:png", "editor:png"),
+        ("1⚙ · Leela · karma · terminal - Google Chrome – Sam (Work)", "terminal"),
     ])
     func scopeTokenFromRealTitles(_ title: String, _ token: String) {
         #expect(pack.scopeToken(title: title) == token)
@@ -106,6 +113,8 @@ import Testing
         #expect(pack.activeContext(title: "leela — orgs · editor:md")?.name == "markdown")   // exact token first
         #expect(pack.activeContext(title: "leela — orgs · editor:toml")?.name == "editor")   // then `editor`
         #expect(pack.activeContext(title: "leela — orgs · web") == nil)
+        #expect(pack.activeContext(title: "(!) · Leela · karma · notebook")?.name == "notebook")
+        #expect(pack.activeContext(title: "Leela · karma · editor:md")?.name == "markdown")
         #expect(pack.activeContext(title: nil) == nil)
     }
 
@@ -145,23 +154,32 @@ import Testing
         #expect(r.resolveApp(bundleID: "com.google.Chrome", name: "Google Chrome", title: "Inbox").map(\.name) == ["Google Chrome"])
     }
 
-    /// The bundled Leela `titles` regex takes only Leela's title shape. The Chrome tail is the real format,
+    /// The bundled Leela `titles` regex takes only Leela's title shape: the new `Leela · <folder> · <scope>`
+    /// and the old `leela — <folder> · <scope>` of Leela 0.1.26. The Chrome tail is the real format,
     /// ` - Google Chrome – <profile>`, read from a running Chrome; the page part here is made up.
     @Test func leelaTitlesMatchOnlyLeela() throws {
         let lib = PackLibrary.load(bundled: bundledPacksDir, user: nil)
         let p = try #require(lib.packs["leela"])
         let chrome = " - Google Chrome – Sam (Work)"
-        for t in ["leela", "leela · py", "leela — sanketa", "leela — sanketa · notebook", "2⚙ (!) · leela — sanketa · notebook",
-                  "(!) · leela — orgs · agent", "2⚙ · leela — orgs · editor:md", "leela — my project · vars"] {
+        let old = ["leela · py", "leela — sanketa", "leela — sanketa · notebook", "2⚙ (!) · leela — sanketa · notebook",
+                   "(!) · leela — orgs · agent", "2⚙ · leela — orgs · editor:md", "leela — my project · vars"]
+        let new = ["Leela · karma · notebook", "Leela · karma · files", "2⚙ (!) · Leela · karma · notebook",
+                   "(!) · Leela · karma · files", "1⚙ · Leela · loose · editor", "Leela · my project v2.0 · editor:md",
+                   "Leela · 10.03.12\u{202F}PM shots · editor:png", "Leela · कर्म · notebook", "Leela · leela · editor",
+                   "Leela · karma — old · py", "Leela · terminal", "leela · karma · vault"]
+        for t in old + new {
             #expect(p.hosted(in: "com.google.Chrome", title: t), "\(t)")
             #expect(p.hosted(in: "com.google.Chrome", title: t + chrome), "\(t + chrome)")
             #expect(p.hosted(in: "com.apple.Safari", title: t), "\(t)")
         }
         for t in ["leela — a review", "leela — a review" + chrome, "leela - Google Search" + chrome, "Blog · leela",
-                  "Leela", "leelawadee font", "Notes on leela — sanketa · py", "leela — x · Notebook"] {
+                  "Leela", "leelawadee font", "Notes on leela — sanketa · py", "leela — x · Notebook",
+                  "leela", "leela" + chrome, "Leela" + chrome, "Leela · a blog", "Leela · karma · Notebook", "Leela · karma ·",
+                  "Blog · Leela · karma · py", "Leela ·  · files", "LEELA · karma · py", "Leela — a review"] {
             #expect(!p.hosted(in: "com.google.Chrome", title: t), "\(t)")
         }
         #expect(p.activeContext(title: "2⚙ (!) · leela — sanketa · notebook" + chrome)?.name == "notebook")
+        #expect(p.activeContext(title: "2⚙ (!) · Leela · karma · notebook" + chrome)?.name == "notebook")
     }
 
     @Test func titleKeyChangesOnlyWithPackOrScope() throws {
@@ -171,6 +189,7 @@ import Testing
         #expect(k("leela — a · py") == k("2⚙ · leela — a · py") && k("leela — a · py") == "leela|py")
         #expect(k("leela — a · py") != k("leela — a · notebook"))
         #expect(lib.titleKey(bundleID: "org.vedicreader.leela", title: "leela — a") == "leela|")
+        #expect(k("Leela · a · py") == k("2⚙ · leela — a · py") && k("Leela · a · py") == "leela|py")
     }
 
     @Test func mergeKeepsContexts() throws {
@@ -203,6 +222,8 @@ import Testing
         #expect(p.activeContext(title: "leela — sanketa · vars")?.name == "variables")
         #expect(p.activeContext(title: "leela — sanketa · editor:md")?.name == "editor")
         #expect(lib.pack(hostedIn: "com.google.Chrome", title: "leela — sanketa · agent - Google Chrome")?.id == "leela")
+        #expect(p.activeContext(title: "Leela · sanketa · vars")?.name == "variables")
+        #expect(lib.pack(hostedIn: "com.google.Chrome", title: "Leela · sanketa · agent - Google Chrome")?.id == "leela")
         let run = try #require(p.keys.first { $0.command == "run_cell" })
         #expect(run.keys == "⌥R" && p.key(run, isIn: "notebook"))
     }
